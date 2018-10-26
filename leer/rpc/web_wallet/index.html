@@ -1,0 +1,304 @@
+<html>
+ <head>
+   <style>
+* {box-sizing: border-box;}
+
+body { 
+  margin: 0;
+  font-family: Arial;
+}
+
+.header {
+  overflow: hidden;
+  background-color: #f1f1f1;
+  padding: 20px 10px;
+}
+
+.header span {
+  float: left;
+  text-align: center;
+  padding: 12px;
+  text-decoration: none;
+  font-size: 18px; 
+  line-height: 25px;
+  border-radius: 4px;
+}
+
+.header span.logo {
+  font-size: 25;
+  font-weight: bold;
+  margin-right: 10px;
+  background-image: radial-gradient(ellipse at center, #e1e1e1 0, #fefefe, #f1f1f1 40px);
+}
+
+.header-right {
+  float: right;
+}
+#balance {
+  color: #050;
+}
+#unknown {
+  color: #500;
+}
+#immature {
+  color: #550;
+}
+
+
+.tabs{
+    display: inline;
+}
+
+.tabs button {
+    font-size: 20;
+    padding: 10px 20px;
+    float: left;
+    border: 0px;
+}
+.tabs button:hover {
+    background-color: #ddd;
+}
+
+.tabs button.active {
+    background-color: #ccc;
+}
+
+.tabs button.disabled {
+    color: #ddd;
+
+}
+.tabs button.disabled:hover {
+    background-color: inherit;
+}
+
+.tabcontent {
+  display: none;
+  max-width: 800px;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tabcontent.active {
+  display: block;
+}
+
+#address-field {
+  width:100%;
+}
+
+footer {
+  width: 100%;
+  height: 40px;
+  background-color: #f1f1f1;
+  position: absolute;
+  bottom: 0;
+}
+
+#progressDiv {
+    width: 400px;
+    background-color: #aaa;
+    float : right;
+    max-height: 40px;
+}
+#actualProgressDiv {
+    width: 40%;
+    height: 100%;
+    background-color: orange;
+}
+
+#syncstatus {
+    display: block;
+    width:400px;
+}
+</style>
+<script>
+function openTab(event, tabId) {
+    var i, tabcontent, tablinks;
+
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabId).style.display = "block";
+    event.currentTarget.className += " active";
+} 
+
+function basic_request(method, params, callback) {
+        
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() { 
+          example_responses = {
+            "getbalancestats":{"jsonrpc": "2.0", "result": {"matured": {"known_value": 1140061949, "known_count": 9, "unknown_count": 0}, "immatured": {"known_value": 0, "known_count": 0, "unknown_count": 0}}, "id": 1},
+            "getsyncstatus":{"jsonrpc": "2.0", "result": {"height": 26, "best_known_header": 31, "best_advertised_height": null}, "id": 1},
+            "getbalancelist":{"jsonrpc": "2.0", "result": {"AM3vHYnZ+a05idneUd5S2G3irCU7AwLkJ98Fj7TU8lAOLglP0fTA5hj3U+Zfgza518B+QErTIjWGrQIpWpOrmOxBDEeW": {"CO/9hpy2J0MP+YHE7Z0UWlqIKgNGpX6s/g89O4pClCATxf0PDK31dlvJVr1zIBvldfpiv/avCXGmPV8ixzQzJXY=": 99999285}, "APQ0eEDPjHO/hu33b5Ylqoouc074qxsbrJW1N0cy3CnsQWRhbt5zAHGWFkkldYaRNq4sqsnKz6489PjGLc43zFCkHDrt": {"CDgybBLtQQSvSbJugzd8kJ2h+d53c8t9WNBmE4eqzSoO1a5LFwHe1q/HEOLEDW8elUFgVjfuAFIyiaR2YDMI6rs=": 99999619}, "AY8bSeIBg7MhSH0yH42AI4cKDFHqlQHD2i7gFgB8U77MOnXGntpLLTI/BqC4iK1WBoQ6jSEo1wQeV+uBToA0fkq3cv4K": {"CaitRCMawl5H4ICjfBhLsADoKsIG1+XYETo17imQi7ugRvTaGlXf0js0unLMfTf25o9di5IlgemIbVDS5d+qJgs=": 99999666}, "AE33JED92f4LhpBS1ZYvHKrCURIunksMMfvzBBOPUtWXWiBScHqye9ifrZ+KnIJTPrRXLQ6B4yuRhr88gCsMk8bOqIt1": {"CCKHSn1Fv4ytXtBsJMCNm+sRCHotATAR0a3PKaXBckAXISpzdvGDBqfxY/Cj6jiwDf2cQnAIlTLEhshmRxHHmhY=": 439978000}, "AGerysffCiKqKBD1t4s+94YS+0stVBV17ZmeXcySfHs2E3n/4acQGbKLIsm3ntK1uhuQiGtF9qo1dqfxqzuoLzmQw/OI": {"CSIvlJcPyWeu1uIUHnKXc/atvbP+AfnLTn87F1vk3KHSs28U/AEmAUDfUYgWiqgChPrQBQpuWt3QBTeqYRrUtkc=": 99999380}, "AN8bBX41ZyfAG895cbmKYXX7QbWor7oSntON6vWxtl6XGgduyYJwpFm/Q1a+xDoHRVBBHU44YpXFei8cWUhHG40znkU7": {"CCOoKruLthmh0FtdTTN9ADcqC1zzkr32L83Ed4uQNcCo+WzB3oXl/wAwF6oIR3z04AtBKj5wDSt8IUTNeVspCj0=": 99999333}, "ATPmdF3NJ4oE0yiL2vtx0fbfF3AMren8Ed6emyh2S2qONL8IyJW10nkPxSpM9DTxV4B8NByblUdWNsSlifTOKEi0HI0e": {"CQQRNL+U6Gh9YHWwxgL1bIDmid8wCH2ppyrhzhB8lz9hmVq1vj+VhOIIFiMIBVv58MqPjaiS+/TPyTjCgzrfbt8=": 88000}, "AYUKF80UCU/u3QJ1wI6r9Tbf33tuqmms7e5Y54U4qje4VTnyEsF0eipA8NwHeeAsHXW7LdmCWc1cQmeaKDx1f9Fqn8Az": {"CPVCOcgS1Tqqj3acDzU3voP/DUNmuT3gCZkfsIHTEu6Eifmbes5287bKAoi5PYtiXV/Gh9IJN0a6YjWJQjirix8=": 99999428}, "AK/TWL31d5oi5KaBNQUARntRgfPj4x3axpkpi05w3dWUfFSaozRhpSRY5v00vWuPCZK3V7q6hhGKDRP+4CPZlcOVdCTc": {"CNlf8eWjt2/KPQyGl2LptCUoWAM9iJVc5ym2Go3yE5myA21ZBz/YkJeZ9hhVMvZ/SkYiSOjxMRC4iFZ98XfJ+2w=": 99999238}}, "id": 1},
+            "getnewaddress": [{"jsonrpc": "2.0", "result": "ATk1CFWiYnlhXcWK9XgiUp2KBiRUGC39poTdzAQe3drHOfkB4z/vxmdnHHPa2FvgrRkju/QGYd9iNO8CGuFLm4QvPEir", "id": 1}, {"jsonrpc": "2.0", "error": "No registered key manager", "id": 1}],
+            "sendtoaddress": [{"jsonrpc": "2.0", "result": "generated", "id": 1}, {"jsonrpc": "2.0", "error": "Not enough matured coins", "id": 1}, {"jsonrpc": "2.0", "error": "No registered key manager", "id": 1} ] 
+          }
+           
+          if (xhr.readyState == 4 && xhr.status == 200)
+              callback(JSON.parse(xhr.responseText)['result']);
+          //stubs
+          else { 
+            example_result = example_responses[method];
+            if(Array.isArray(example_result)) {example_result = example_result[Math.floor(Math.random()*example_result.length)];}
+            callback(example_result['result']);
+          }
+        
+        }
+        addr = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+        xhr.open("POST", addr+'/rpc', true);
+        xhr.setRequestHeader("content-type","application/json");
+        var request = {"method":method,"params":params,"id":1, "jsonrpc": "2.0"};
+        xhr.send(JSON.stringify(request)); 
+        return false;
+}
+
+function update_sync_status() {
+  var set_sync_status = function(sync_status) {
+      var syncstatus_text = document.getElementById("syncstatus");
+      var syncstatus_bar = document.getElementById("actualprogressDiv");
+      var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
+      var bkh = sync_status['best_known_header'];
+      var bah = sync_status['best_advertised_height'];
+      if(bah==null)
+        bah=-1;
+      syncstatus_text.innerHTML = "Synchronisation: "+height.toString() + "/"+bkh.toString() + "/"+bah.toString();
+      if(bkh>0)
+        syncstatus_bar.style.width = (100*height/bkh).toString()+"%"
+      else
+        syncstatus_bar.style.width = "100%"
+    } 
+  basic_request("getsyncstatus",[],set_sync_status);
+}
+
+function update_balance() {
+  var set_balance_stats = function(balance_stats) {
+      var known = document.getElementById("balance");
+      var unknown = document.getElementById("unknown");
+      var immature = document.getElementById("immature");
+      known.innerHTML = "Balance "+ (balance_stats['matured']['known_value']/1e8).toString()+ " leer";
+      unknown.innerHTML = "Unknown "+(balance_stats['matured']['unknown_count']+balance_stats['immatured']['unknown_count']).toString() + " outputs";
+      immature.innerHTML = "Immature "+(balance_stats['immatured']['known_value']/1e8).toString()+ " leer"
+    } 
+  basic_request("getbalancestats",[],set_balance_stats);
+}
+
+function update_addresses() {
+  var set_updated_addresses = function(balance_list) {
+      // Note balance_list is hash {address1:{output1:value, output2:value, ...}, address2:{}, ...}
+      var addresses = document.getElementById("addresses-table");
+      while(addresses.rows.length>1) {addresses.deleteRow(1);}
+      for(var address in balance_list)
+        { 
+          sm=0;
+           for(var output in balance_list[address])
+             sm+=balance_list[address][output];
+          var row = addresses.insertRow(-1);
+          address_cell = row.insertCell(0);
+          value_cell = row.insertCell(1);
+          address_cell.innerHTML = address;
+          value_cell.innerHTML = (sm/1e8).toString() + " leer";
+        }
+    } 
+  basic_request("getbalancelist",[],set_updated_addresses );
+}
+
+function get_new_address() {
+  var set_new_address = function(address) {
+    document.getElementById("address-field").value = address;
+  } 
+  basic_request("getnewaddress",[], set_new_address );
+}
+
+function send_money() {
+  address = document.getElementById("address-to-send").value;
+  value = parseFloat(document.getElementById("value-to-send").value)*1e8;
+  var alert_success = function(result){
+    if (result=="generated")
+      alert("Transaction was generated and sent to network. Balance will be updated after tx will be confirmed.");
+    else
+      alert("Something goes wrong. To be safe wait till next block and check balance.");
+  }
+  basic_request("sendtoaddress",[address,value], alert_success );
+  
+}
+function load_wallet() {
+// Routines:
+// 1. Check sync status
+// 2. Check balance
+// 3. Check addresses
+// TODO if sync status wasn't changed there is no reason to update balance and addresses.
+  update_sync_status();
+  update_balance();
+  update_addresses();
+  setInterval(update_sync_status, 5000);
+  setInterval(update_balance, 25000);
+  setInterval(update_addresses, 50000);
+}
+
+window.onload = load_wallet;
+
+</script>
+
+   <title> Leer Wallet </title>
+ </head>
+ <body>
+  <div class="header">
+    <span class="logo">Leer</span>
+    <div class="tabs">
+      <button class="tablinks" onclick="openTab(event, 'send')">Send</button>
+      <button class="tablinks" onclick="openTab(event, 'receive')">Receive</button>
+      <button class="tablinks" onclick="openTab(event, 'addresses')">Addresses</button>
+      <button class="tablinks disabled" onclick="">Transactions</button>
+    </div>
+    <div class="header-right">
+      <span id="balance">Balance 25 leer</span>
+      <span id="unknown">Unknown 0 outputs</span>
+      <span id="immature">Immature 0 leer</span>
+    </div>
+  </div>
+
+  <div class="tabcontent active" id="send">
+     Amount: <br><input type="number" name="amount" step="0.00000001" value="0" id="value-to-send"><br>
+     Address: <br><input type="text" name="address" class="address-field" id="address-to-send"><br>
+     <input type="submit" value="Send" onclick="send_money();">     
+  </div>
+
+  <div class="tabcontent" id="receive">
+    <input type="text" value="AKrnwcgR8qr8jYLArGxbaemSttctrQO5bXPdtIZ9HIWTZ0gNC/cqA0a41O87GLLVoURXY7efvrT8kRg41WSLgYVbzMcS"  id="address-field" readonly><br>
+    <input type="submit" value="Generate new" onclick="get_new_address();">
+  </div>
+
+  <div class="tabcontent" id="addresses">
+    <table id="addresses-table">
+      <tr>
+       <th>Address</th>
+       <th>Balance</th>
+      </tr>
+      <tr>
+       <td>AKrnwcgR8qr8jYLArGxbaemSttctrQO5bXPdtIZ9HIWTZ0gNC/cqA0a41O87GLLVoURXY7efvrT8kRg41WSLgYVbzMcS</td>
+       <td>1.44356</td>
+      </tr>
+      <tr>
+       <td>AStlcvGWVRaGgtOHz4TtTQlO+eU8DTzX5tqTLXgr/b83H1VDRJ7PX+NhbZkENilkZUduNd6qGs+CyF0ZFM2BZ2X9EPJF</td>
+       <td>1.44356</td>
+      </tr>
+    </table>
+  </div>
+
+  <footer>
+    <div id="progressDiv">
+      
+      <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: 15 / 25 / 10;</span></div>
+    </div>
+    
+  </footer>
+ </body>
+</html>
