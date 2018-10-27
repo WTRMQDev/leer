@@ -14,7 +14,7 @@ from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 import base64
 from leer.core.utils import DOSException
-from leer.core.primitives.transaction_sceleton import TransactionSceleton
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from time import sleep, time
 from uuid import uuid4
 
@@ -311,8 +311,8 @@ def core_loop(syncer, config):
           tx.generate()
           tx.verify()
           storage_space.mempool_tx.add_tx(tx)
-          tx_scel = TransactionSceleton(tx=tx)
-          notify_all_nodes_about_tx(tx_scel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+          tx_skel = TransactionSkeleton(tx=tx)
+          notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
           send_message(message["sender"], {"id": message["id"], "result":"generated"})
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
@@ -694,22 +694,22 @@ def process_find_common_root_reponse(message, node_info, send_message):
 
 
 def  process_tbm_tx_request(message, send_message):
-  tx_scel = storage_space.mempool_tx.give_tx_sceleton()
+  tx_skel = storage_space.mempool_tx.give_tx_skeleton()
   tx = storage_space.mempool_tx.give_tx()
-  serialized_tx_scel = tx_scel.serialize(rich_format=True, max_size=60000, full_tx=tx)
+  serialized_tx_skel = tx_skel.serialize(rich_format=True, max_size=60000, full_tx=tx)
   send_message(message['sender'], \
-     {"action":"take TBM transaction", "tx_scel": serialized_tx_scel, "mode": 0,
+     {"action":"take TBM transaction", "tx_skel": serialized_tx_skel, "mode": 0,
       "id":message['id'], 'node': message["node"] })
 
 def  process_tbm_tx(message, send, nodes):
   try:
     initial_tbm = storage_space.mempool_tx.give_tx()
-    tx_scel = TransactionSceleton()
-    tx_scel.deserialize_raw(message['tx_scel'], storage_space = storage_space)
-    storage_space.mempool_tx.add_tx(tx_scel)
+    tx_skel = TransactionSkeleton()
+    tx_skel.deserialize_raw(message['tx_skel'], storage_space = storage_space)
+    storage_space.mempool_tx.add_tx(tx_skel)
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
-        notify_all_nodes_about_tx(message['tx_scel'], nodes, send, _except=[message["node"]])
+        notify_all_nodes_about_tx(message['tx_skel'], nodes, send, _except=[message["node"]])
   except Exception as e:
     print(e)
     pass
@@ -723,12 +723,12 @@ def check_sync_status(nodes, send):
       send_tip_info(node_info = node, send=send)
 
 
-def notify_all_nodes_about_tx(tx_scel, nodes, send, _except=[], mode=1):
+def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
   for node_index in nodes:
     if node_index in _except:
       continue
     node = nodes[node_index]
-    send({"action":"take TBM transaction", "tx_scel": tx_scel, "mode": mode,
+    send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
 def notify_all_nodes_about_new_tip(nodes, send):

@@ -18,13 +18,13 @@ For some `actions` optional field may be included into message.
 
 3. `take the utxos`: `utxos` field should contain binary data for serialized utxos, `source` field should contain information about node which provided utxos (we may want to ask for blocks or ban for DoS). After message processing core_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK` or `FAIL`, `id` set to the same as in initial message. If `status` is `FAIL` optional field `DOS-score` with integer may be presented.
 
-5. `take the tx sceleton`: `tx_sceleton` field should contain binary data for serialized tx sceleton, `source` field should contain information about node which provided tx (we may want to ask for blocks or ban for DoS). After message processing core_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK` or `FAIL`, `id` set to the same as in initial message. If `status` is `FAIL` optional field `DOS-score` with integer value may be presented.
+5. `take the tx skeleton`: `tx_skeleton` field should contain binary data for serialized tx skeleton, `source` field should contain information about node which provided tx (we may want to ask for blocks or ban for DoS). After message processing core_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK` or `FAIL`, `id` set to the same as in initial message. If `status` is `FAIL` optional field `DOS-score` with integer value may be presented.
 
 6. `give block`: `block_hash` field should be 32-bytes long binary stream (python type: bytes). After message processing core_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK` or `FAIL`, `id` set to the same as in initial message. If `status` is `OK` optional field `block` with bytes should be presented.
 
 7. `give txout`: `txout_hash` field should be 65-bytes long binary stream (python type: bytes). After message processing core_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK` or `FAIL`, `id` set to the same as in initial message. If `status` is `OK` optional field `txout` with bytes should be presented.
 
-8. `give actual tx sceleton`: (no additional fields). After message processing core\_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK`, `id` set to the same as in initial message. `tx_sceleton` should contain tx which merge all known transactions.
+8. `give actual tx skeleton`: (no additional fields). After message processing core\_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK`, `id` set to the same as in initial message. `tx_skeleton` should contain tx which merge all known transactions.
 
 9. `give block template`: (no additional fields). After message processing core\_loop emitsmessage to `sender` queue with `action` set to `response`, `status` set to `OK`, `id` set to the same as in initial message. `block_template` should contain serialized header for fresh block where coinbase-address is owned by wallet.
 

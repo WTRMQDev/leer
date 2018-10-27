@@ -11,7 +11,7 @@ from leer.core.storage.txos_storage import TXOsStorage
 
 from leer.core.parameters.constants import coinbase_maturity, output_creation_fee
 
-from leer.core.primitives.transaction_sceleton import TransactionSceleton
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 
 def is_sorted(lst, key=lambda x: x):
     for i, el in enumerate(lst[1:]):
@@ -335,8 +335,8 @@ class Transaction:
              "Wrong coinbase maturity timelock: %d should be %d"%(\
               self.coinbase.lock_height, block_height + coinbase_maturity)
 
-    tx_scel = TransactionSceleton(tx=self)
-    assert len(tx_scel.serialize(rich_format=False))<50000, "Too big tx_sceleton"
+    tx_skel = TransactionSkeleton(tx=self)
+    assert len(tx_skel.serialize(rich_format=False))<50000, "Too big tx_skeleton"
     return True
 
     
@@ -353,7 +353,7 @@ class Transaction:
       5) sum(inputs)+sum(additional_excesses)+sum(outputs_excesses)+sum(minted_coins) == sum(outputs) + sum(fee) (non context verification)
       6) For each combined excess sum(digested_excesses) == combined_excess (non context verification)
       7) if coinbase is presented lock_height is set correctly (non context verification)
-      8) size check : serialized tx_sceleton should have size less than 50k bytes (non context verification)
+      8) size check : serialized tx_skeleton should have size less than 50k bytes (non context verification)
     """
     if not block_height:
       # Why +1 is here:

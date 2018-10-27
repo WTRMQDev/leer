@@ -6,7 +6,7 @@ from leer.core.lubbadubdub.address import Excess
 from leer.core.parameters.constants import output_creation_fee
 
 
-class TransactionSceleton:
+class TransactionSkeleton:
   def __init__(self, tx=None):
     self.input_indexes = [] 
     self.output_indexes = []
@@ -23,13 +23,13 @@ class TransactionSceleton:
       raise NotImplemented
 
   def serialize(self, rich_format=False, max_size =40000, full_tx = None):
-    #TODO we messed up a lot here with storage-space-free sceletons
-    # Basically idea was that tx_sceleton is independent from storage_space, however in this case
-    # we cannot serialize in rich format: outputs are stored only in storage_space. Moreover tx_scel
-    # with all outputs actually contains the same info as tx. Now tx_scel needs space only if we want 
-    # to serialize in rich_format, but since we cannot import build_tx_from_sceleton (cyclic import)
-    # we pass full_tx into tx_scel.serialize . Probably the whole concept of 
-    # transaction/transaction_sceleton should be reconsidered. 
+    #TODO we messed up a lot here with storage-space-free skeletons
+    # Basically idea was that tx_skeleton is independent from storage_space, however in this case
+    # we cannot serialize in rich format: outputs are stored only in storage_space. Moreover tx_skel
+    # with all outputs actually contains the same info as tx. Now tx_skel needs space only if we want 
+    # to serialize in rich_format, but since we cannot import build_tx_from_skeleton (cyclic import)
+    # we pass full_tx into tx_skel.serialize . Probably the whole concept of 
+    # transaction/transaction_skeleton should be reconsidered. 
     full_tx = full_tx if full_tx else self.tx
     if rich_format and not full_tx:
       raise Exception("Full_tx is required for serialization in rich format")
@@ -40,22 +40,22 @@ class TransactionSceleton:
     serialization_array+=(self.input_indexes)
     serialization_array+=(self.output_indexes)
     serialization_array+=([ e.serialize() for e in self.additional_excesses])
-    tx_scel_size = sum([len(i) for i in serialization_array])
-    if rich_format and tx_scel_size<max_size:
+    tx_skel_size = sum([len(i) for i in serialization_array])
+    if rich_format and tx_skel_size<max_size:
       #we start with coinbase, because receiver definetely doesn't have this data
       txouts_data = b""
       txouts_count = 0
       tx = full_tx
       if tx.coinbase:
         serialized_coinbase = tx.coinbase.serialize()
-        if len(serialized_coinbase)+tx_scel_size<max_size-2:
+        if len(serialized_coinbase)+tx_skel_size<max_size-2:
           txouts_data += serialized_coinbase
           txouts_count +=1
       for _o in tx.outputs:
           if _o.is_coinbase:
             continue
           serialized_output = _o.serialize()
-          if tx_scel_size+len(txouts_data)+len(serialized_output)<max_size-2:
+          if tx_skel_size+len(txouts_data)+len(serialized_output)<max_size-2:
             txouts_data += serialized_output
             txouts_count +=1
           else:
@@ -75,28 +75,28 @@ class TransactionSceleton:
 
   def deserialize_raw(self, serialized, storage_space=None):
     if len(serialized)<1:
-      raise Exception("Not enough bytes for tx sceleton rich format marker")
+      raise Exception("Not enough bytes for tx skeleton rich format marker")
     serialized, rich_format = serialized[1:], bool(serialized[0])
     if len(serialized)<2:
-      raise Exception("Not enough bytes for tx sceleton inputs len")
+      raise Exception("Not enough bytes for tx skeleton inputs len")
     serialized, _len_i = serialized[2:], int.from_bytes(serialized[:2], "big")
     if len(serialized)<2:
-      raise Exception("Not enough bytes for tx sceleton outputs len")
+      raise Exception("Not enough bytes for tx skeleton outputs len")
     serialized, _len_o = serialized[2:], int.from_bytes(serialized[:2], "big")
 
     if len(serialized)<2:
-      raise Exception("Not enough bytes for tx sceleton additional excesses len")
+      raise Exception("Not enough bytes for tx skeleton additional excesses len")
     serialized, _len_ae = serialized[2:], int.from_bytes(serialized[:2], "big")
 
     serialized_index_len = IOput().index_len
     for i in range(_len_i):
       if len(serialized)<serialized_index_len:
-        raise Exception("Not enough bytes for tx sceleton' input index %d len"%i)
+        raise Exception("Not enough bytes for tx skeleton' input index %d len"%i)
       _input_index, serialized  = serialized[:serialized_index_len], serialized[serialized_index_len:]
       self.input_indexes.append(_input_index)
     for i in range(_len_o):
       if len(serialized)<serialized_index_len:
-        raise Exception("Not enough bytes for tx sceleton' output index %d len"%i)
+        raise Exception("Not enough bytes for tx skeleton' output index %d len"%i)
       _output_index, serialized  = serialized[:serialized_index_len], serialized[serialized_index_len:]
       self.output_indexes.append(_output_index)
 
@@ -116,7 +116,7 @@ class TransactionSceleton:
         output = IOput()
         serialized = output.deserialize_raw(serialized)
         if not (output.serialized_index in self.output_indexes):
-          raise Exception("Unknown output in rich txscel data") 
+          raise Exception("Unknown output in rich txskel data") 
         storage_space.txos_storage.mempool[output.serialized_index]=output
 
 

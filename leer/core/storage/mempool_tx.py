@@ -1,7 +1,7 @@
-from leer.core.primitives.transaction_sceleton import TransactionSceleton
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.utils import ObliviousDictionary
-from leer.core.primitives.block import generate_block_template, build_tx_from_sceleton
+from leer.core.primitives.block import generate_block_template, build_tx_from_skeleton
 from leer.core.parameters.dynamic import next_reward
 from leer.core.parameters.constants import coinbase_maturity
 from leer.core.lubbadubdub.ioput import IOput
@@ -9,7 +9,7 @@ from leer.core.lubbadubdub.ioput import IOput
 class MempoolTx: #Should be renamed to Mempool since it now holds block_template info
   '''
     This manager holds information about known unconfirmed transaction and provides it for generation of next block and relay, also it holds (unsolved) block templates.
-    self.transactions contains sceletons of known transactions (before merging)
+    self.transactions contains skeletons of known transactions (before merging)
     self.current_set containt transactions which are 1) downloaded and 2) do not contradict with each other
     self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
     losing transactions.
@@ -38,33 +38,33 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     tx_to_remove_list = []
     txos_storage = self.storage_space.txos_storage
     merged_tx = Transaction(txos_storage=txos_storage)
-    for tx_sceleton in self.transactions:
-      #TODO build_tx_from_sceleton should raise distinctive exceptions
+    for tx_skeleton in self.transactions:
+      #TODO build_tx_from_skeleton should raise distinctive exceptions
       downloaded = True
-      for _i in tx_sceleton.input_indexes:
+      for _i in tx_skeleton.input_indexes:
         if not _i in txos_storage.confirmed:
           downloaded = False
-      for _o in tx_sceleton.output_indexes:
+      for _o in tx_skeleton.output_indexes:
         if not _o in txos_storage.mempool:
           downloaded = False
       if not downloaded:
         continue
       try:
-        if tx_sceleton.serialize() in self.built_tx:
-          full_tx = self.built_tx[tx_sceleton.serialize()]
+        if tx_skeleton.serialize() in self.built_tx:
+          full_tx = self.built_tx[tx_skeleton.serialize()]
         else:
-          if tx_sceleton.tx:
-            full_tx = tx_sceleton.tx
+          if tx_skeleton.tx:
+            full_tx = tx_skeleton.tx
           else:
-            full_tx = build_tx_from_sceleton(tx_sceleton, self.storage_space.txos_storage, self.storage_space.blockchain.current_height +1)
-            tx_sceleton.tx=full_tx
-          self.built_tx[tx_sceleton.serialize()]=full_tx
+            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage, self.storage_space.blockchain.current_height +1)
+            tx_skeleton.tx=full_tx
+          self.built_tx[tx_skeleton.serialize()]=full_tx
       except Exception as e:
-        tx_to_remove_list.append(tx_sceleton)
+        tx_to_remove_list.append(tx_skeleton)
         continue
       try:
         merged_tx = merged_tx.merge(full_tx)
-        self.current_set.append(tx_sceleton)
+        self.current_set.append(tx_skeleton)
       except:
         pass #it is ok
     for tx in tx_to_remove_list:
@@ -78,15 +78,15 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
   def give_tx(self):
     return self.combined_tx
 
-  def give_tx_sceleton(self):    
-    return TransactionSceleton(tx = self.combined_tx)
+  def give_tx_skeleton(self):    
+    return TransactionSkeleton(tx = self.combined_tx)
 
   def add_tx(self,tx):
     if isinstance(tx, Transaction):
-      tx_scel = TransactionSceleton(tx=tx)
-      self.built_tx[tx_scel.serialize()]=tx
-      self.transactions.append(tx_scel)
-    elif isinstance(tx,TransactionSceleton):
+      tx_skel = TransactionSkeleton(tx=tx)
+      self.built_tx[tx_skel.serialize()]=tx
+      self.transactions.append(tx_skel)
+    elif isinstance(tx,TransactionSkeleton):
       self.transactions.append(tx)
     else:
       raise

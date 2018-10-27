@@ -35,7 +35,7 @@ class BlocksStorage:
     asked = False
     result = True
     block = self[_hash]
-    for output in block.transaction_sceleton.output_indexes:
+    for output in block.transaction_skeleton.output_indexes:
       if not self.storage_space.txos_storage.known(output):
         result = False
         if auto_download:

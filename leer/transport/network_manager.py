@@ -246,9 +246,9 @@ class NetworkManager:
 
     if _type == "take TBM transaction":
       try:
-        serialized_mode, serialized_sceleton = message[:2], message[2:]
+        serialized_mode, serialized_skeleton = message[:2], message[2:]
         self.syncer.queues["Blockchain"].put({'action': 'take TBM transaction',
-                                              'id':str(uuid4()), "tx_scel": bytes(serialized_sceleton),
+                                              'id':str(uuid4()), "tx_skel": bytes(serialized_skeleton),
                                               "mode": int.from_bytes(serialized_mode, "big"),
                                               "node":(node.host, node.port), 'sender':"NetworkManager"})
       except Exception as e:
@@ -388,12 +388,12 @@ class NetworkManager:
             self.syncer.queues[message['sender']].put({'id':message['id'], 'result':'processed'})
 
           if action == "take TBM transaction":
-            mode, serialized_tx_scel, node_params = message["mode"], message["tx_scel"], message["node"]
+            mode, serialized_tx_skel, node_params = message["mode"], message["tx_skel"], message["node"]
             if not node_params in self.nodes:
               continue
             message_to_send = inv_message_id["take TBM transaction"]
             message_to_send += mode.to_bytes(2,"big")
-            message_to_send += serialized_tx_scel
+            message_to_send += serialized_tx_skel
             coro = self.nodes[node_params].send(message_to_send)
             asyncio.ensure_future(coro, loop=self.loop)            
             self.syncer.queues[message['sender']].put({'id':message['id'], 'result':'processed'})

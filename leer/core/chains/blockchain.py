@@ -49,7 +49,7 @@ class Blockchain:
     '''
     #TODO transactional writing
     block = self.storage_space.blocks_storage[block_hash]
-    block.non_context_verify() #build tx from sceleton
+    block.non_context_verify() #build tx from skeleton
     if not self.context_validation(block):
       ch = self.storage_space.headers_manager.mark_subchain_invalid(block.hash, reason = "Block %s(h:%d) failed context validation"%(block.hash, block.header.height))
       return self.update(reason="Detected corrupted block")    
@@ -107,7 +107,7 @@ class Blockchain:
     if block.header.height>0:
       if not self.storage_space.headers_storage[block.header.prev].supply + \
            next_reward(block.header.prev, self.storage_space.headers_storage) - \
-           block.transaction_sceleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
+           block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
         return False
     return True
 
@@ -196,7 +196,7 @@ class Blockchain:
     block = self.storage_space.blocks_storage[ct]
     self._rollback()
     self.storage_space.blocks_storage.forget_block(ct)
-    for _o in block.transaction_sceleton.output_indexes:
+    for _o in block.transaction_skeleton.output_indexes:
       self.storage_space.txos_storage.mempool.remove_by_index(_o)
       
 
