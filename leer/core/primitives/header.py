@@ -4,14 +4,14 @@ from leer.core.hash.mining_canary import mining_canary_hash
 
 class PoPoW:
   # We use compact version of PoPoW (https://eprint.iacr.org/2017/963.pdf) here
-  # Differences from abovemention protocol are:
+  # Differences from the aforementioned protocol are:
   # 1. \mu-level chain is chain of headers with hashes (4+2*\mu) zeroes (less
   #    than 2**(256-(4+\mu)*4) )
   # 2. All interlinks with level less than previous header level are skipped
-  #    (anyway they are all equal prev hash)
+  #    (they are all equal prev hash anyway)
   # 3. If \mu-level chain is empty (there was no header with so much work in it)
-  #    this level is not included. However, genesis header hash is allways final
-  #    in list. Maximum level is not fixed and thus PoPoW has variable length 
+  #    this level is not included. However, genesis header hash is always last
+  #    in the list. Maximum level is not fixed and thus PoPoW has variable length 
   #    and should contain length. Genesis header is appended to the list to 
   #    prevent using PoPoW from another chain
 
@@ -35,7 +35,7 @@ class PoPoW:
     self.deserialize_raw(serialized_popow)
 
   def deserialize_raw(self, serialized_popow):
-    # This function derserialize popow and returns unused serialized data
+    # This function derserializes popow and returns unused serialized data
     self.pointers=[]
     if len(serialized_popow)<1:
       raise Exception("Not enough bytes in PoPoW to store length")
@@ -255,7 +255,7 @@ class ContextHeader(Header):
     self.reason = None
     '''
       difference between coins_to_be_mint and supply is sum of `new_outputs_fee`s.
-      We set (by default) coins_to_be_mint to 0. It will be overwritten when header become connected to genesis
+      We set (by default) coins_to_be_mint to 0. It will be overwritten when header becomes connected to genesis
       and value will be required during context validation.
     '''
     self.coins_to_be_mint = 0 
@@ -282,7 +282,7 @@ class ContextHeader(Header):
 
   def deserialize_raw(self, serialized):
     #TODO exceptions for not enough bytes
-    # No urgency: however we never should get contextHeader from others
+    # No urgency: we never should get contextHeader from other nodes
     ser = super(ContextHeader, self).deserialize_raw(serialized)
     desc_num, ser = int.from_bytes(ser[:1], 'big'), ser[1:]
     for desc in range(desc_num):

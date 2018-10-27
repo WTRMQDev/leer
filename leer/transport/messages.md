@@ -31,7 +31,7 @@
  e. `node`: node params - `str`
 
 6. `find common root`
- a. `serialized_header`: serialized header for which node want to find common root - `bytes`
+ a. `serialized_header`: serialized header for which we want to find the last common root with the other node's chain - `bytes`
  b. `node`: node params - `str`
 
 7. `find common root response`

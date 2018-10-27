@@ -79,10 +79,10 @@ class Excess:
     @property
     def index(self):
       """
-        Special index which is used for building excess merkle tree.
-        As well as in tree for outputs we both want be able access to summ
-        of excesses as summ of points on curve and validate tree. Thus index
-        contain public key and hash of serialized excess
+        Special index which is used for building excesses merkle tree.
+        Same as with tree for outputs, we want to be able to both access
+        the sum of excesses as sum of points on curve and to validate tree.
+        Thus index contains public key and hash of serialized excess.
       """
       m=hashlib.sha256()
       m.update(self.serialize())

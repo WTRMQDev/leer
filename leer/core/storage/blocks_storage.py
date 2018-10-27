@@ -92,8 +92,8 @@ class RollBack:
     return _bytes, serialized
 
   def serialize(self):
-    # each pruned inputs is (TXOS[num, _index, obj], Commitment[num, _index, obj])
-    # num is 5bytes long as max, other members have arbitrary size
+    # each pruned input is (TXOS[num, _index, obj], Commitment[num, _index, obj])
+    # num is serialized 5bytes integer, other members have arbitrary size
     serialized_pruned_inputs=b""
     serialized_pruned_inputs+=len(self.pruned_inputs).to_bytes(2,"big")
     for _t, _c in self.pruned_inputs:

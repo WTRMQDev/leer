@@ -20,7 +20,7 @@ def get_static_key():
   comment =\
   '''
     P2p protocol which leer uses requires private key for encrypting communication.
-    This key should be known prior communication. Nevertheless this key is independent
+    This key should be known prior communication. Nevertheless, this key is independent
     of any wallet or blockchain cryptography.
   '''
   try:

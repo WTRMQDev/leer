@@ -51,7 +51,7 @@ class Block():
 
   def non_context_verify(self):
     '''
-      To verify block we need 
+      To verify block we need to
         0) check that header is known and valid
         1) verify transaction 
         2) check that transaction can be applied 
@@ -136,11 +136,11 @@ def generate_genesis(tx, storage_space):
 def generate_block_template(tx, storage_space, get_tx_from_mempool = True, timestamp = None):
     '''
         Generate block template: block is correct but nonce (by default) is equal to zero.
-        Thus difficulty target (almost allways) isn't met.
+        Thus difficulty target (almost always) isn't met.
         arguments:
-          tx [mandatory]: transaction which contain coinbase output. It also may contain other inputs and outputs.
+          tx [mandatory]: transaction which contains coinbase output. It also may contain other inputs and outputs.
           storage_space [mandatory] : -
-          get_tx_from_mempool [optional, default True]: if get_tx_from_mempool, transaction from mempool will be merged to block_transaction. If this merge will produce invalid tx (for instance tx from mempool spends same inputs as tx with coinbase), tx from mempool will be discarded.
+          get_tx_from_mempool [optional, default True]: if get_tx_from_mempool, transaction from mempool will be merged to block_transaction. If this merge will produce invalid tx (for instance tx from mempool spends the same inputs as tx with coinbase), tx from mempool will be discarded.
 
         Inner logic:
         1. apply block_tx to txos_storage and excesses_storage

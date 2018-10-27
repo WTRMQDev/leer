@@ -8,11 +8,11 @@ from leer.core.lubbadubdub.ioput import IOput
 
 class MempoolTx: #Should be renamed to Mempool since it now holds block_template info
   '''
-    This manager holds information about known unconfirmed transaction and provide it for generation of next block and relay, also it holds (unsolved) block templates.
-    self.transactions contain known transactions sceletons (before merging)
-    self.current_set containt transactions which are 1) downloaded and 2) not contradict with each other
-    self.short_memory_of_mined_transaction contains transaction which were mined in a last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessery for safe rollbacks without
-    loosing transactions.
+    This manager holds information about known unconfirmed transaction and provides it for generation of next block and relay, also it holds (unsolved) block templates.
+    self.transactions contains sceletons of known transactions (before merging)
+    self.current_set containt transactions which are 1) downloaded and 2) do not contradict with each other
+    self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
+    losing transactions.
   '''
   def __init__(self, storage_space):
     self.transactions = []
@@ -27,12 +27,12 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
 
   def update_current_set(self):
     '''
-      For now we have quite simple and dirty algo:
+      For now we have quite a simple and dirty algo:
       1) sort all tx by input_num (bigger first)
       2) iterate through tx and add transactions to current_set if 
          a) it is downloaded
          b) it is valid (otherwise delete from self.transactions)
-         c) itsn't contradict with any other
+         c) doesn't contradict with any other tx in the set
     '''
     self.transactions = sorted(self.transactions, key = lambda x: len(x.input_indexes), reverse=True)
     tx_to_remove_list = []

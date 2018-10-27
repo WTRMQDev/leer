@@ -76,7 +76,8 @@ class HeadersDiscStorage:
       cursor = txn.cursor(db=self.height_db)
       assert cursor.set_key(__(height))
       _hashes = list(cursor.iternext_dup())
-      return [txn.get(bytes(_hash), db=self.main_db) for _hash in _hashes] #we do not use self.get_by_hash to keep one txn. Consider to add optional txn for all funcs?
+      #we do not use self.get_by_hash to keep one txn. Consider adding optional txn for all funcs?
+      return [txn.get(bytes(_hash), db=self.main_db) for _hash in _hashes] 
   
   def get_hashes_by_height(self, height):
     with self.env.begin(write=False) as txn:

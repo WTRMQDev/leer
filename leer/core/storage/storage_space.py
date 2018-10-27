@@ -1,9 +1,9 @@
 class StorageSpace:
   '''
-    Storage space is set of objects representing blockchain.
+    Storage space is a set of objects representing blockchain.
     Two different storage spaces, for instance testnet and mainnet should not
     share any objects.
-    In the future it will be literally combination of all storages in one physical storage,
+    In the future it will be literally a combination of all storages in one physical storage,
     thus truly atomic updates will be possible
   '''
   def __init__(self):

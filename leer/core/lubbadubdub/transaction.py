@@ -101,12 +101,12 @@ class Transaction:
       output.fill(address, value, generator = default_generator_ser)
       self.outputs.append( output )
       out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
-    # privkey for last one output isn't arbitrary
+    # privkey for the last one output isn't arbitrary
     address, value = self._destinations[-1]
     in_blinding_key_sum = None
     for _input in self.inputs:
       in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
-      in_blinding_key_sum += self.key_manager.priv_by_pub(_input.address.pubkey) # we cant get here if key_manager is None
+      in_blinding_key_sum += self.key_manager.priv_by_pub(_input.address.pubkey) # we can't get here if key_manager is None
     output = IOput()
     output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
       relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
@@ -267,7 +267,7 @@ class Transaction:
     _t = PublicKey()
 
     # Transaction should contain either outputs (while it may not contain inputs)
-    # either combined excesses (for transactions which only delete excesses)
+    # or combined excesses (for transactions which only delete excesses)
     assert len(self.outputs) or len(self.combined_excesses), "Empty outputs"
 
     if len(self.inputs):
@@ -306,7 +306,7 @@ class Transaction:
 
     negative_fee = False
     if fee<0:
-      # Its okay, transaction consumed so many inputs that it is profitable by itself
+      # It's okay, transaction has consumed so many inputs that it is profitable by itself
       # however we need to handle it manually: libsecp256k1 cannot handle negative value
       negative_fee = True
       fee = -fee
@@ -359,7 +359,8 @@ class Transaction:
       # Why +1 is here:
       # There are two general cases for verifying transactions:
       # 1) While generating new transaction. In this case transaction will be in the next block.
-      # 2) While checkin tx in block. In this height of this block is passed.
+      # 2) While checking transaction in the block. In this case, current blockchain state is set 
+      #     to prev block (prev to which we are checking) and block_height is current+1
       block_height = self.txos_storage.storage_space.blockchain.current_height + 1
 
     if not skip_non_context: # skip_non_context is used when non context verification for that tx was made earlier
@@ -381,7 +382,7 @@ class Transaction:
 
     
     if not GLOBAL_TEST['spend from mempool']:
-        raise NotImplemented #XXX Check that all inputs in UTXO
+        raise NotImplemented #XXX Check that all inputs are in UTXOSet
     else:
         for _output in self.outputs:
           _o_index = _output.serialized_index
@@ -390,13 +391,13 @@ class Transaction:
           elif _o_index in self.txos_storage.mempool:
               pass #It's ok
           else:
-              #previously unknown output, lets add to database
+              #previously unknown output, let's add to database
               self.txos_storage.mempool[_o_index] = _output
 
 
     if not GLOBAL_TEST['block_version checking']: 
-        # Note transactions, where outputs have different block_versions are valid
-        # by consensus rules however they cannot be included into any block
+        # Note, transactions where outputs have different block_versions are valid
+        # by consensus rules. However, they cannot be included into any block.
         raise NotImplemented
 
 
@@ -415,7 +416,7 @@ class Transaction:
       #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
     tx.sort_ioputs()
     if not GLOBAL_TEST['spend from mempool']: 
-      # If we merge transactions where second spends outputs from first, result is invalid
+      # If we merge transactions where the second spends outputs from the first, result is invalid
       # since we don't delete identical ioputs 
       raise NotImplemented
     assert tx.verify()

@@ -35,7 +35,7 @@ from time import time
 
 class ObliviousDictionary:
   '''
-    Oblivious Dictionary work as usual dictionary but forget items after sink_delay.
+    Oblivious Dictionary works as usual dictionary but forgets items after sink_delay.
     Note: erasing obsolete items happens only during touchin ObliviousDictionary object.
   '''
   def __init__(self, sink_delay):

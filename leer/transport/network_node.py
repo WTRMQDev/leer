@@ -27,10 +27,10 @@ class NetworkNode:
     self.advertised_port = params['network'].get('advertised_port', self.port)
     self.static_key = params.get('static_key', None)
     self.advertised_static_key = params.get('advertised_static_key', self.static_key)
-    self.static_full_key = params.get('static_full_key', None) #This option only for our node
+    self.static_full_key = params.get('static_full_key', None) #This option is only for our node
     if self.static_full_key and not self.static_key:
       self.static_key = self.static_full_key.key.pubkey
-    self.ephemeral_key = Key() #generating new on fly
+    self.ephemeral_key = Key() #generating new key on the fly
     self.our_node = our_node
     self.loop = loop
     self.listening_loop_task = None

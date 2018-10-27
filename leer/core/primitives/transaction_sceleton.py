@@ -26,10 +26,10 @@ class TransactionSceleton:
     #TODO we messed up a lot here with storage-space-free sceletons
     # Basically idea was that tx_sceleton is independent from storage_space, however in this case
     # we cannot serialize in rich format: outputs are stored only in storage_space. Moreover tx_scel
-    # with all outputs actually contain the same info as tx. Now tx_scel need space only if we want 
-    # serialize in rich_format, but since we cannot import build_tx_from_sceleton (cyclic import)
-    # we pass full_tx into tx_scel.serialize . Probably whole concept of transaction/transaction_sceleton
-    # should be reconsidered. 
+    # with all outputs actually contains the same info as tx. Now tx_scel needs space only if we want 
+    # to serialize in rich_format, but since we cannot import build_tx_from_sceleton (cyclic import)
+    # we pass full_tx into tx_scel.serialize . Probably the whole concept of 
+    # transaction/transaction_sceleton should be reconsidered. 
     full_tx = full_tx if full_tx else self.tx
     if rich_format and not full_tx:
       raise Exception("Full_tx is required for serialization in rich format")
@@ -42,7 +42,7 @@ class TransactionSceleton:
     serialization_array+=([ e.serialize() for e in self.additional_excesses])
     tx_scel_size = sum([len(i) for i in serialization_array])
     if rich_format and tx_scel_size<max_size:
-      #we start with coinbase, because receiver definetely hasn't this data
+      #we start with coinbase, because receiver definetely doesn't have this data
       txouts_data = b""
       txouts_count = 0
       tx = full_tx
@@ -61,7 +61,7 @@ class TransactionSceleton:
           else:
             break
       if not txouts_count:
-        #we havent enough space even for one output
+        #we don't have enough space even for one output
         serialization_array[0] = b"\x00"
       else:
         serialization_array.append(txouts_count.to_bytes(2,"big"))

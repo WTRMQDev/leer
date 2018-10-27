@@ -358,7 +358,7 @@ def core_loop(syncer, config):
           if block_hash in storage_space.blocks_storage:
             continue #We are good, block already downloaded          
           if not block_hash in storage_space.blockchain.awaited_blocks:
-            continue #For some reason we dont need this block anymore
+            continue #For some reason we don't need this block anymore
           to_be_downloaded.append(block_hash)
           if storage_space.headers_storage[block_hash].height<lowest_height:
             lowest_height = storage_space.headers_storage[block_hash].height
@@ -502,7 +502,7 @@ def process_next_headers_request(message, send_message):
   if not storage_space.headers_manager.find_ancestor_with_height(current_tip, header.height) == from_hash:
     return
     ''' Counter-node is not in our main chain. 
-        We will not feed it (actually we just not sure what we should send here)
+        We will not feed it (actually we just are not sure what we should send here)
     '''
   last_to_send_height = header.height+num
   last_to_send_height = current_height if last_to_send_height>current_height else last_to_send_height
@@ -571,7 +571,7 @@ def send_tip_info(node_info, send, our_tip_hash=None ):
   node_info["last_send"] = time()
 
 def process_tip_info(message, node_info, send):
-  # another node (referenced as counter-Node below) asks us for our best tip and also provide us information about his
+  # another node (referenced as counter-Node below) asks us for our best tip and also provides us information about his
   node = message["node"]
   height = message["height"]
   tip_hash = message["tip"]
@@ -671,7 +671,7 @@ def process_find_common_root_reponse(message, node_info, send_message):
     node_info["common_root"]["root"] = header_hash
     root_found = True
   if (not "best_mutual" in node_info["common_root"]):
-    # genesis should allways be mutual
+    # genesis should always be mutual
     return
   logger.info(node_info)
   if not root_found:

@@ -20,7 +20,7 @@ def encrypt(pubkey, nonce, plaintext):
       Inner logic:
         1) generate ephemereal (one time) private_key.
         2) generate shared_secret : ecdh of private_key and receiver's pubkey
-        3) symmetricly encrypt plaintext with shared_secret (encryption with ChaCha20Poly1305)
+        3) symmetrically encrypt plaintext with shared_secret (encryption with ChaCha20Poly1305)
         4) attach ephemereal public_key to ciphertext
     '''
     nonce = top_up_nonce(nonce)
