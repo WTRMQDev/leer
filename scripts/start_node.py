@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import sys
+
+from urllib.request import urlopen
 from functools import partial
 
 from secp256k1_zkp import PrivateKey, PublicKey
@@ -15,6 +17,13 @@ from os.path import *
 from os import urandom, path, makedirs
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(name)s %(levelname)s:%(message)s')
+
+def get_public_IP():
+    data = str(urlopen('http://checkip.dyndns.com/').read())
+    pat="Current IP Address: "
+    data = data[data.find(pat)+len(pat):]
+    data = data.split("<")[0]
+    return data
 
 def get_static_key():
   comment =\
@@ -45,7 +54,8 @@ config = {
            'p2p':{
                     'host':'0.0.0.0', 
                     'port': 8888, 
-                    'lspriv': get_static_key()
+                    'lspriv': get_static_key(),
+                    'advertised_host': get_public_IP()
                  },
            'rpc':{
                     'host':'0.0.0.0', 
