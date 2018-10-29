@@ -79,23 +79,23 @@ class IOput:
   def serialized_index(self):
     """
       Returns binary representation of output index.
-      For transaction, to be spent, it is necessery that all inputs are known.
+      For transaction to be spent, it is necessary that all inputs are known.
       Thus it is possible to include only index for inputs.
       Since all outputs should have unique authorized pedersen commitments(APC),
       it seems expedient to use APC as index. However it may cause issues with
       transaction which spends from memory pool. Indeed, while confirmed 
-      transactions strictly have unique APC, different node may have in memory
-      transaction with different outputs, but with the same APC for thos outputs
-      (_double spend_).
-      Then, if another transaction which spend _double spending_ will be added
-      to memory pool, different nodes may have different opinios on its validity.
-      It is possible to use such dis-consensus as attack to disrupt connectivity.
+      transactions strictly have unique APC, different nodes may have transaction
+      with different outputs but with the same APC for those outputs (_double spend_) in memory
+
+      Then, if another transaction which spends _double spending_ will be added
+      to memory pool, different nodes may have different opinions on its validity.
+      It is possible to use such dis-consensus as an attack to disrupt connectivity.
 
       Another option is hash of outputs. However, hash as index hinders some
-      basic mimblewimble checks: we cant check that sum of inputs and outputs is
-      zero without access to ledger. In our terms all checks become context
+      basic mimblewimble checks: we can't check that sum of inputs and outputs is
+      zero without access to ledger. In our terms, all checks become context
       dependent.
-      Thus we use concantenation of APC and hash. It slightly bigger (although nothing
+      Thus we use concantenation of APC and hash. It's slightly bigger (although nothing
       in comparisson with rangeproof) but allows both basic checks and unambiguous
       indexing.
     """
@@ -120,7 +120,7 @@ class IOput:
 
   def deserialize_raw(self, serialized_output):  
     #TODO part1, part2, part3 should be substitued with construction `something, serialized = serialized[:x], serialized[x:]`
-    # as it done in other modules
+    # as it is done in other modules
     """ Decode output from serialized representation. Return residue of data after serialization"""
 
     if len(serialized_output)<145:
@@ -213,7 +213,7 @@ class IOput:
         Default:0. Relay fee of output in minimal indivisible units
     [optional] blinding_key : PrivateKey
         Default: random. Usually wallet should not store this key: it will
-        be encrypted it output with private key of address
+        be encrypted it the output with private key of address
     [optional] generator : GeneratorOnCurve
         Default: default_generator. Asset transactions will use another generators
     [optional] coinbase : bool
@@ -225,7 +225,7 @@ class IOput:
     self.generator = generator
     self.value = value
     if blinding_key is None:
-      blinding_key = PrivateKey() #we do not store this key in wallet
+      blinding_key = PrivateKey() #we do not store this key in the wallet
     self.blinding_key = blinding_key
     self.relay_fee = relay_fee
     if coinbase:
@@ -237,7 +237,7 @@ class IOput:
     """
       Calc unauthorized pedersen commitment from generators, blinding key
       and value.
-      Note, it is differs from _calc_unauthorized_pedersen (which calc UPC
+      Note, it differs from _calc_unauthorized_pedersen (which calc UPC
       from APC and address).
     """
     assert(self.generator and self.address and self.blinding_key and isinstance(self.value, int)) #self.value can be 0
@@ -255,7 +255,7 @@ class IOput:
 
   def _calc_authorized_pedersen(self):
     """
-      Calc authorized pedersen commitment from from UPC and address.
+      Calc authorized pedersen commitment from UPC and address.
     """
     assert self.unauthorized_pedersen_commitment
     assert self.generator
@@ -265,7 +265,7 @@ class IOput:
 
   def _calc_unauthorized_pedersen(self):
     """
-      Calc unauthorized pedersen commitment from from APC and address.
+      Calc unauthorized pedersen commitment from APC and address.
     """
     assert self.authorized_pedersen_commitment
     assert self.generator
@@ -280,7 +280,7 @@ class IOput:
     """
     Generate output
 
-    Calc all necessery params like APC, rangeproofs and so on. After generating
+    Calc all necessery params like APC, rangeproofs and so on. After generation
     ouput is ready for serialization. Params listed below control what should be
     concealed by proof.
 
@@ -292,10 +292,11 @@ class IOput:
         Default: 0. Constructs a proof where the verifer can tell the minimum
                    value is at least the specified amount.
     [optional] exp : int
-        Default: 0. Base-10 exponent. Digits below above will be made public,
-                   but the proof will be made smaller. Allowed range is -1 to
-                   18 (-1 is a special case that makes the value public. 0 is
-                   the most private.)
+        Default: 0. Base-10 exponent. Number of digits which will be made public:
+                   Allowed range is -1 to 18
+                   0 corresponds to all digits (with respect to concealed bits) are private,
+                   1 corrsponds to smallest digit are public etc
+                   -1 is special value to make all digits public.
     [optional] nonce : 32bytes
         Default: random. 32-byte secret nonce used to initialize the proof.
     [optional] concealed_bits : int
@@ -303,8 +304,8 @@ class IOput:
                     (0 = auto/minimal, 64). For instance minimal number of bits
                     to conceal value 100 is 7. For proof with 7 bits observer 
                     can check that value is between 0 and 127. If minimal number
-                    of bits will be used chainwide observer can with a certain 
-                    degree of confidence guess that value is between 64 and 127.
+                    of bits will be used chainwide observer can guess with a certain 
+                    degree of confidence that value is between 64 and 127.
                     
     """    
     self._calc_pedersen()

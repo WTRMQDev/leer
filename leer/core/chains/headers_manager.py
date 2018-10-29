@@ -11,7 +11,7 @@ class HeadersManager:
     self.storage_space = storage_space
     self.storage_space.register_headers_manager(self)
     self.loose_ends = {}
-    self.do_not_check_pow = do_not_check_pow #For tests purposes
+    self.do_not_check_pow = do_not_check_pow #For testing purposes
 
   def set_genesis(self, genesis_header):
     self.genesis = genesis_header
@@ -52,7 +52,7 @@ class HeadersManager:
 
       #context_header = self.storage_space.headers_storage[header.hash] # prev checks could change params
       #if context_header.connected_to_genesis and not context_header.invalid:
-        # NOTE if new header has the same height in another, best_tip will not be changed
+        # NOTE if new header has the same height as current tip, best_tip will not be changed
         # (header.height==self.best_tip[1] and header.hash > self.best_tip[0])
       #  if header.height>self.best_tip[1]:
       #    self.best_tip = (context_header.hash, context_header.height)
@@ -61,10 +61,10 @@ class HeadersManager:
 
   def mark_subchain_invalid(self, _hash, reason=None):
     if not reason:
-      # By default reason of invalidity is inherited from prev
+      # reason of invalidity is by default inherited from prev block
       reason=self.storage_space.headers_storage[self.storage_space.headers_storage[_hash].prev].reason      
     to_be_marked = [_hash]
-    # Recursion, while beatiful, easily can reachs max depth here
+    # Recursion, while beatiful, can easily reach max depth here
     need_new_best_tip = False
     while len(to_be_marked):
       header_hash = to_be_marked.pop(0)
@@ -75,14 +75,14 @@ class HeadersManager:
       self.storage_space.headers_storage[header_hash] = header
       to_be_marked += list(header.descendants)
       if header.hash == self.best_tip[0]:
-        #subchain which was intended to be best, occurs to be invalid
+        #subchain which was intended to be best occurs to be invalid
         need_new_best_tip = True
     if need_new_best_tip:
       self.find_best_tip()
 
   def mark_subchain_connected_to_genesis(self, _hash):
     to_be_marked = [_hash]
-    # Recursion, while beatiful, easily can reachs max depth here
+    # Recursion, while beatiful, can easily reach max depth here
     while len(to_be_marked):
       header_hash = to_be_marked.pop(0)
       header = self.storage_space.headers_storage[header_hash]
@@ -96,12 +96,12 @@ class HeadersManager:
                                   next_reward(header.prev, self.storage_space.headers_storage) +\
                                   output_creation_fee
         except KeyError:
-          ''' If smth wrong with block.height, for instance it is set to 2000, while it is 20 in sequence
+          ''' If something is wrong with block.height, for instance it is set to 2000, while it is 20 in sequence
               next_reward will raise.
           '''
           header.coins_to_be_mint = 0
         header.total_difficulty = self.storage_space.headers_storage[header.prev].total_difficulty + header.difficulty
-        # we should save here, since context_validation check coins_to_be_mint too
+        # we should save here, since context_validation checks coins_to_be_mint too
         self.storage_space.headers_storage[header_hash] = header
         if self.storage_space.headers_storage[header.prev].invalid:
           header.invalid = True
@@ -113,7 +113,7 @@ class HeadersManager:
             header.invalid = True
             header.reason = str(e)
       self.storage_space.headers_storage[header_hash] = header
-      # NOTE if new header has the same height in another, best_tip will not be changed
+      # NOTE if new header has the same height as current best tip, best_tip will not be changed
       # (header.height==self.best_tip[1] and header.hash > self.best_tip[0])
       if header.height > self.best_tip[1]:
         if not header.invalid:
@@ -144,7 +144,7 @@ class HeadersManager:
       for candidate_hash in candidates:
         candidate = self.storage_space.headers_storage[candidate_hash]
         if not candidate.invalid:
-          if candidate.connected_to_genesis: #Allways true, consider to remove
+          if candidate.connected_to_genesis: #Always true, consider to remove
             valid_candidates.append(candidate_hash)
       if len(valid_candidates):
         best_candidate_hash = max(valid_candidates)
@@ -205,9 +205,9 @@ class HeadersManager:
 
   def get_subchain(self, from_hash, to_hash):
     '''
-    Get_subchain went down from to_hash and stops when find from_hash
-    If from_hash and to_hash are in different forks, it will be found
-    only when descent will hit genesis and throw exception `no prev`
+    Get_subchain function goes down from to_hash and stops when finds from_hash.
+    In case from_hash and to_hash are in different forks, it will be found
+    only when descent hits genesis and throws exception `no prev`.
     '''
     subchain=[]
     while not to_hash==from_hash:
@@ -219,21 +219,21 @@ class HeadersManager:
     # Bad design, should be moved to blockchain?
     '''
     This function is used by BlockchainManager to decide what to do next.
-    It gets current blockchain tip hash and return possible paths to "better state"
+    It gets current blockchain tip hash and returns possible paths to "better state"
     (state with higher height) sorted by "quality".
     
-    Paths represented by lists of actions, each action is tuple of `action_name` and `hash`.
+    Paths represented by lists of actions, each action is a tuple of `action_name` and `hash`.
     Actions:
      Action_name params
      ROLLBACK	 hash
      ADDBLOCK    hash
 
-    Default behavior is return path to best_headers_tip as best path, and all other paths 
+    Default behavior is returning path to best_headers_tip as best path, and all other paths 
     to height==current_height+1 (which forked less than looking_back_horizont blocks ago)
     in random order.
     
     Probably we should return paths sorted by max known height and also supply more than one
-    step per path. However for now internal logic become too cumbersome, while at worst scenario
+    step per path. However, this will make internal logic too cumbersome, while at worst scenario
     of long forks and unreacheable main branch the only negative effect is slow synchronisation.
     
     '''
@@ -298,8 +298,8 @@ class HeadersManager:
     #0
     if not self.storage_space.headers_storage[_hash].connected_to_genesis:
       return
-      # TODO context_validation should raise it's owns exception that will be
-      # catched in context_validation_of_subchain (Now we cant throw exception for
+      # TODO context_validation should raise its own exception that will be
+      # caught in context_validation_of_subchain (Now we can't throw exception for
       # incorect checks like not connected chains, it will be assigned to block)
     header = self.storage_space.headers_storage[_hash]
     if header.prev in self.storage_space.headers_storage: #otherwise it is genesis

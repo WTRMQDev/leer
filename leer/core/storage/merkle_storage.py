@@ -34,8 +34,8 @@ class MMR:
     remove(n)  - removes n elements from the end of the list. Cannot be undone.
                  This operation is used to delete information from orphan blocks.
                  This operation is available for all trees
-    clear(index) - delete obj with `index`, however keep its place (any other elements 
-                  after this operation occupies the same places). Hash of place become
+    clear(index) - delete obj with `index`, however keep its place (any other elements occupies
+                  after this operation the same places). Hash of place becomes
                   equal None: no matter how summ of indexes is redefined in subclasses
                   `None`+`smth`=`smth`, `None`+`None`=`None`. This operation is used for
                   unspent outputs tree.
@@ -90,7 +90,7 @@ class MMR:
 
   def find_by_hash(self, _hash, tx=None):
     '''
-      In contrast with get_by_hash, find_by_hash try to find result both in existing and pruned(if saved) dbs.
+      In contrast with get_by_hash, find_by_hash tries to find result both in existing and pruned(if saved) dbs.
     '''
     if not tx:
       with self.env.begin(write=False) as tx:
@@ -123,7 +123,7 @@ class MMR:
     """
     if level == self._get_max_level() and sequence_num==0:
       #already at the root, nothing to update
-      #TODO while there is no reasons to update_path on empty trees, we should check for error in _get_max_level
+      #TODO while there are no reasons to update_path on empty trees, we should check for error in _get_max_level
       pass
     else:
       neighbour_index = (sequence_num//2)*2 if (sequence_num%2) else (sequence_num//2)*2+1
@@ -180,10 +180,10 @@ class MMR:
 
   def discard(self, _index):
     '''
-      Discard leaf, that means delete obj by index(for saving space), but keeps its index.
+      Discard leaf, that means delete obj by index(for saving space), but keep its index.
       Returns object which can be used to revert discarding.
     '''
-    #TODO: check wether both childs are discarded (thus we can discard childs and keep only parent index)
+    #TODO: check wether both children are discarded (thus we can discard childs and keep only parent index)
     if self.clear_only:
       raise
     with self.env.begin(write=True) as txn:
@@ -199,7 +199,7 @@ class MMR:
 
   def revert_discarding(self, prune_obj):
     '''
-      Revert discrding by object which is returned by discard
+      Revert discarding by object which is returned by discard
     '''
     num, obj_index, obj = prune_obj
     with self.env.begin(write=True) as txn:
@@ -233,7 +233,7 @@ class MMR:
 
   def revert_clearing(self, prune_obj):
     '''
-      Revert clearing by object which returned by clear
+      revert_clearing takes object which clear function returns and reverts clear operation.
     '''
     num, obj_index, obj = prune_obj
     with self.env.begin(write=True) as txn:

@@ -80,16 +80,16 @@ class NetworkManager:
       self.nodes[(node.host, node.port)]=node 
       if (node.advertised_host, node.advertised_port) in self.reconnect_list:
         self.reconnect_list.pop((node.advertised_host, node.advertised_port))
-        #XXX possible attack here: if attacker want to exclude node (segment)
-        # from network (s)he DDoS this node, and then reconnect to all other
-        # nodes atacked node was connected. If (s)he will will advertise attacked
-        # node host and port as it's own, disconnected nodes will not try to
-        # reconnect. At the same time if attacker simulate multiple connections
-        # to attacked node from previously connected nodes(again advertising fake
+        #XXX possible attack here: if an attacker wants to exclude a node (segment)
+        # from the network. (s)he can DDoS this node and then reconnect it to all other
+        # nodes. If (s)he will advertise the attacked
+        # node host and port as its own, disconnected nodes will not try to
+        # reconnect. At the same time. if the attacker simulates multiple connections
+        # to the attacked node from previously connected nodes (again, advertising fake
         # host and port), attacked node will not try to reconnect to disconnected
-        # nodes either. It is difficult attack, which requires enormous DDoS
-        # abilities, knowing of network topology, absence of fresh coming nodes.
-        # Nevertheless this issue should be revisited
+        # nodes either. It is a difficult attack which requires enormous DDoS
+        # abilities, knowing of network topology, and absence of fresh coming nodes.
+        # Nevertheless, this issue should be revisited
 
     if _type == "give nodes":
       node_list_to_send = []
@@ -110,8 +110,8 @@ class NetworkManager:
         local_in_connection=[]
         try:
           # Node appears in known_nodes only after `init` message
-          # So if information about node will reach us multiple times before
-          # first successfull connection, we will try to connect to it multiple times
+          # So if the information about the node will reach us multiple times before
+          # the first successfull connection, we will try to connect to it multiple times
           # self.in_connection is used to prohibit such behavior
           self.in_connection
         except:
@@ -246,9 +246,9 @@ class NetworkManager:
 
     if _type == "take TBM transaction":
       try:
-        serialized_mode, serialized_sceleton = message[:2], message[2:]
+        serialized_mode, serialized_skeleton = message[:2], message[2:]
         self.syncer.queues["Blockchain"].put({'action': 'take TBM transaction',
-                                              'id':str(uuid4()), "tx_scel": bytes(serialized_sceleton),
+                                              'id':str(uuid4()), "tx_skel": bytes(serialized_skeleton),
                                               "mode": int.from_bytes(serialized_mode, "big"),
                                               "node":(node.host, node.port), 'sender':"NetworkManager"})
       except Exception as e:
@@ -388,12 +388,12 @@ class NetworkManager:
             self.syncer.queues[message['sender']].put({'id':message['id'], 'result':'processed'})
 
           if action == "take TBM transaction":
-            mode, serialized_tx_scel, node_params = message["mode"], message["tx_scel"], message["node"]
+            mode, serialized_tx_skel, node_params = message["mode"], message["tx_skel"], message["node"]
             if not node_params in self.nodes:
               continue
             message_to_send = inv_message_id["take TBM transaction"]
             message_to_send += mode.to_bytes(2,"big")
-            message_to_send += serialized_tx_scel
+            message_to_send += serialized_tx_skel
             coro = self.nodes[node_params].send(message_to_send)
             asyncio.ensure_future(coro, loop=self.loop)            
             self.syncer.queues[message['sender']].put({'id':message['id'], 'result':'processed'})

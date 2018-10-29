@@ -95,9 +95,9 @@ class KeyManagerClass:
 class DiscWallet:
   '''
     It is generally key-value db: key is serialized pubkey, value - serialized privkey.
-    There is privkey pool: bunch of pregenerated privkeys. It is expected that on higher level
-    instead of generating and immediate usage of new key, new key will be put into pool and the oldest key
-    from pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
+    There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
+    instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
+    from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
     some keys used after copy being made.
   '''
   def __init__(self, dir_path):
@@ -158,7 +158,7 @@ class DiscWallet:
   
   def get_privkey_from_pool(self):
     '''
-      Privkey will be immideately removed from pool.
+      Privkey will be immideately removed from the pool.
     '''
     with self.env.begin(write=True) as txn:
         # pool is integer->pubkey key_value
@@ -194,7 +194,7 @@ class DiscWallet:
 
   def get_privkey(self, serialized_pubkey):
     '''
-      Note: Being get by pubkey, key pair is not checked wether it was in pool or not.
+      Note: Being get by pubkey, key pair is not checked wether it was in the pool or not.
     '''
     with self.env.begin(write=False) as txn:
       return txn.get(serialized_pubkey, db=self.main_db)

@@ -44,12 +44,12 @@ class Blockchain:
     '''
       To add block we need to apply tx both to txos storage and excesses.
       After that we need to set new state.
-      Also we saving info for rollback.
+      Also we need to save info for rollback.
       TODO: We definetely should use transactional writing here to avoid db inconsistency.
     '''
     #TODO transactional writing
     block = self.storage_space.blocks_storage[block_hash]
-    block.non_context_verify() #build tx from sceleton
+    block.non_context_verify() #build tx from skeleton
     if not self.context_validation(block):
       ch = self.storage_space.headers_manager.mark_subchain_invalid(block.hash, reason = "Block %s(h:%d) failed context validation"%(block.hash, block.header.height))
       return self.update(reason="Detected corrupted block")    
@@ -107,7 +107,7 @@ class Blockchain:
     if block.header.height>0:
       if not self.storage_space.headers_storage[block.header.prev].supply + \
            next_reward(block.header.prev, self.storage_space.headers_storage) - \
-           block.transaction_sceleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
+           block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
         return False
     return True
 
@@ -132,7 +132,7 @@ class Blockchain:
     current_tip = self.current_tip
     actions = self.storage_space.headers_manager.next_actions(current_tip)
     # before doing anything we should check that we have enough info (downloaded blocks)
-    # to move to better state (state with higher height)
+    # to move to a better state (state with higher height)
     current_height = self.current_height
     good_path=None
     for path in actions:
@@ -157,7 +157,7 @@ class Blockchain:
       return
     progress = self.process_path(good_path)
     if progress:# and (not good_path==actions[0]):
-      # workaround for situations when best known by headers branch is not available:
+      # workaround for situations when branch with best known header is not available:
       # in this case next_actions will return only one step for alternative branch.
       # details in HeadersManager.next_actions
       self.update(reason="recursive check")
@@ -174,8 +174,8 @@ class Blockchain:
       if action=="ADDBLOCK":
         if (not block_hash in self.storage_space.blocks_storage) or (not self.storage_space.blocks_storage.is_block_downloaded(block_hash)):
           break
-          # We decide that path is good if we have enough downloaded blocks to get to current_height+1. Still path
-          # may contains more steps and for some of those steps we may not have downloaded blocks. So stop now.
+          # We decide that path is good if we have enough downloaded blocks to get to current_height+1. Still, the path
+          # may contain more steps and for some of those steps we may not have downloaded blocks. So stop now.
         try:
           self._add_block_to_chain(step[1])
           progress = True #at least one block was added
@@ -186,16 +186,17 @@ class Blockchain:
   def _forget_top(self):
     """
       This function is used for tests only: currently we can generate blocks only on top of known ones.
-      Thus, to collide two forks (one of which is previously unknown to blockchain) we need first generate forks
-      and then force blockchain to forget it.
-      This function not only delete data from blockchain but also from blocks storage and txos_storage.
-      Note, after forgeting top blockchain doesn't automatically update: if there is longer branch blockchain will not be switched to it.
+      Thus, to collide two forks (one of which is previously unknown to blockchain) we need first to generate forks
+      and then to force blockchain to forget it.
+      This function deletes data not only from blockchain but also from blocks storage and txos_storage.
+      Note, after forgeting top block, previous block became blockchain tip. If there is a known longer branch, 
+      blockchain will not be switched to it.
     """
     ct =self.current_tip
     block = self.storage_space.blocks_storage[ct]
     self._rollback()
     self.storage_space.blocks_storage.forget_block(ct)
-    for _o in block.transaction_sceleton.output_indexes:
+    for _o in block.transaction_skeleton.output_indexes:
       self.storage_space.txos_storage.mempool.remove_by_index(_o)
       
 

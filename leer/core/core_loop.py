@@ -14,7 +14,7 @@ from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 import base64
 from leer.core.utils import DOSException
-from leer.core.primitives.transaction_sceleton import TransactionSceleton
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from time import sleep, time
 from uuid import uuid4
 
@@ -311,8 +311,8 @@ def core_loop(syncer, config):
           tx.generate()
           tx.verify()
           storage_space.mempool_tx.add_tx(tx)
-          tx_scel = TransactionSceleton(tx=tx)
-          notify_all_nodes_about_tx(tx_scel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+          tx_skel = TransactionSkeleton(tx=tx)
+          notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
           send_message(message["sender"], {"id": message["id"], "result":"generated"})
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
@@ -358,7 +358,7 @@ def core_loop(syncer, config):
           if block_hash in storage_space.blocks_storage:
             continue #We are good, block already downloaded          
           if not block_hash in storage_space.blockchain.awaited_blocks:
-            continue #For some reason we dont need this block anymore
+            continue #For some reason we don't need this block anymore
           to_be_downloaded.append(block_hash)
           if storage_space.headers_storage[block_hash].height<lowest_height:
             lowest_height = storage_space.headers_storage[block_hash].height
@@ -502,7 +502,7 @@ def process_next_headers_request(message, send_message):
   if not storage_space.headers_manager.find_ancestor_with_height(current_tip, header.height) == from_hash:
     return
     ''' Counter-node is not in our main chain. 
-        We will not feed it (actually we just not sure what we should send here)
+        We will not feed it (actually we just are not sure what we should send here)
     '''
   last_to_send_height = header.height+num
   last_to_send_height = current_height if last_to_send_height>current_height else last_to_send_height
@@ -571,7 +571,7 @@ def send_tip_info(node_info, send, our_tip_hash=None ):
   node_info["last_send"] = time()
 
 def process_tip_info(message, node_info, send):
-  # another node (referenced as counter-Node below) asks us for our best tip and also provide us information about his
+  # another node (referenced as counter-Node below) asks us for our best tip and also provides us information about his
   node = message["node"]
   height = message["height"]
   tip_hash = message["tip"]
@@ -671,7 +671,7 @@ def process_find_common_root_reponse(message, node_info, send_message):
     node_info["common_root"]["root"] = header_hash
     root_found = True
   if (not "best_mutual" in node_info["common_root"]):
-    # genesis should allways be mutual
+    # genesis should always be mutual
     return
   logger.info(node_info)
   if not root_found:
@@ -694,22 +694,22 @@ def process_find_common_root_reponse(message, node_info, send_message):
 
 
 def  process_tbm_tx_request(message, send_message):
-  tx_scel = storage_space.mempool_tx.give_tx_sceleton()
+  tx_skel = storage_space.mempool_tx.give_tx_skeleton()
   tx = storage_space.mempool_tx.give_tx()
-  serialized_tx_scel = tx_scel.serialize(rich_format=True, max_size=60000, full_tx=tx)
+  serialized_tx_skel = tx_skel.serialize(rich_format=True, max_size=60000, full_tx=tx)
   send_message(message['sender'], \
-     {"action":"take TBM transaction", "tx_scel": serialized_tx_scel, "mode": 0,
+     {"action":"take TBM transaction", "tx_skel": serialized_tx_skel, "mode": 0,
       "id":message['id'], 'node': message["node"] })
 
 def  process_tbm_tx(message, send, nodes):
   try:
     initial_tbm = storage_space.mempool_tx.give_tx()
-    tx_scel = TransactionSceleton()
-    tx_scel.deserialize_raw(message['tx_scel'], storage_space = storage_space)
-    storage_space.mempool_tx.add_tx(tx_scel)
+    tx_skel = TransactionSkeleton()
+    tx_skel.deserialize_raw(message['tx_skel'], storage_space = storage_space)
+    storage_space.mempool_tx.add_tx(tx_skel)
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
-        notify_all_nodes_about_tx(message['tx_scel'], nodes, send, _except=[message["node"]])
+        notify_all_nodes_about_tx(message['tx_skel'], nodes, send, _except=[message["node"]])
   except Exception as e:
     print(e)
     pass
@@ -723,12 +723,12 @@ def check_sync_status(nodes, send):
       send_tip_info(node_info = node, send=send)
 
 
-def notify_all_nodes_about_tx(tx_scel, nodes, send, _except=[], mode=1):
+def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
   for node_index in nodes:
     if node_index in _except:
       continue
     node = nodes[node_index]
-    send({"action":"take TBM transaction", "tx_scel": tx_scel, "mode": mode,
+    send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
 def notify_all_nodes_about_new_tip(nodes, send):
