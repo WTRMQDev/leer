@@ -61,8 +61,11 @@ class ObliviousDictionary:
 
   def __check_trigers(self):
     now = time()
-    for tm,key in self.trigger_time_list:
+    n=0
+    for tm, key in self.trigger_time_list:
       if tm<now:
         self.inner_dict.pop(key)
+        n+=1
       else:
          break #trigger_time_list is sorted
+    self.trigger_time_list=self.trigger_time_list[n:]
