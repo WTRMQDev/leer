@@ -52,8 +52,11 @@ class RPCManager():
     if request.method=="OPTIONS":
       #preflight
       return web.Response(headers=[cors_origin_header, cors_headers_header])
-    request = await request.text()
-    response = await methods.dispatch(request, schema_validation=False)
+    try:
+      request = await request.text()
+      response = await methods.dispatch(request, schema_validation=False)
+    except CancelledError:
+      return web.Response() #TODO can we set response.wanted to false?
     if response.is_notification:
         return web.Response()
     else:
