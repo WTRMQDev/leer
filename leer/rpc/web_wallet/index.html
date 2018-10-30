@@ -95,6 +95,13 @@ footer {
   bottom: 0;
 }
 
+#nodeStatus {
+    width: 150px;
+    background-color: #f0f0f0;
+    float : left;
+    max-height: 40px;
+}
+
 #progressDiv {
     width: 400px;
     background-color: #aaa;
@@ -130,25 +137,28 @@ function openTab(event, tabId) {
     event.currentTarget.className += " active";
 } 
 
+function set_node_off() {
+  node_status = document.getElementById("nodeStatus");
+  node_status.innerHTML = "<span style='color: red;'>&#9673 Node is off</span> "
+}
+function set_node_on() {
+  node_status = document.getElementById("nodeStatus");
+  node_status.innerHTML = "<span style='color: darkgreen;'>&#9673 Node is on</span>"
+}
+
+
 function basic_request(method, params, callback) {
         
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() { 
-          example_responses = {
-            "getbalancestats":{"jsonrpc": "2.0", "result": {"matured": {"known_value": 1140061949, "known_count": 9, "unknown_count": 0}, "immatured": {"known_value": 0, "known_count": 0, "unknown_count": 0}}, "id": 1},
-            "getsyncstatus":{"jsonrpc": "2.0", "result": {"height": 26, "best_known_header": 31, "best_advertised_height": null}, "id": 1},
-            "getbalancelist":{"jsonrpc": "2.0", "result": {"AM3vHYnZ+a05idneUd5S2G3irCU7AwLkJ98Fj7TU8lAOLglP0fTA5hj3U+Zfgza518B+QErTIjWGrQIpWpOrmOxBDEeW": {"CO/9hpy2J0MP+YHE7Z0UWlqIKgNGpX6s/g89O4pClCATxf0PDK31dlvJVr1zIBvldfpiv/avCXGmPV8ixzQzJXY=": 99999285}, "APQ0eEDPjHO/hu33b5Ylqoouc074qxsbrJW1N0cy3CnsQWRhbt5zAHGWFkkldYaRNq4sqsnKz6489PjGLc43zFCkHDrt": {"CDgybBLtQQSvSbJugzd8kJ2h+d53c8t9WNBmE4eqzSoO1a5LFwHe1q/HEOLEDW8elUFgVjfuAFIyiaR2YDMI6rs=": 99999619}, "AY8bSeIBg7MhSH0yH42AI4cKDFHqlQHD2i7gFgB8U77MOnXGntpLLTI/BqC4iK1WBoQ6jSEo1wQeV+uBToA0fkq3cv4K": {"CaitRCMawl5H4ICjfBhLsADoKsIG1+XYETo17imQi7ugRvTaGlXf0js0unLMfTf25o9di5IlgemIbVDS5d+qJgs=": 99999666}, "AE33JED92f4LhpBS1ZYvHKrCURIunksMMfvzBBOPUtWXWiBScHqye9ifrZ+KnIJTPrRXLQ6B4yuRhr88gCsMk8bOqIt1": {"CCKHSn1Fv4ytXtBsJMCNm+sRCHotATAR0a3PKaXBckAXISpzdvGDBqfxY/Cj6jiwDf2cQnAIlTLEhshmRxHHmhY=": 439978000}, "AGerysffCiKqKBD1t4s+94YS+0stVBV17ZmeXcySfHs2E3n/4acQGbKLIsm3ntK1uhuQiGtF9qo1dqfxqzuoLzmQw/OI": {"CSIvlJcPyWeu1uIUHnKXc/atvbP+AfnLTn87F1vk3KHSs28U/AEmAUDfUYgWiqgChPrQBQpuWt3QBTeqYRrUtkc=": 99999380}, "AN8bBX41ZyfAG895cbmKYXX7QbWor7oSntON6vWxtl6XGgduyYJwpFm/Q1a+xDoHRVBBHU44YpXFei8cWUhHG40znkU7": {"CCOoKruLthmh0FtdTTN9ADcqC1zzkr32L83Ed4uQNcCo+WzB3oXl/wAwF6oIR3z04AtBKj5wDSt8IUTNeVspCj0=": 99999333}, "ATPmdF3NJ4oE0yiL2vtx0fbfF3AMren8Ed6emyh2S2qONL8IyJW10nkPxSpM9DTxV4B8NByblUdWNsSlifTOKEi0HI0e": {"CQQRNL+U6Gh9YHWwxgL1bIDmid8wCH2ppyrhzhB8lz9hmVq1vj+VhOIIFiMIBVv58MqPjaiS+/TPyTjCgzrfbt8=": 88000}, "AYUKF80UCU/u3QJ1wI6r9Tbf33tuqmms7e5Y54U4qje4VTnyEsF0eipA8NwHeeAsHXW7LdmCWc1cQmeaKDx1f9Fqn8Az": {"CPVCOcgS1Tqqj3acDzU3voP/DUNmuT3gCZkfsIHTEu6Eifmbes5287bKAoi5PYtiXV/Gh9IJN0a6YjWJQjirix8=": 99999428}, "AK/TWL31d5oi5KaBNQUARntRgfPj4x3axpkpi05w3dWUfFSaozRhpSRY5v00vWuPCZK3V7q6hhGKDRP+4CPZlcOVdCTc": {"CNlf8eWjt2/KPQyGl2LptCUoWAM9iJVc5ym2Go3yE5myA21ZBz/YkJeZ9hhVMvZ/SkYiSOjxMRC4iFZ98XfJ+2w=": 99999238}}, "id": 1},
-            "getnewaddress": [{"jsonrpc": "2.0", "result": "ATk1CFWiYnlhXcWK9XgiUp2KBiRUGC39poTdzAQe3drHOfkB4z/vxmdnHHPa2FvgrRkju/QGYd9iNO8CGuFLm4QvPEir", "id": 1}, {"jsonrpc": "2.0", "error": "No registered key manager", "id": 1}],
-            "sendtoaddress": [{"jsonrpc": "2.0", "result": "generated", "id": 1}, {"jsonrpc": "2.0", "error": "Not enough matured coins", "id": 1}, {"jsonrpc": "2.0", "error": "No registered key manager", "id": 1} ] 
-          }
-           
           if (xhr.readyState == 4 && xhr.status == 200)
-              callback(JSON.parse(xhr.responseText)['result']);
+              {
+                callback(JSON.parse(xhr.responseText)['result']);
+                set_node_on();
+              }
           //stubs
           else { 
-            example_result = example_responses[method];
-            if(Array.isArray(example_result)) {example_result = example_result[Math.floor(Math.random()*example_result.length)];}
-            callback(example_result['result']);
+                set_node_off();
           }
         
         }
@@ -259,7 +269,7 @@ window.onload = load_wallet;
       <button class="tablinks disabled" onclick="">Transactions</button>
     </div>
     <div class="header-right">
-      <span id="balance">Balance 25 leer</span>
+      <span id="balance">Balance 0 leer</span>
       <span id="unknown">Unknown 0 outputs</span>
       <span id="immature">Immature 0 leer</span>
     </div>
@@ -272,7 +282,7 @@ window.onload = load_wallet;
   </div>
 
   <div class="tabcontent" id="receive">
-    <input type="text" value="AKrnwcgR8qr8jYLArGxbaemSttctrQO5bXPdtIZ9HIWTZ0gNC/cqA0a41O87GLLVoURXY7efvrT8kRg41WSLgYVbzMcS"  id="address-field" readonly><br>
+    <input type="text" value=""  id="address-field" readonly><br>
     <input type="submit" value="Generate new" onclick="get_new_address();">
   </div>
 
@@ -282,21 +292,15 @@ window.onload = load_wallet;
        <th>Address</th>
        <th>Balance</th>
       </tr>
-      <tr>
-       <td>AKrnwcgR8qr8jYLArGxbaemSttctrQO5bXPdtIZ9HIWTZ0gNC/cqA0a41O87GLLVoURXY7efvrT8kRg41WSLgYVbzMcS</td>
-       <td>1.44356</td>
-      </tr>
-      <tr>
-       <td>AStlcvGWVRaGgtOHz4TtTQlO+eU8DTzX5tqTLXgr/b83H1VDRJ7PX+NhbZkENilkZUduNd6qGs+CyF0ZFM2BZ2X9EPJF</td>
-       <td>1.44356</td>
-      </tr>
+
     </table>
   </div>
 
   <footer>
+    <div id="nodeStatus"> </div>
     <div id="progressDiv">
       
-      <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: 15 / 25 / 10;</span></div>
+      <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: -1 / -1 / -1;</span></div>
     </div>
     
   </footer>
