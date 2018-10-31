@@ -1,6 +1,7 @@
 from aiohttp import web
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
+from asyncio.base_futures import InvalidStateError
 import asyncio
 import logging
 import json
@@ -192,7 +193,11 @@ class RPCManager():
         print(message)
         if 'id' in message:
           if message['id'] in self.requests:
-            self.requests[message['id']].set_result(message)
+            try:
+              self.requests[message['id']].set_result(message)
+            except InvalidStateError:
+              self.requests.pop(message['id'])
+              
         else:
           pass # Now RPCManager can only get answers to own requests
       await asyncio.sleep(0.2)
