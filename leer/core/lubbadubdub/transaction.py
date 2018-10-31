@@ -70,7 +70,7 @@ class Transaction:
 
 
   # should be moved to wallet???
-  def generate(self, change_address=None):
+  def generate(self, change_address=None, relay_fee_per_kb=0):
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
     if not len(self.inputs):
@@ -84,7 +84,7 @@ class Transaction:
         raise Exception("Trying to generate tx which spends unknown input")
     in_value = sum([ioput.value for ioput in self.inputs]) 
     out_value = sum([destination[1] for destination in self._destinations])
-    relay_fee = self.calc_relay_fee()
+    relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
     # +1 for destination is for change address
     self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
     remainder = in_value - out_value - self.fee
@@ -116,9 +116,13 @@ class Transaction:
     self.verify()
     
 
-  def calc_relay_fee(self, relay_fee_per_kb=0):
-    pass #TODO
-    return 0
+  def calc_relay_fee(self, relay_fee_per_kb):
+    inputs_num, outputs_num, excesses_num = len(self.inputs), len(self.destinations)+1, self.additional_excesses
+    input_size = 65
+    ouput_size = 5364
+    excess_size = 65
+    estimated_size = inputs_num*input_size + outputs_num*ouput_size + excesses_num*excess_size
+    return estimated_size*relay_fee_per_kb
 
 
   def calc_new_outputs_fee(self, inputs_num=None, outputs_num=None):
@@ -432,4 +436,12 @@ class Transaction:
     for _output in self.outputs:
        s+=" "*4+_output.__str__()+"\n"
     return s
+
+  @property
+  def relay_fee(self):
+    fee = 0
+    for _output in self.outputs:
+       fee += _output.relay_fee
+    return fee
+
     

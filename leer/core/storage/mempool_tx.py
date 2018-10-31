@@ -4,6 +4,7 @@ from leer.core.utils import ObliviousDictionary
 from leer.core.primitives.block import generate_block_template, build_tx_from_skeleton
 from leer.core.parameters.dynamic import next_reward
 from leer.core.parameters.constants import coinbase_maturity
+from leer.core.parameters.fee_policy import FeePolicyChecker
 from leer.core.lubbadubdub.ioput import IOput
 
 class MempoolTx: #Should be renamed to Mempool since it now holds block_template info
@@ -14,7 +15,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
     losing transactions.
   '''
-  def __init__(self, storage_space):
+  def __init__(self, storage_space, fee_policy_config=None):
     self.transactions = []
     self.built_tx = {}
     self.current_set = []
@@ -24,6 +25,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.storage_space.register_mempool_tx(self)
     self.block_templates = ObliviousDictionary(sink_delay=6000)
     self.key_manager = None
+    self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
 
   def update_current_set(self):
     '''
@@ -63,10 +65,11 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
         tx_to_remove_list.append(tx_skeleton)
         continue
       try:
-        merged_tx = merged_tx.merge(full_tx)
-        self.current_set.append(tx_skeleton)
+        if self.fee_policy_checker.check_tx(full_tx):
+          merged_tx = merged_tx.merge(full_tx)
+          self.current_set.append(tx_skeleton)
       except:
-        pass #it is ok
+        pass #it is ok, tx contradicts with other transactions in the pool
     for tx in tx_to_remove_list:
       self.transactions.remove(tx)
       self.built_tx.pop(tx.serialize(), None)

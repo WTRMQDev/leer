@@ -308,7 +308,7 @@ def core_loop(syncer, config):
           for utxo in list_to_spend:
             tx.push_input(utxo)
           tx.add_destination( (a, value) )
-          tx.generate()
+          tx.generate(relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
           tx.verify()
           storage_space.mempool_tx.add_tx(tx)
           tx_skel = TransactionSkeleton(tx=tx)
@@ -724,6 +724,7 @@ def check_sync_status(nodes, send):
 
 
 def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
+  #TODO we should not notify about tx with low relay fee
   for node_index in nodes:
     if node_index in _except:
       continue
