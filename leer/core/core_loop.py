@@ -167,9 +167,11 @@ def core_loop(syncer, config):
           process_new_blocks(message)
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
-            notify_all_nodes_about_new_tip(nodes, send_to_nm)          
+            notify_all_nodes_about_new_tip(nodes, send_to_nm)  
+          look_forward(nodes, send_to_nm)       
         if message["action"] == "take the txos":
           process_new_txos(message)
+          look_forward(nodes, send_to_nm)          
         if message["action"] == "give blocks":
           process_blocks_request(message, send_message)
         if message["action"] == "give next headers":
@@ -410,6 +412,16 @@ def core_loop(syncer, config):
       check_sync_status(nodes, send_to_nm)
     except Exception as e:
       logger.error(e)
+
+def look_forward(nodes, send_to_nm):
+  if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height+100:
+    for node_index in nodes:
+      node = nodes[node_index]
+      if node['height']>storage_space.headers_manager.best_header_height:
+        our_tip_hash = storage_space.blockchain.current_tip
+        send_find_common_root(storage_space.headers_storage[our_tip_hash], node['node'], send = send_to_nm)
+        break
+
 
 
 
