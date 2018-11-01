@@ -85,7 +85,7 @@ class NetworkNode:
     except Exception as e:
       asyncio.ensure_future(self._on_closed_connection(error=e))
       return
-    self.handshake.initialize('Noise_XK', prologue=b'lightning', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=self.static_key, re=None, initiator=True)
+    self.handshake.initialize('Noise_XK', prologue=b'leer', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=self.static_key, re=None, initiator=True)
     try:
       await self.do_handshake()
     except Exception as e:
