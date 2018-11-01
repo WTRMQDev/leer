@@ -100,7 +100,7 @@ class NetworkNode:
       raise
     self.logger.debug("Trying to accept connection")
     self.reader, self.writer = reader, writer
-    self.handshake.initialize('Noise_XK', prologue=b'lightning', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=None, re=None, initiator=False)
+    self.handshake.initialize('Noise_XK', prologue=b'leer', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=None, re=None, initiator=False)
     #self.connected = True
     try:
       await self.do_handshake()
