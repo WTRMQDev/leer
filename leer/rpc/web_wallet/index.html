@@ -96,14 +96,21 @@ footer {
 }
 
 #nodeStatus {
-    width: 150px;
+    max-width: 150px;
     background-color: #f0f0f0;
+    float : left;
+    max-height: 40px;
+    margin-right: 25px;
+}
+#connectionNumber {
+    max-width: 200px;
+    background-color: #eaeaea;
     float : left;
     max-height: 40px;
 }
 
 #progressDiv {
-    width: 400px;
+    max-width: 400px;
     background-color: #aaa;
     float : right;
     max-height: 40px;
@@ -239,6 +246,16 @@ function send_money() {
   basic_request("sendtoaddress",[address,value], alert_success );
   
 }
+
+function update_connection_num() {
+  var set_con_num = function(num) {
+      var cn = document.getElementById("connectionNumber");
+      cn.innerHTML = "Connected to "+num.toString() + " nodes"
+    } 
+  basic_request("getconnectioncount",[],set_con_num);
+}
+
+
 function load_wallet() {
 // Routines:
 // 1. Check sync status
@@ -251,6 +268,7 @@ function load_wallet() {
   setInterval(update_sync_status, 5000);
   setInterval(update_balance, 25000);
   setInterval(update_addresses, 50000);
+  setInterval(update_connection_num, 5000);
 }
 
 window.onload = load_wallet;
@@ -298,6 +316,7 @@ window.onload = load_wallet;
 
   <footer>
     <div id="nodeStatus"> </div>
+    <div id="connectionNumber"> Connected to 0 nodes </div>
     <div id="progressDiv">
       
       <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: -1 / -1 / -1;</span></div>
