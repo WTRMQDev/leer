@@ -105,10 +105,16 @@ class Blockchain:
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:
       return False
     if block.header.height>0:
+      subsidy = next_reward(block.header.prev, self.storage_space.headers_storage)
       if not self.storage_space.headers_storage[block.header.prev].supply + \
-           next_reward(block.header.prev, self.storage_space.headers_storage) - \
+           subsidy - \
            block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
         return False
+      if not block.tx.coinbase.value == subsidy + tx.relay_fee: 
+        # Note we already check coinbase in non_context_check, but using tx_skeleton info
+        # However information in tx_skeleton may be forged, thus this check is not futile
+        return False
+      
     return True
 
   @property

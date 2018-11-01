@@ -117,12 +117,12 @@ class Transaction:
     
 
   def calc_relay_fee(self, relay_fee_per_kb):
-    inputs_num, outputs_num, excesses_num = len(self.inputs), len(self.destinations)+1, self.additional_excesses
-    input_size = 65
-    ouput_size = 5364
-    excess_size = 65
-    estimated_size = inputs_num*input_size + outputs_num*ouput_size + excesses_num*excess_size
-    return estimated_size*relay_fee_per_kb
+    inputs_num, outputs_num, excesses_num = len(self.inputs), len(self._destinations)+1, len(self.additional_excesses)
+    input_size = 65+2
+    ouput_size = 5364+2
+    excess_size = 65+2
+    estimated_size = 6+inputs_num*input_size + outputs_num*ouput_size + excesses_num*excess_size
+    return int((estimated_size/1000.)*relay_fee_per_kb)
 
 
   def calc_new_outputs_fee(self, inputs_num=None, outputs_num=None):

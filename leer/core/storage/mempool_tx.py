@@ -68,7 +68,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
         if self.fee_policy_checker.check_tx(full_tx):
           merged_tx = merged_tx.merge(full_tx)
           self.current_set.append(tx_skeleton)
-      except:
+      except Exception as e:
         pass #it is ok, tx contradicts with other transactions in the pool
     for tx in tx_to_remove_list:
       self.transactions.remove(tx)
@@ -101,7 +101,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
   def give_block_template(self):
     if not self.key_manager:
       raise Exception("Key manager is not set")
-    value = next_reward(self.storage_space.blockchain.current_tip, self.storage_space.headers_storage)
+    transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
+    value = next_reward(self.storage_space.blockchain.current_tip, self.storage_space.headers_storage)+transaction_fees
     coinbase = IOput()
     coinbase.fill(self.key_manager.new_address(), value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height + 1 + coinbase_maturity)
     coinbase.generate()

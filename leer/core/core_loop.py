@@ -295,7 +295,7 @@ def core_loop(syncer, config):
           summ = 0 
           for address in _list:
             for texted_index in _list[address]:
-              if summ>value:
+              if summ>value+100000000: #TODO fee here
                 continue
               if isinstance(_list[address][texted_index], int):
                 _index = base64.b64decode(texted_index.encode())
@@ -719,6 +719,7 @@ def  process_tbm_tx(message, send, nodes):
     tx_skel = TransactionSkeleton()
     tx_skel.deserialize_raw(message['tx_skel'], storage_space = storage_space)
     storage_space.mempool_tx.add_tx(tx_skel)
+    final_tbm = storage_space.mempool_tx.give_tx()
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
         notify_all_nodes_about_tx(message['tx_skel'], nodes, send, _except=[message["node"]])
