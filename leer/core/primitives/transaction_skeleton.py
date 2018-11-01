@@ -38,7 +38,7 @@ class TransactionSkeleton:
       raise Exception("Full_tx is required for serialization in rich format")
     serialization_array = []
     version = 1
-    version_byte = (version<<1+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
+    version_byte = ((version<<1)+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
     serialization_array.append(version_byte)
     serialization_array.append(len(self.input_indexes).to_bytes(2, "big"))
     serialization_array.append(len(self.output_indexes).to_bytes(2, "big"))

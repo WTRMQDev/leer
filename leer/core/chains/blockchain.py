@@ -110,7 +110,7 @@ class Blockchain:
            subsidy - \
            block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
         return False
-      if not block.tx.coinbase.value == subsidy + tx.relay_fee: 
+      if not block.tx.coinbase.value == subsidy + block.tx.relay_fee: 
         # Note we already check coinbase in non_context_check, but using tx_skeleton info
         # However information in tx_skeleton may be forged, thus this check is not futile
         return False
