@@ -108,6 +108,13 @@ footer {
     float : left;
     max-height: 40px;
 }
+#coreStatus {
+    max-width: 250px;
+    background-color: #eaeaea;
+    float : left;
+    max-height: 40px;
+    padding-left: 20px;
+}
 
 #progressDiv {
     max-width: 400px;
@@ -181,9 +188,12 @@ function update_sync_status() {
   var set_sync_status = function(sync_status) {
       var syncstatus_text = document.getElementById("syncstatus");
       var syncstatus_bar = document.getElementById("actualprogressDiv");
+      var coreStatus = document.getElementById("coreStatus");
       var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
       var bkh = sync_status['best_known_header'];
       var bah = sync_status['best_advertised_height'];
+      if ('core_workload' in sync_status) { var workload = sync_status['core_workload'];}
+      else {var workload = false;}
       if(bah==null)
         bah=-1;
       syncstatus_text.innerHTML = "Synchronisation: "+height.toString() + "/"+bkh.toString() + "/"+bah.toString();
@@ -191,6 +201,8 @@ function update_sync_status() {
         syncstatus_bar.style.width = (100*height/bkh).toString()+"%"
       else
         syncstatus_bar.style.width = "100%"
+      if(workload)
+        coreStatus.innerHTML = "Core loop status: "+workload
     } 
   basic_request("getsyncstatus",[],set_sync_status);
 }
@@ -317,6 +329,7 @@ window.onload = load_wallet;
   <footer>
     <div id="nodeStatus"> </div>
     <div id="connectionNumber"> Connected to 0 nodes </div>
+    <div id="coreStatus">  </div>
     <div id="progressDiv">
       
       <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: -1 / -1 / -1;</span></div>
