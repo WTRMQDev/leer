@@ -73,7 +73,7 @@ class Block():
     #assert [commitment_root, txos_root, excesses_root]==self.header.merkles
 
     # This is context validation too??? TODO
-    assert self.tx.coinbase.value == next_reward(self.header.prev, self.storage_space.headers_storage), "Wrong block subsidy"
+    assert self.tx.coinbase.value == (next_reward(self.header.prev, self.storage_space.headers_storage)+self.transaction_skeleton.relay_fee), "Wrong block subsidy"
     
     return True
 
@@ -161,7 +161,8 @@ def generate_block_template(tx, storage_space, get_tx_from_mempool = True, times
 
     merkles = storage.apply_tx_get_merkles_and_rollback(tx) + [excesses.apply_tx_get_merkles_and_rollback(tx)]
     popow = current_block.header.next_popow()
-    supply = current_block.header.supply + tx.coinbase.value - tx.calc_new_outputs_fee()
+    #We subtract relay fee, since coinbase value contain relay fees, but it isn't new money, but redistribution
+    supply = current_block.header.supply + tx.coinbase.value - tx.calc_new_outputs_fee() - tx.relay_fee 
     height = current_block.header.height+1
     votedata = VoteData()
     target = next_target(current_block.hash, storage_space.headers_storage)

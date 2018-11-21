@@ -59,16 +59,26 @@ class KeyManagerClass:
       cursor = txn.cursor(db=self.wallet.main_db)
       for ser_pub in cursor.iternext(keys=True, values=False):
         for output_index in utxo_index.get_all_unspent_for_serialized_pubkey(ser_pub):
-          utxo = txos_storage.confirmed[output_index]
-          if utxo.detect_value(self):
-            if current_height>=utxo.lock_height:
-              stats['matured']['known_value']+=utxo.value
+          try:
+             lock_height, value, serialized_index = self.wallet.get_output(output_index, txn=txn)
+          except KeyError:
+            utxo = txos_storage.confirmed[output_index]
+            lock_height = utxo.lock_height
+            serialized_index = utxo.serialized_index
+            if utxo.detect_value(self):
+               value = utxo.value
+            else:
+               value = None
+            self.wallet.put_output(output_index, (lock_height, value, serialized_index))#No txn here, write-access is required
+          if value:
+            if current_height>=lock_height:
+              stats['matured']['known_value']+=value
               stats['matured']['known_count']+=1
             else:
-              stats['immatured']['known_value']+=utxo.value
+              stats['immatured']['known_value']+=value
               stats['immatured']['known_count']+=1
           else:
-            if current_height>=utxo.lock_height:
+            if current_height>=lock_height:
               stats['matured']['unknown_count']+=1
             else:
               stats['immatured']['unknown_count']+=1
@@ -82,19 +92,49 @@ class KeyManagerClass:
         address = address_from_private_key(PrivateKey(priv, raw=True))
         taddress = address.to_text()
         for output_index in utxo_index.get_all_unspent_for_serialized_pubkey(ser_pub):
-          utxo = txos_storage.confirmed[output_index]
-          texted_index = base64.b64encode(utxo.serialized_index).decode()
+          try:
+             lock_height, value, serialized_index = self.wallet.get_output(output_index, txn=txn)
+          except KeyError:
+            utxo = txos_storage.confirmed[output_index]
+            lock_height = utxo.lock_height
+            serialized_index = utxo.serialized_index
+            if utxo.detect_value(self):
+               value = utxo.value
+            else:
+               value = None
+            self.wallet.put_output(output_index, (lock_height, value, serialized_index))#No txn here, write-access is required
+          texted_index = base64.b64encode(serialized_index).decode()
           if not taddress in ret:
             ret[taddress]={}
-          if utxo.detect_value(self):
-            ret[taddress][texted_index]=utxo.value
+          if value:
+            ret[taddress][texted_index]=value
           else:
             ret[taddress][texted_index]='unknown'
     return ret
 
+def serialize_output_params(p):
+  lock_height, value, serialized_index = p
+  ser_lock_height = lock_height.to_bytes(4,"big")
+  if value == None:
+    ser_value = b"\xff"*7
+  else:
+    ser_value = value.to_bytes(7,"big")
+  return ser_lock_height+ser_value+serialized_index
+
+def deserialize_output_params(p):
+  lock_height = int.from_bytes(p[:4], "big")
+  value = int.from_bytes(p[4:11], "big")
+  serialized_index = p[11:]
+  if value == 72057594037927935: #=b"\xff"*7
+    value = None
+  return lock_height, value, serialized_index
+
+
 class DiscWallet:
   '''
-    It is generally key-value db: key is serialized pubkey, value - serialized privkey.
+    It is generally key-value db with two types of records:
+     1) key is serialized pubkey, value - serialized privkey.
+     2) key is output_index, value - tuple (lock_height, value)
     There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
     instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
     from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
@@ -105,12 +145,15 @@ class DiscWallet:
 
     if not os.path.exists(self.dir_path): 
         os.makedirs(self.dir_path) #TODO catch
-    self.env = lmdb.open(self.dir_path, max_dbs=10)
+    self.env = lmdb.open(self.dir_path, max_dbs=10, map_size=int(250e6)) #TODO this database is too big, should be checked
     with self.env.begin(write=True) as txn:
       self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=False)
       self.pool = self.env.open_db(b'pool', txn=txn, dupsort=False)
+      self.output = self.env.open_db(b'output', txn=txn, dupsort=False)
       #if not txn.get(b'pool_size', db=self.pool):
       #  txn.put( b'pool_size', 0, db=self.pool) 
+
+
 
   def get_pool_prop(self, prop, txn = None):
     if not txn:
@@ -156,6 +199,25 @@ class DiscWallet:
     else:
       p1=txn.put( bytes(serialized_pubkey), bytes(serialized_privkey), db=self.main_db)    
   
+
+  def put_output(self, output_index, output_params, txn=None):
+    if not txn:
+      with self.env.begin(write=True) as txn:
+        self.put_output(output_index, output_params, txn=txn)
+    else:     
+      p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)    
+
+  def get_output(self, output_index, txn=None):
+    if not txn:
+      with self.env.begin(write=False) as txn:
+        self.get_output(output_index, txn=txn)
+    else:     
+      output_params = txn.get( bytes(output_index), db=self.output)    
+      if not output_params:
+         raise KeyError
+      else:
+        return deserialize_output_params( output_params)
+
   def get_privkey_from_pool(self):
     '''
       Privkey will be immideately removed from the pool.

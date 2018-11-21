@@ -22,7 +22,7 @@ class UTXOIndex:
 
   def _add(self, serialized_pubkey, utxo_hash_and_pc):
     with self.env.begin(write=True) as txn:
-      txn.put( serialized_pubkey, utxo_hash_and_pc, db=self.main_db, dupdata=True, overwrite=False)
+      txn.put( serialized_pubkey, utxo_hash_and_pc, db=self.main_db, dupdata=True)
 
   def add_utxo(self, output):
     self._add(output.address.pubkey.serialize(), output.serialized_index)

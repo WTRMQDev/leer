@@ -1,6 +1,7 @@
 from aiohttp import web
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
+from asyncio.base_futures import InvalidStateError
 import asyncio
 import logging
 import json
@@ -53,8 +54,11 @@ class RPCManager():
     if request.method=="OPTIONS":
       #preflight
       return web.Response(headers=[cors_origin_header, cors_headers_header])
-    request = await request.text()
-    response = await methods.dispatch(request, schema_validation=False)
+    try:
+      request = await request.text()
+      response = await methods.dispatch(request, schema_validation=False)
+    except CancelledError:
+      return web.Response() #TODO can we set response.wanted to false?
     if response.is_notification:
         return web.Response()
     else:
@@ -231,7 +235,11 @@ class RPCManager():
         message = self.global_message_queue.get()
         if 'id' in message:
           if message['id'] in self.requests:
-            self.requests[message['id']].set_result(message)
+            try:
+              self.requests[message['id']].set_result(message)
+            except InvalidStateError:
+              self.requests.pop(message['id'])
+              
         else:
           pass # Now RPCManager can only get answers to own requests
       await asyncio.sleep(0.2)
