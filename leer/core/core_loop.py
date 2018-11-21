@@ -185,11 +185,13 @@ def core_loop(syncer, config):
           if not after_tip==initial_tip:
             notify_all_nodes_about_new_tip(nodes, send_to_nm) 
           notify("blockchain height", storage_space.blockchain.current_height)         
+          look_forward(nodes, send_to_nm)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
           process_new_txos(message)
           #After downloading new txos some blocs may become downloaded
           notify("blockchain height", storage_space.blockchain.current_height) 
+          look_forward(nodes, send_to_nm)          
         if message["action"] == "give blocks":
           notify("core workload", "giving blocks")
           process_blocks_request(message, send_message)
@@ -329,7 +331,7 @@ def core_loop(syncer, config):
           summ = 0 
           for address in _list:
             for texted_index in _list[address]:
-              if summ>value:
+              if summ>value+100000000: #TODO fee here
                 continue
               if isinstance(_list[address][texted_index], int):
                 _index = base64.b64decode(texted_index.encode())
@@ -344,7 +346,7 @@ def core_loop(syncer, config):
           for utxo in list_to_spend:
             tx.push_input(utxo)
           tx.add_destination( (a, value) )
-          tx.generate()
+          tx.generate(relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
           tx.verify()
           storage_space.mempool_tx.add_tx(tx)
           tx_skel = TransactionSkeleton(tx=tx)
@@ -446,6 +448,16 @@ def core_loop(syncer, config):
       check_sync_status(nodes, send_to_nm)
     except Exception as e:
       logger.error(e)
+
+def look_forward(nodes, send_to_nm):
+  if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height+100:
+    for node_index in nodes:
+      node = nodes[node_index]
+      if node['height']>storage_space.headers_manager.best_header_height:
+        our_tip_hash = storage_space.blockchain.current_tip
+        send_find_common_root(storage_space.headers_storage[our_tip_hash], node['node'], send = send_to_nm)
+        break
+
 
 
 
@@ -743,6 +755,7 @@ def  process_tbm_tx(message, send, nodes):
     tx_skel = TransactionSkeleton()
     tx_skel.deserialize_raw(message['tx_skel'], storage_space = storage_space)
     storage_space.mempool_tx.add_tx(tx_skel)
+    final_tbm = storage_space.mempool_tx.give_tx()
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
         notify_all_nodes_about_tx(message['tx_skel'], nodes, send, _except=[message["node"]])
@@ -760,6 +773,7 @@ def check_sync_status(nodes, send):
 
 
 def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
+  #TODO we should not notify about tx with low relay fee
   for node_index in nodes:
     if node_index in _except:
       continue

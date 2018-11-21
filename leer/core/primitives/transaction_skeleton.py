@@ -10,6 +10,7 @@ class TransactionSkeleton:
   def __init__(self, tx=None):
     self.input_indexes = [] 
     self.output_indexes = []
+    self.output_relay_fees = []
     self.additional_excesses = []
     self.combined_excesses = OrderedDict()
     self.tx = tx
@@ -18,7 +19,9 @@ class TransactionSkeleton:
         self.input_indexes.append(_i.serialized_index)
       for _o in tx.outputs:
         self.output_indexes.append(_o.serialized_index)
+        self.output_relay_fees.append(_o.relay_fee)
       self.additional_excesses = tx.additional_excesses.copy()
+      
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
 
@@ -33,12 +36,16 @@ class TransactionSkeleton:
     full_tx = full_tx if full_tx else self.tx
     if rich_format and not full_tx:
       raise Exception("Full_tx is required for serialization in rich format")
-    serialization_array = [ {True:b"\x01", False:b"\x00"}[rich_format] ]
+    serialization_array = []
+    version = 1
+    version_byte = ((version<<1)+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
+    serialization_array.append(version_byte)
     serialization_array.append(len(self.input_indexes).to_bytes(2, "big"))
     serialization_array.append(len(self.output_indexes).to_bytes(2, "big"))
     serialization_array.append(len(self.additional_excesses).to_bytes(2, "big"))
     serialization_array+=(self.input_indexes)
     serialization_array+=(self.output_indexes)
+    serialization_array+=[i.to_bytes(4, "big") for i in self.output_relay_fees]
     serialization_array+=([ e.serialize() for e in self.additional_excesses])
     tx_skel_size = sum([len(i) for i in serialization_array])
     if rich_format and tx_skel_size<max_size:
@@ -62,7 +69,7 @@ class TransactionSkeleton:
             break
       if not txouts_count:
         #we don't have enough space even for one output
-        serialization_array[0] = b"\x00"
+        serialization_array[0] = (version<<1).to_bytes(1,"big")
       else:
         serialization_array.append(txouts_count.to_bytes(2,"big"))
         serialization_array.append(txouts_data)
@@ -75,8 +82,12 @@ class TransactionSkeleton:
 
   def deserialize_raw(self, serialized, storage_space=None):
     if len(serialized)<1:
-      raise Exception("Not enough bytes for tx skeleton rich format marker")
-    serialized, rich_format = serialized[1:], bool(serialized[0])
+      raise Exception("Not enough bytes for tx skeleton version marker")
+    serialized, ser_version = serialized[1:], serialized[0]
+    rich_format = ser_version & 1
+    version = ser_version >> 1
+    if not version in [0,1]:
+      raise Exception("Unknown tx_sceleton version")
     if len(serialized)<2:
       raise Exception("Not enough bytes for tx skeleton inputs len")
     serialized, _len_i = serialized[2:], int.from_bytes(serialized[:2], "big")
@@ -99,6 +110,13 @@ class TransactionSkeleton:
         raise Exception("Not enough bytes for tx skeleton' output index %d len"%i)
       _output_index, serialized  = serialized[:serialized_index_len], serialized[serialized_index_len:]
       self.output_indexes.append(_output_index)
+
+    if version>=1:
+      for i in range(_len_o):
+        if len(serialized)<4:
+          raise Exception("Not enough bytes for tx skeleton' output relay fee %d len"%i)
+        ser_relay_fee, serialized  = serialized[:4], serialized[4:]
+        self.output_relay_fees.append(int.from_bytes(ser_relay_fee, "big"))
 
     for i in range(_len_ae):
       e = Excess()
@@ -142,6 +160,9 @@ class TransactionSkeleton:
   def calc_new_outputs_fee(self, is_block_transaction):
     return ( len(self.output_indexes) - len(self.input_indexes) - int(bool(is_block_transaction)) )*output_creation_fee
 
+  @property
+  def relay_fee(self):
+    return sum(self.output_relay_fees)
 
   def __eq__(self, another_one):
     return self.serialize() == another_one.serialize()
