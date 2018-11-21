@@ -128,7 +128,7 @@ class IOput:
 
     part1, part2 = serialized_output[:80], serialized_output[80:]
     (self.version, self.block_version, self.lock_height,
-      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H H 33s Q 33s", part1) 
+      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", part1) 
 
     if self.generator in generators:
       self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinded_generator = generators[self.generator])
@@ -185,7 +185,7 @@ class IOput:
       representation elements which should be signed.
     """
     ret = b''
-    ret += struct.pack("> H H H 33s Q 33s",
+    ret += struct.pack("> H H L 33s Q 33s",
       self.version, self.block_version, self.lock_height,
       self.generator, self.relay_fee,
       self.authorized_pedersen_commitment.serialize())
