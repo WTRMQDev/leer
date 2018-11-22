@@ -139,12 +139,25 @@ def core_loop(syncer, config):
 
   def send_to_nm(message):
     send_message("NetworkManager", message)
-  
+
+  def notify(key, value, timestamp=None):
+    message = {}
+    message['id'] = uuid4()
+    message['sender'] = "Blockchain"
+    if not timestamp:
+      message['time'] = time()
+    else:
+      message['time'] = timestamp
+    message['action']="set"
+    message['key']=key
+    message['value']=value
+    syncer.queues["Notifications"].put(message)
 
   logger.debug("Start of core loop")
   while True:
     sleep(0.05)
     put_back_messages = []
+    notify("core workload", "idle")
     while not message_queue.empty():
       message = message_queue.get()
       if 'time' in message and message['time']>time(): # delay this message
@@ -161,33 +174,47 @@ def core_loop(syncer, config):
         continue
       try:
         if message["action"] == "take the headers":
+          notify("core workload", "processing new headers")
           process_new_headers(message)
+          notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
+          notify("core workload", "processing new blocks")
           initial_tip = storage_space.blockchain.current_tip
           process_new_blocks(message)
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
-            notify_all_nodes_about_new_tip(nodes, send_to_nm)  
+            notify_all_nodes_about_new_tip(nodes, send_to_nm) 
+          notify("blockchain height", storage_space.blockchain.current_height)         
           look_forward(nodes, send_to_nm)       
         if message["action"] == "take the txos":
+          notify("core workload", "processing new txos")
           process_new_txos(message)
+          #After downloading new txos some blocs may become downloaded
+          notify("blockchain height", storage_space.blockchain.current_height) 
           look_forward(nodes, send_to_nm)          
         if message["action"] == "give blocks":
+          notify("core workload", "giving blocks")
           process_blocks_request(message, send_message)
         if message["action"] == "give next headers":
+          notify("core workload", "giving headers")
           process_next_headers_request(message, send_message)
         if message["action"] == "give txos":
+          notify("core workload", "giving txos")
           process_txos_request(message, send_message)
         if message["action"] == "find common root":
           process_find_common_root(message, send_message)
         if message["action"] == "find common root response":
           process_find_common_root_reponse(message, nodes[message["node"]], send_message)
         if message["action"] == "give TBM transaction":
+          notify("core workload", "giving mempool tx")
           process_tbm_tx_request(message, send_message)
         if message["action"] == "take TBM transaction":
+          notify("core workload", "processing mempool tx")
           process_tbm_tx(message, send_to_nm, nodes)
         if message["action"] == "give tip height":
-          send_message(message["sender"], {"id": message["id"], "result": storage_space.blockchain.current_height})
+          _ch=storage_space.blockchain.current_height
+          send_message(message["sender"], {"id": message["id"], "result": _ch})
+          notify("blockchain height", _ch)
       
         if message["action"] == "take tip info":
           if not message["node"] in nodes:
@@ -200,10 +227,12 @@ def core_loop(syncer, config):
         raise e
 
       if message["action"] == "give block template":
+        notify("core workload", "generating block template")
         block = storage_space.mempool_tx.give_block_template()
         ser_head = block.header.serialize()
         send_message(message["sender"], {"id": message["id"], "result":ser_head})
       if message["action"] == "take solved block template":
+        notify("core workload", "processing solved block")
         try:
           initial_tip = storage_space.blockchain.current_tip
           header = Header()
@@ -222,6 +251,7 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
       if message["action"] == "get confirmed balance stats":
+        notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           stats = storage_space.mempool_tx.key_manager.get_confirmed_balance_stats( 
                      storage_space.utxo_index,
@@ -232,6 +262,7 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
       if message["action"] == "get confirmed balance list":
+        notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
                      storage_space.utxo_index,
@@ -242,6 +273,7 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
       if message["action"] == "give new address":
+        notify("core workload", "retrieving new address")
         if storage_space.mempool_tx.key_manager:
           texted_address = storage_space.mempool_tx.key_manager.new_address().to_text()
           send_message(message["sender"], {"id": message["id"], "result": texted_address})
@@ -279,9 +311,13 @@ def core_loop(syncer, config):
                                          "result": {'height': our_height, 
                                                     'best_known_header': best_known_header,
                                                     'best_advertised_height': best_advertised_height}})
+        notify("best header", best_known_header)
+        notify("blockchain height", our_height)
+        notify("best advertised height", best_advertised_height)
 
 
       if message["action"] == "send to address":
+        notify("core workload", "generating transactions")
         value  = int(message["value"])
         taddress = message["address"]
         a = Address()

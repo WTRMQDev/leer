@@ -96,14 +96,28 @@ footer {
 }
 
 #nodeStatus {
-    width: 150px;
+    max-width: 150px;
     background-color: #f0f0f0;
     float : left;
     max-height: 40px;
+    margin-right: 25px;
+}
+#connectionNumber {
+    max-width: 200px;
+    background-color: #eaeaea;
+    float : left;
+    max-height: 40px;
+}
+#coreStatus {
+    max-width: 250px;
+    background-color: #eaeaea;
+    float : left;
+    max-height: 40px;
+    padding-left: 20px;
 }
 
 #progressDiv {
-    width: 400px;
+    max-width: 400px;
     background-color: #aaa;
     float : right;
     max-height: 40px;
@@ -174,9 +188,12 @@ function update_sync_status() {
   var set_sync_status = function(sync_status) {
       var syncstatus_text = document.getElementById("syncstatus");
       var syncstatus_bar = document.getElementById("actualprogressDiv");
+      var coreStatus = document.getElementById("coreStatus");
       var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
       var bkh = sync_status['best_known_header'];
       var bah = sync_status['best_advertised_height'];
+      if ('core_workload' in sync_status) { var workload = sync_status['core_workload'];}
+      else {var workload = false;}
       if(bah==null)
         bah=-1;
       syncstatus_text.innerHTML = "Synchronisation: "+height.toString() + "/"+bkh.toString() + "/"+bah.toString();
@@ -184,6 +201,8 @@ function update_sync_status() {
         syncstatus_bar.style.width = (100*height/bkh).toString()+"%"
       else
         syncstatus_bar.style.width = "100%"
+      if(workload)
+        coreStatus.innerHTML = "Core loop status: "+workload
     } 
   basic_request("getsyncstatus",[],set_sync_status);
 }
@@ -239,6 +258,16 @@ function send_money() {
   basic_request("sendtoaddress",[address,value], alert_success );
   
 }
+
+function update_connection_num() {
+  var set_con_num = function(num) {
+      var cn = document.getElementById("connectionNumber");
+      cn.innerHTML = "Connected to "+num.toString() + " nodes"
+    } 
+  basic_request("getconnectioncount",[],set_con_num);
+}
+
+
 function load_wallet() {
 // Routines:
 // 1. Check sync status
@@ -251,6 +280,7 @@ function load_wallet() {
   setInterval(update_sync_status, 5000);
   setInterval(update_balance, 25000);
   setInterval(update_addresses, 50000);
+  setInterval(update_connection_num, 5000);
 }
 
 window.onload = load_wallet;
@@ -298,6 +328,8 @@ window.onload = load_wallet;
 
   <footer>
     <div id="nodeStatus"> </div>
+    <div id="connectionNumber"> Connected to 0 nodes </div>
+    <div id="coreStatus">  </div>
     <div id="progressDiv">
       
       <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: -1 / -1 / -1;</span></div>

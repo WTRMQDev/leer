@@ -9,6 +9,7 @@ from uuid import uuid4
 import base64
 from secp256k1_zkp import PrivateKey
 from os.path import split as path_split, join
+from time import time
 
 class RPCManager():
   #Should be singleton?
@@ -77,11 +78,20 @@ class RPCManager():
 
   async def getheight(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'give tip height', 'id':_id, 'sender': "RPCManager"})
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'blockchain height','sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
-    return answer['result']
+    if answer['result']=='error' or time() - answer['result']['time'] > 120:
+      _id = str(uuid4())
+      self.syncer.queues['Blockchain'].put({'action':'give tip height', 'id':_id, 'sender': "RPCManager"})
+      self.requests[_id]=asyncio.Future()
+      answer = await self.requests[_id]      
+      self.requests.pop(_id)
+      height = answer['result']
+    else:
+      height = answer['result']['value']
+    return height
 
   async def getblocktemplate(self):
     _id = str(uuid4())
@@ -168,12 +178,45 @@ class RPCManager():
 
   async def getsyncstatus(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'give synchronization status', 'id':_id,
-                                          'sender': "RPCManager"})
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'blockchain height','sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
-    answer = await self.requests[_id]
+    blockchain_height_answer = await self.requests[_id]
     self.requests.pop(_id)
-    return answer['result']
+
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'best header','sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    best_header_answer = await self.requests[_id]
+    self.requests.pop(_id)
+
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'best advertised height','sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    best_advertised_answer = await self.requests[_id]
+    self.requests.pop(_id)
+    
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'core workload','sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    core_workload_answer = await self.requests[_id]
+    self.requests.pop(_id)
+    
+    response = {}
+
+    if ('error' in [blockchain_height_answer['result'], best_header_answer['result'], best_advertised_answer['result']]) or \
+       time() - min([blockchain_height_answer['result']['time'], best_header_answer['result']['time'], best_advertised_answer['result']['time']])>120:
+      _id = str(uuid4())
+      self.syncer.queues['Blockchain'].put({'action':'give synchronization status', 'id':_id,
+                                          'sender': "RPCManager"})
+      self.requests[_id]=asyncio.Future()
+      answer = await self.requests[_id]
+      self.requests.pop(_id)
+      response = answer['result']
+    else:
+      response = {
+                  'height': blockchain_height_answer['result']['value'],
+                  'best_known_header': best_header_answer['result']['value'],
+                  'best_advertised_header': best_advertised_answer['result']['value'],
+                  'core_workload': core_workload_answer['result']['value']
+                 }
+    return response
 
 
   '''async def addnode(self, request=None):
@@ -190,7 +233,6 @@ class RPCManager():
     while self.up:
       while not self.global_message_queue.empty():
         message = self.global_message_queue.get()
-        print(message)
         if 'id' in message:
           if message['id'] in self.requests:
             try:
