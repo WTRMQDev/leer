@@ -70,7 +70,7 @@ class Transaction:
 
 
   # should be moved to wallet???
-  def generate(self, change_address=None, relay_fee_per_kb=0):
+  def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
     if not len(self.inputs):
@@ -411,7 +411,7 @@ class Transaction:
     
 
   def merge(self, another_tx):
-    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager)
+    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager) #TODO instead of key_manager, inputs info should be merged here
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses

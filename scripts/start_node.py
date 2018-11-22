@@ -72,6 +72,7 @@ config = {
                                   'pub':b'\x03g*?\x08\xfa\xf8>!\xf7f&r\xb0zo\xe7\xe9`\x08W\xfd \rt6\xb3ks\xa2\xd6\x06e'
                                 }
                               ],
+           'wallet' : True 
                        
          }
 

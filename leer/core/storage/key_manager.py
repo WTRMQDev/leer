@@ -1,4 +1,3 @@
-#from leer.core.storage.txos_storage import TXOsStorage
 from secp256k1_zkp import PrivateKey
 from leer.core.storage.default_paths import key_manager_path
 import shutil, os, time, lmdb, math

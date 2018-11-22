@@ -95,7 +95,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       raise
     self.update(reason="Tx addition")
 
-  def set_key_manager(self, key_manager):
+  def set_key_manager(self, key_manager): #TODO remove
     self.key_manager = key_manager
 
   def give_block_template(self):

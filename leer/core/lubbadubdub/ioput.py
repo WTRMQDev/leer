@@ -161,7 +161,7 @@ class IOput:
 
     return part3[2+range_proof_len:]
 
-  def detect_value(self, key_manager):
+  def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
     try:
           privkey = key_manager.priv_by_address(self.address)
           nonce = self.apc

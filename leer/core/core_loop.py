@@ -92,7 +92,7 @@ def init_storage_space(config):
   bc = Blockchain(storage_space)
   mptx = MempoolTx(storage_space)
   utxoi = UTXOIndex(storage_space, _paths["utxo_index_path"])
-  km = KeyManagerClass(path = _paths["key_manager_path"])
+  km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
   mptx.set_key_manager(km)
   init_blockchain()
 
@@ -250,7 +250,7 @@ def core_loop(syncer, config):
           raise e
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
-      if message["action"] == "get confirmed balance stats":
+      if message["action"] == "get confirmed balance stats": #TODO Move to wallet
         notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           stats = storage_space.mempool_tx.key_manager.get_confirmed_balance_stats( 
@@ -261,7 +261,7 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "get confirmed balance list":
+      if message["action"] == "get confirmed balance list": #TODO Move to wallet
         notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
@@ -272,7 +272,7 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "give new address":
+      if message["action"] == "give new address": #TODO Move to wallet
         notify("core workload", "retrieving new address")
         if storage_space.mempool_tx.key_manager:
           texted_address = storage_space.mempool_tx.key_manager.new_address().to_text()
@@ -280,7 +280,7 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "give private key":
+      if message["action"] == "give private key": #TODO Move to wallet
         if storage_space.mempool_tx.key_manager:
           km = storage_space.mempool_tx.key_manager
           a=Address()
@@ -290,7 +290,7 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "take private key":
+      if message["action"] == "take private key": #TODO Move to wallet
         if storage_space.mempool_tx.key_manager:
           km = storage_space.mempool_tx.key_manager
           pk=PrivateKey()
@@ -316,7 +316,7 @@ def core_loop(syncer, config):
         notify("best advertised height", best_advertised_height)
 
 
-      if message["action"] == "send to address":
+      if message["action"] == "send to address": #TODO Move to wallet
         notify("core workload", "generating transactions")
         value  = int(message["value"])
         taddress = message["address"]
