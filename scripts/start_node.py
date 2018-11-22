@@ -63,7 +63,8 @@ config = {
                     'port': 9238,
                  },
            'location': {
-                         'basedir': join(expanduser("~"), ".leertest") 
+                         'basedir': join(expanduser("~"), ".leertest") ,
+                         'wallet': join(expanduser("~"), ".leertestwallet")
                        },
            'bootstrap_nodes': [
                                 {
