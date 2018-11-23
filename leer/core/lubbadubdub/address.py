@@ -13,14 +13,24 @@ class Excess:
         self.version = version
         if raw:
           self.deserialize_raw(raw)
+        self.drop_cached()
 
+    def drop_cached(self):
+      self.cached_pubkey = None
+      self.cached_nonrec = None
+
+    def calc_pubkey(self):
+      unrelated = PublicKey(flags=ALL_FLAGS)
+      self.cached_pubkey = PublicKey(pubkey=unrelated.ecdsa_recover(self.message, self.recoverable_signature))      
+      
     @property
     def pubkey(self):
-        unrelated = PublicKey(flags=ALL_FLAGS)
-        return PublicKey(pubkey=unrelated.ecdsa_recover(self.message, self.recoverable_signature))      
-        
+        if not self.cached_pubkey:
+          self.calc_pubkey()
+        return self.cached_pubkey      
 
     def from_private_key(self, privkey, message=b'', version=None):
+        self.drop_cached()
         self.message = message if message else self.message
         if version:
           self.version = version
@@ -33,10 +43,15 @@ class Excess:
         
         return self
 
+    def calc_nonrec(self):
+        unrelated = PublicKey(flags=ALL_FLAGS)
+        self.cached_nonrec =  unrelated.ecdsa_recoverable_convert(self.recoverable_signature)
+
     @property
     def nonrec_signature(self):
-        unrelated = PublicKey(flags=ALL_FLAGS)
-        return unrelated.ecdsa_recoverable_convert(self.recoverable_signature)
+        if not self.cached_nonrec:
+          self.calc_nonrec()
+        return self.cached_nonrec
 
     def verify(self):
         return self.pubkey.ecdsa_verify(self.message, self.nonrec_signature)
@@ -55,6 +70,7 @@ class Excess:
           return rec_sig_serialized+mes_serialized
 
     def deserialize_raw(self, serialized_data):
+        self.drop_cached()
         if len(serialized_data)<65:
           raise Exception("Not enough bytes to encode recovery signature")
         rec_sig, serialized_data = serialized_data[:65], serialized_data[65:]
