@@ -118,15 +118,31 @@ def set_ask_for_txouts_hook(block_storage, message_queue):
   
   block_storage.ask_for_txouts_hook = f
 
+def set_notify_wallet_hook(blockchain, wallet_message_queue):
+    def notify_wallet(reason, *args):
+      message['sender'] = "Blockchain"
+      #no id: notification
+      if reason == "apply":
+        message['action'] = "process new block"
+        message['tx'] = args[0]
+        message['height'] = args[1]      
+      elif reason == "rollback":
+        message['action'] = "process rollback"
+        message['rollback_object'] = args[0]
+      else:
+        pass
+      wallet_message_queue.put(message)
+    storage_space.blockchain.notify_wallet = notify_wallet 
 
 def core_loop(syncer, config):
   message_queue = syncer.queues['Blockchain']
-  init_storage_space(config)
-
+  init_storage_space(config)    
 
   nodes = {}
   set_ask_for_blocks_hook(storage_space.blockchain, message_queue)
   set_ask_for_txouts_hook(storage_space.blocks_storage, message_queue)
+  if config['wallet']:
+    set_notify_wallet_hook(storage_space.blockchain, syncer.queues['Wallet'])
   requests = {}
   message_queue.put({"action":"give nodes list reminder"})
 

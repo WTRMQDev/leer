@@ -16,8 +16,11 @@ def wallet(syncer, config):
       if not 'action' in message:
         continue
       if message['action']=="process new block":
+        tx = message['tx']
+        block_height = message['height']
         pass
       if message['action']=="process rollback":
+        rollback = message['rollback_object']
         pass
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
