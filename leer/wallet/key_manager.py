@@ -68,11 +68,30 @@ def deserialize_output_params(p):
   return lock_height, value, serialized_index
 
 
+def serialize_spent_output_params(p):
+  spend_height, value, serialized_index = p
+  ser_spend_height = spend_height.to_bytes(4,"big")
+  if value == None:
+    ser_value = b"\xff"*7
+  else:
+    ser_value = value.to_bytes(7,"big")
+  return ser_spend_height+ser_value+serialized_index
+
+def deserialize_output_params(p):
+  spend_height = int.from_bytes(p[:4], "big")
+  value = int.from_bytes(p[4:11], "big")
+  serialized_index = p[11:]
+  if value == 72057594037927935: #=b"\xff"*7
+    value = None
+  return spend_height, value, serialized_index
+
+
 class DiscWallet:
   '''
-    It is generally key-value db with two types of records:
-     1) key is serialized pubkey, value - serialized privkey.
-     2) key is output_index, value - tuple (lock_height, value)
+    It is generally key-value db with three types of records:
+     1) private keys:  key is serialized pubkey; value - serialized privkey.
+     2) unspent parsed outputs: key is output_index; value - tuple (lock_height, value)
+     3) spent outputs: key is output_index; value - tuple (spend_height, value)
     There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
     instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
     from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
