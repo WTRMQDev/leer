@@ -72,22 +72,37 @@ def deserialize_output_params(p):
 
 
 def serialize_spent_output_params(p):
-  spend_height, value, serialized_index = p
+  # While it is not necessary to store lock_height for spent outputs,
+  # it is useful for effective unspending
+  spend_height, lock_height, value, serialized_index = p
   ser_spend_height = spend_height.to_bytes(4,"big")
+  ser_lock_height = lock_height.to_bytes(4,"big")
   if value == None:
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_spend_height+ser_value+serialized_index
+  return ser_spend_height+ser_lock_height+ser_value+serialized_index
 
 def deserialize_output_params(p):
   spend_height = int.from_bytes(p[:4], "big")
-  value = int.from_bytes(p[4:11], "big")
-  serialized_index = p[11:]
+  lock_height = int.from_bytes(p[4:8], "big")
+  value = int.from_bytes(p[8:15], "big")
+  serialized_index = p[15:]
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return spend_height, value, serialized_index
+  return spend_height, lock_height, value, serialized_index
 
+def repack_ser_output_to_spent(ser_output, height):
+  '''
+    Function for fast repacking without deserialization
+  '''
+  return height.to_bytes(4,"big")+ser_output
+
+def repack_ser_spent_output_to_unspent(ser_spent_output):
+  '''
+    Function for fast repacking without deserialization
+  '''
+  return ser_spent_output[4:]
 
 class DiscWallet:
   '''
@@ -110,6 +125,7 @@ class DiscWallet:
       self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=False)
       self.pool = self.env.open_db(b'pool', txn=txn, dupsort=False)
       self.output = self.env.open_db(b'output', txn=txn, dupsort=False)
+      self.spent = self.env.open_db(b'spent', txn=txn, dupsort=False)
       #if not txn.get(b'pool_size', db=self.pool):
       #  txn.put( b'pool_size', 0, db=self.pool) 
 
@@ -177,6 +193,37 @@ class DiscWallet:
          raise KeyError
       else:
         return deserialize_output_params( output_params)
+
+  def pop_ser_output(self, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.pop_output(output_index, w_txn=w_txn)
+    else:     
+      output_params = w_txn.pop( bytes(output_index), db=self.output)    
+      if not output_params:
+         raise KeyError
+      else:
+        return output_params
+
+  def spend_output(self, output_index, block_height, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.spend_output(output_index, block_height, w_txn=w_txn)
+    else:     
+      ser_output = self.pop_ser_output(output_index, w_txn=w_txn) # KeyError exception may be thrown here
+      ser_spent_output = repack_ser_output_to_spent(ser_output, block_height)
+      p1=w_txn.put( bytes(output_index), ser_spent_output, db=self.spent) 
+
+  def unspend_output(self, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.unspend_output(output_index, w_txn=w_txn)
+    else:     
+      ser_spent_output = w_txn.pop( bytes(output_index), w_txn=w_txn)
+      if not ser_spent_output:
+        raise KeyError
+      ser_output = repack_ser_spent_output_to_unspent(ser_spent_output)
+      p1=w_txn.put( bytes(output_index), ser_output, db=self.output) # TODO self.put_output?
 
   def get_privkey_from_pool(self):
     '''
