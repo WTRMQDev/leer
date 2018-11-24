@@ -50,6 +50,9 @@ class KeyManagerClass:
       return 0
 
 
+#TODO Check whether we need to store serialized_index in output tuples?
+# looks like it is duplication of key in value
+
 def serialize_output_params(p):
   lock_height, value, serialized_index = p
   ser_lock_height = lock_height.to_bytes(4,"big")
