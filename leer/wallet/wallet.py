@@ -21,10 +21,10 @@ def wallet(syncer, config):
         block_height = message['height']
         for _i in tx.inputs:
           index = _i.serialized_index
-          if index in km.unspent:
+          if km.is_unspent(index): #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
             km.spend_output(index, block_height)
         for _o in tx.outputs:
-          if _o.address.pubkey.serialize() in km.keys:
+          if km.is_owned_pubkey(_o.address.pubkey.serialize()):
             km.add_output(_o)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
