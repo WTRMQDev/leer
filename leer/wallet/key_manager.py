@@ -49,6 +49,35 @@ class KeyManagerClass:
     else: #NoneType
       return 0
 
+  def is_unspent(self, output_index):
+    '''
+      Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
+    '''
+    try:
+      self.wallet.get_output(output_index)
+      return True
+    except KeyError:
+      return False
+
+  def is_owned_key(self, serialized_pubkey):
+    pk = self.wallet.get_privkey(serialized_pubkey)
+    if not pk:
+      return False
+    return True
+
+  def spend_output(self, index, spend_height):
+    self.wallet.spend_output(index,spend_height)
+
+  def add_output(self, output):
+    index = output.serialized_index
+    pubkey = output.address.serialized_pubkey
+    value = output.detect_value_new(inputs_info = 
+         {'priv_by_pub':{
+                           output.address.serialized_pubkey : priv_by_address(output.address)
+                        }
+         }) 
+    self.wallet.put_output(index, (output.lock_height, value, index))
+
 
 #TODO Check whether we need to store serialized_index in output tuples?
 # looks like it is duplication of key in value
@@ -267,6 +296,7 @@ class DiscWallet:
     '''
     with self.env.begin(write=False) as txn:
       return txn.get(serialized_pubkey, db=self.main_db)
+    #TODO if no such serialized_pubkey KeyError should be raised here
   
 
  
