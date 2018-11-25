@@ -1,5 +1,6 @@
 from time import time, sleep
 from leer.wallet.key_manager import KeyManagerClass
+
 def wallet(syncer, config):
   '''
     Wallet is synchronous service which holds private keys and information about 
@@ -18,7 +19,13 @@ def wallet(syncer, config):
       if message['action']=="process new block":
         tx = message['tx']
         block_height = message['height']
-        pass
+        for _i in tx.inputs:
+          index = _i.serialized_index
+          if index in km.unspent:
+            km.spend_output(index, block_height)
+        for _o in tx.outputs:
+          if _o.address.pubkey.serialize() in km.keys:
+            km.add_output(_o)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
         pass
