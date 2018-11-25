@@ -27,7 +27,12 @@ class Excess:
     def pubkey(self):
         if not self.cached_pubkey:
           self.calc_pubkey()
-        return self.cached_pubkey      
+        return self.cached_pubkey  
+
+    @property
+    def serialized_pubkey(self):
+      return self.pubkey.serialize()
+        
 
     def from_private_key(self, privkey, message=b'', version=None):
         self.drop_cached()
