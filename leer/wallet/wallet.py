@@ -25,7 +25,7 @@ def wallet(syncer, config):
             km.spend_output(index, block_height)
         for _o in tx.outputs:
           if km.is_owned_pubkey(_o.address.pubkey.serialize()):
-            km.add_output(_o)
+            km.add_output(_o, block_height)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
         pass

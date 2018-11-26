@@ -68,7 +68,7 @@ class KeyManagerClass:
   def spend_output(self, index, spend_height):
     self.wallet.spend_output(index,spend_height)
 
-  def add_output(self, output):
+  def add_output(self, output, block_height):
     index = output.serialized_index
     pubkey = output.address.serialized_pubkey
     value = output.detect_value_new(inputs_info = 
@@ -76,50 +76,54 @@ class KeyManagerClass:
                            output.address.serialized_pubkey : priv_by_address(output.address)
                         }
          }) 
-    self.wallet.put_output(index, (output.lock_height, value, index))
+    self.wallet.put_output(index, (block_height, output.lock_height, value, index))
 
 
 #TODO Check whether we need to store serialized_index in output tuples?
 # looks like it is duplication of key in value
 
 def serialize_output_params(p):
-  lock_height, value, serialized_index = p
+  created_height, lock_height, value, serialized_index = p
+  ser_created_height = created_height.to_bytes(4,"big")
   ser_lock_height = lock_height.to_bytes(4,"big")
   if value == None:
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_lock_height+ser_value+serialized_index
+  return ser_created_height + ser_lock_height+ser_value+serialized_index
 
-def deserialize_output_params(p):
-  lock_height = int.from_bytes(p[:4], "big")
-  value = int.from_bytes(p[4:11], "big")
-  serialized_index = p[11:]
+def deserialize_output_params(p):  
+  created_height, p = int.from_bytes(p[:4], "big"), p[4:]
+  lock_height, p = int.from_bytes(p[:4], "big"), p[4:]
+  value, p = int.from_bytes(p[:7], "big"), p[7:]
+  serialized_index = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return lock_height, value, serialized_index
+  return created_height, lock_height, value, serialized_index
 
 
 def serialize_spent_output_params(p):
-  # While it is not necessary to store lock_height for spent outputs,
+  # While it is not necessary to store lock_height and created_height for spent outputs,
   # it is useful for effective unspending
-  spend_height, lock_height, value, serialized_index = p
+  spend_height, created_height, lock_height, value, serialized_index = p
   ser_spend_height = spend_height.to_bytes(4,"big")
+  ser_created_height = created_height.to_bytes(4,"big")
   ser_lock_height = lock_height.to_bytes(4,"big")
   if value == None:
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_spend_height+ser_lock_height+ser_value+serialized_index
+  return ser_spend_height+ser_created_height+ser_lock_height+ser_value+serialized_index
 
-def deserialize_output_params(p):
-  spend_height = int.from_bytes(p[:4], "big")
-  lock_height = int.from_bytes(p[4:8], "big")
-  value = int.from_bytes(p[8:15], "big")
-  serialized_index = p[15:]
+def deserialize_spent_output_params(p):
+  spend_height, p = int.from_bytes(p[:4], "big"), p[4:]
+  created_height, p = int.from_bytes(p[:4], "big"), p[4:]
+  lock_height, p = int.from_bytes(p[:4], "big"), p[4:]
+  value = int.from_bytes(p[:7], "big"), p[7:]
+  serialized_index = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return spend_height, lock_height, value, serialized_index
+  return spend_height, created_height, lock_height, value, serialized_index
 
 def repack_ser_output_to_spent(ser_output, height):
   '''
@@ -135,10 +139,11 @@ def repack_ser_spent_output_to_unspent(ser_spent_output):
 
 class DiscWallet:
   '''
-    It is generally key-value db with three types of records:
+    It is generally key-value db with four types of records:
      1) private keys:  key is serialized pubkey; value - serialized privkey.
      2) unspent parsed outputs: key is output_index; value - tuple (lock_height, value)
      3) spent outputs: key is output_index; value - tuple (spend_height, value)
+     4) block-outputs map: key is block_number; value - tuple (spent/created, output_index) 
     There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
     instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
     from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
@@ -155,6 +160,7 @@ class DiscWallet:
       self.pool = self.env.open_db(b'pool', txn=txn, dupsort=False)
       self.output = self.env.open_db(b'output', txn=txn, dupsort=False)
       self.spent = self.env.open_db(b'spent', txn=txn, dupsort=False)
+      self.block_index = self.env.open_db(b'block_index', txn=txn, dupsort=True, dupfixed=True)
       #if not txn.get(b'pool_size', db=self.pool):
       #  txn.put( b'pool_size', 0, db=self.pool) 
 
@@ -297,6 +303,26 @@ class DiscWallet:
     with self.env.begin(write=False) as txn:
       return txn.get(serialized_pubkey, db=self.main_db)
     #TODO if no such serialized_pubkey KeyError should be raised here
+
+  def add_block_spent_output_association(self, block_height, output_index):
+    pass
+
+  def add_block_new_output_association(self, block_height, output_index):
+    pass
+
+
+  def remove_block_spent_output_association(self, block_height, output_index):
+    pass
+
+  def remove_block_new_output_association(self, block_height, output_index):
+    pass
+
+  def remove_all_outputs_created_in_block(self, block_height):
+    pass
+
+  def restore_all_outputs_spent_in_block(self, block_height):
+    pass
+
   
 
  
