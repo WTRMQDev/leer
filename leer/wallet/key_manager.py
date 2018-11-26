@@ -83,14 +83,19 @@ class KeyManagerClass:
     self.wallet.restore_all_outputs_spent_in_block(block_height)
     
 
+def _(x):
+  return x.to_bytes(4,"big")
+
+def _d(x):
+  return int.from_bytes(x, "big")
 
 #TODO Check whether we need to store serialized_index in output tuples?
 # looks like it is duplication of key in value
 
 def serialize_output_params(p):
   created_height, lock_height, value, serialized_index = p
-  ser_created_height = created_height.to_bytes(4,"big")
-  ser_lock_height = lock_height.to_bytes(4,"big")
+  ser_created_height = _(created_height)
+  ser_lock_height = _(lock_height)
   if value == None:
     ser_value = b"\xff"*7
   else:
@@ -98,9 +103,9 @@ def serialize_output_params(p):
   return ser_created_height + ser_lock_height+ser_value+serialized_index
 
 def deserialize_output_params(p):  
-  created_height, p = int.from_bytes(p[:4], "big"), p[4:]
-  lock_height, p = int.from_bytes(p[:4], "big"), p[4:]
-  value, p = int.from_bytes(p[:7], "big"), p[7:]
+  created_height, p = _d(p[:4]), p[4:]
+  lock_height, p = _d(p[:4]), p[4:]
+  value, p = _d(p[:7]), p[7:]
   serialized_index = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
@@ -111,9 +116,9 @@ def serialize_spent_output_params(p):
   # While it is not necessary to store lock_height and created_height for spent outputs,
   # it is useful for effective unspending
   spend_height, created_height, lock_height, value, serialized_index = p
-  ser_spend_height = spend_height.to_bytes(4,"big")
-  ser_created_height = created_height.to_bytes(4,"big")
-  ser_lock_height = lock_height.to_bytes(4,"big")
+  ser_spend_height = _(spend_height)
+  ser_created_height = _(created_height)
+  ser_lock_height = _(lock_height)
   if value == None:
     ser_value = b"\xff"*7
   else:
@@ -121,10 +126,10 @@ def serialize_spent_output_params(p):
   return ser_spend_height+ser_created_height+ser_lock_height+ser_value+serialized_index
 
 def deserialize_spent_output_params(p):
-  spend_height, p = int.from_bytes(p[:4], "big"), p[4:]
-  created_height, p = int.from_bytes(p[:4], "big"), p[4:]
-  lock_height, p = int.from_bytes(p[:4], "big"), p[4:]
-  value = int.from_bytes(p[:7], "big"), p[7:]
+  spend_height, p = _d(p[:4]), p[4:]
+  created_height, p = _d(p[:4]), p[4:]
+  lock_height, p = _d(p[:4]), p[4:]
+  value = _d(p[:7]), p[7:]
   serialized_index = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
@@ -134,13 +139,14 @@ def repack_ser_output_to_spent(ser_output, height):
   '''
     Function for fast repacking without deserialization
   '''
-  return height.to_bytes(4,"big")+ser_output
+  return _(height)+ser_output
 
 def repack_ser_spent_output_to_unspent(ser_spent_output):
   '''
     Function for fast repacking without deserialization
   '''
   return ser_spent_output[4:]
+
 
 class DiscWallet:
   '''
@@ -309,23 +315,66 @@ class DiscWallet:
       return txn.get(serialized_pubkey, db=self.main_db)
     #TODO if no such serialized_pubkey KeyError should be raised here
 
-  def add_block_spent_output_association(self, block_height, output_index):
-    pass
+  def add_block_spent_output_association(self, block_height, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.add_block_spent_output_association(block_height, output_index, w_txn)
+    else:   
+      w_txn.put( _(block_height), b"\x01"+output_index, db=self.block_index, dupdata=True)
+        
 
-  def add_block_new_output_association(self, block_height, output_index):
-    pass
+  def add_block_new_output_association(self, block_height, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.add_block_new_output_association(block_height, output_index, w_txn)
+    else:     
+      w_txn.put( _(block_height), b"\x00"+output_index, db=self.block_index, dupdata=True)
 
-  def remove_block_spent_output_association(self, block_height, output_index):
-    pass
 
-  def remove_block_new_output_association(self, block_height, output_index):
-    pass
+  def remove_block_spent_output_association(self, block_height, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.remove_block_spent_output_association(block_height, output_index, w_txn)
+    else:     
+      w_txn.delete( _(block_height), b"\x01"+output_index, db=self.block_index)
 
-  def remove_all_outputs_created_in_block(self, block_height):
-    pass
 
-  def restore_all_outputs_spent_in_block(self, block_height):
-    pass
+  def remove_block_new_output_association(self, block_height, output_index, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.remove_block_new_output_association(block_height, output_index, w_txn)
+    else:     
+      w_txn.delete( _(block_height), b"\x00"+output_index, db=self.block_index)
+
+
+  def remove_all_outputs_created_in_block(self, block_height, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.remove_all_outputs_created_in_block(block_height, output_index, w_txn)
+    else: 
+      cursor = w_txn.cursor(db=self.block_index)
+      if not cursor.set_key(_(block_height)):
+        return #It's okay, block doesn't contain anything related to our wallet
+      for assoc in cursor.iternext_dup():
+        if assoc[:1] == b"\x00":
+          self.pop_ser_output(assoc[1:], w_txn=w_txn)
+          self.remove_block_new_output_association(block_height, assoc[1:], w_txn=w_txn)
+          
+
+
+  def restore_all_outputs_spent_in_block(self, block_height, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        self.restore_all_outputs_spent_in_block(block_height, output_index, w_txn)
+    else:     
+      cursor = w_txn.cursor(db=self.block_index)
+      if not cursor.set_key(_(block_height)):
+        return #It's okay, block doesn't contain anything related to our wallet
+      for assoc in cursor.iternext_dup():
+        if assoc[:1] == b"\x01":
+          self.unspend_output(assoc[1:], w_txn=w_txn)
+          self.remove_block_spent_output_association(block_height, assoc[1:], w_txn=w_txn)
+
 
   
 
