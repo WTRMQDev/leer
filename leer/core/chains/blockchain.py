@@ -69,10 +69,11 @@ class Blockchain:
 
   def _rollback(self):
     rb = self.storage_space.blocks_storage.pop_rollback_object(self.current_tip)
+    h = self.current_height
     self.storage_space.txos_storage.rollback(pruned_inputs=rb.pruned_inputs, num_of_added_outputs=rb.num_of_added_outputs, prev_state=rb.prev_state)
     self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state)
     if self.notify_wallet:
-      self.notify_wallet("rollback", rb)
+      self.notify_wallet("rollback", rb, h)
 
   def clean_old_block_requests(self):
     for bh in self.awaited_blocks:

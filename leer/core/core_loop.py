@@ -129,6 +129,7 @@ def set_notify_wallet_hook(blockchain, wallet_message_queue):
       elif reason == "rollback":
         message['action'] = "process rollback"
         message['rollback_object'] = args[0]
+        message['block_height'] = args[1]
       else:
         pass
       wallet_message_queue.put(message)

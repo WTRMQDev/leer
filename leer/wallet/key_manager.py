@@ -78,6 +78,11 @@ class KeyManagerClass:
          }) 
     self.wallet.put_output(index, (block_height, output.lock_height, value, index))
 
+  def rollback(self, block_height):
+    self.wallet.remove_all_outputs_created_in_block(block_height)
+    self.wallet.restore_all_outputs_spent_in_block(block_height)
+    
+
 
 #TODO Check whether we need to store serialized_index in output tuples?
 # looks like it is duplication of key in value
@@ -309,7 +314,6 @@ class DiscWallet:
 
   def add_block_new_output_association(self, block_height, output_index):
     pass
-
 
   def remove_block_spent_output_association(self, block_height, output_index):
     pass

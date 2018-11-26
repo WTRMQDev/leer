@@ -28,7 +28,8 @@ def wallet(syncer, config):
             km.add_output(_o, block_height)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
-        pass
+        block_height = message['block_height']
+        km.rollback(block_height)
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
       if message['action']=="give new address raw object"
