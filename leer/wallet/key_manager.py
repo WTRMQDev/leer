@@ -27,6 +27,12 @@ class KeyManagerClass:
       raise KeyError("Private key not in the wallet")
     return PrivateKey(raw_priv, raw=True)
 
+  def priv_and_pub_by_output_index(self, output_index):
+    raw_priv = self.wallet.get_priv_and_pub_by_output_index(output_index)
+    if not raw_priv:
+      raise KeyError("Private key not in the wallet")
+    return PrivateKey(raw_priv, raw=True)
+
   def priv_by_address(self, address):
     raw_priv = self.wallet.get_privkey(address.pubkey.serialize())
     if not raw_priv:
@@ -71,18 +77,64 @@ class KeyManagerClass:
   def add_output(self, output, block_height):
     index = output.serialized_index
     pubkey = output.address.serialized_pubkey
+    taddress = output.address.to_text().encode()
     value = output.detect_value_new(inputs_info = 
          {'priv_by_pub':{
                            pubkey : priv_by_address(output.address)
                         }
          }) 
-    self.wallet.put_output(index, (block_height, output.lock_height, value, index))
+    self.wallet.put_output(index, (block_height, output.lock_height, value, taddress))
     self.wallet.put_pubkey_output_assoc(pubkey, index)
 
   def rollback(self, block_height):
     self.wallet.remove_all_outputs_created_in_block(block_height)
     self.wallet.restore_all_outputs_spent_in_block(block_height)
 
+  def get_confirmed_balance_stats(self, current_height):
+    stats = {
+              'matured': {'known_value':0, 'known_count':0, 'unknown_count':0},
+              'immatured': {'known_value':0, 'known_count':0, 'unknown_count':0}
+            }
+    with self.wallet.env.begin(write=False) as txn:
+      cursor = txn.cursor(db=self.wallet.pubkey_index)
+      for output_index in cursor.iternext(values=True):
+        try:
+          created_height, lock_height, value, serialized_index = self.wallet.get_output(output_index)
+        except KeyError:
+          continue #It's ok, output is already spent
+        mat = None
+        if current_height>=lock_height:
+          mat = 'matured'
+        else:
+          mat = 'immatured'
+        if value:
+          stats[mat]['known_value']+=value
+          stats[mat]['known_count']+=1
+        else:
+          stats[mat]['unknown_count']+=1        
+    return stats
+
+    
+  def get_confirmed_balance_list(self, current_height):
+    ret = {}
+    with self.wallet.env.begin(write=False) as txn:
+      cursor = txn.cursor(db=self.wallet.pubkey_index)
+      for output_index in cursor.iternext(values=True):
+        try:
+          created_height, lock_height, value, taddress = self.wallet.get_output(output_index)
+        except KeyError:
+          continue #It's ok, output is already spent
+        taddress = taddress.decode()
+        if not current_height>=lock_height:
+          continue
+        texted_index = base64.b64encode(output_index).decode()
+        if not taddress in ret:
+            ret[taddress]={}
+        if value:
+            ret[taddress][texted_index]=value
+        else:
+            ret[taddress][texted_index]='unknown'      
+    return stats
 
     
 
@@ -92,33 +144,31 @@ def _(x):
 def _d(x):
   return int.from_bytes(x, "big")
 
-#TODO Check whether we need to store serialized_index in output tuples?
-# looks like it is duplication of key in value
 
 def serialize_output_params(p):
-  created_height, lock_height, value, serialized_index = p
+  created_height, lock_height, value, taddress = p
   ser_created_height = _(created_height)
   ser_lock_height = _(lock_height)
   if value == None:
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_created_height + ser_lock_height+ser_value+serialized_index
+  return ser_created_height + ser_lock_height+ser_value+taddress
 
 def deserialize_output_params(p):  
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value, p = _d(p[:7]), p[7:]
-  serialized_index = p
+  taddress = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return created_height, lock_height, value, serialized_index
+  return created_height, lock_height, value, taddress
 
 
 def serialize_spent_output_params(p):
   # While it is not necessary to store lock_height and created_height for spent outputs,
   # it is useful for effective unspending
-  spend_height, created_height, lock_height, value, serialized_index = p
+  spend_height, created_height, lock_height, value, taddress = p
   ser_spend_height = _(spend_height)
   ser_created_height = _(created_height)
   ser_lock_height = _(lock_height)
@@ -126,17 +176,17 @@ def serialize_spent_output_params(p):
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_spend_height+ser_created_height+ser_lock_height+ser_value+serialized_index
+  return ser_spend_height+ser_created_height+ser_lock_height+ser_value+taddress
 
 def deserialize_spent_output_params(p):
   spend_height, p = _d(p[:4]), p[4:]
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value = _d(p[:7]), p[7:]
-  serialized_index = p
+  taddress = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return spend_height, created_height, lock_height, value, serialized_index
+  return spend_height, created_height, lock_height, value, taddress
 
 def repack_ser_output_to_spent(ser_output, height):
   '''
@@ -177,6 +227,7 @@ class DiscWallet:
       self.spent = self.env.open_db(b'spent', txn=txn, dupsort=False)
       self.block_index = self.env.open_db(b'block_index', txn=txn, dupsort=True, dupfixed=True)
       self.pubkey_index = self.env.open_db(b'pubkey_index', txn=txn, dupsort=True, dupfixed=True)
+      self.pubkey_index_reversed = self.env.open_db(b'pubkey_index_reversed', txn=txn, dupsort=True, dupfixed=True)
       #if not txn.get(b'pool_size', db=self.pool):
       #  txn.put( b'pool_size', 0, db=self.pool) 
 
@@ -388,3 +439,19 @@ class DiscWallet:
         self.put_pubkey_output_assoc(pubkey, index, w_txn)
     else:     
       w_txn.put( pubkey, index, db=self.pubkey_index, dupdata=True)
+      w_txn.put( index, pubkey, db=self.pubkey_index_reversed, dupdata=True)
+
+  def get_priv_and_pub_by_output_index(self, output_index, r_txn=None):
+    if not r_txn:
+      with self.env.begin(write=False) as r_txn:
+        self.get_priv_by_output_index( output_index, r_txn)
+    else:
+      pubkey = r_txn.get(output_index, db=self.pubkey_index_reversed)
+      if not pubkey:
+        raise KeyError
+      priv = r_txn.get(pubkey, db=self.main_db)
+      if not priv:
+        raise KeyError
+      return pubkey, priv
+      
+    
