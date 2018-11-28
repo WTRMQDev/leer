@@ -117,7 +117,8 @@ def wallet(syncer, config):
             syncer.queues[message['sender']].put(response)
             continue
         
-        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address() }
+        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address(), 'utxos':utxos
+                        'address': a, 'value': value }
         for utxo in utxos:
           pub,priv = km.priv_and_pub_by_output_index(utxo)
           tx_template['priv_by_pub'][pub]=priv

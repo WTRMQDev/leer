@@ -114,6 +114,50 @@ class Transaction:
     [output.generate() for output in self.outputs]
     self.sort_ioputs()
     self.verify()
+
+  # should be moved to wallet???
+  def generate_new(self, priv_data, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+    if self.coinbase:
+      raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
+    if not len(self.inputs):
+      raise Exception("Tx should have at least one input")
+    if not len(self._destinations):
+      raise Exception("Tx should have at least one destination")
+    for ioput in self.inputs:
+      if not ioput.detect_value_new(inputs_info=priv_data):
+        raise Exception("Trying to generate tx which spends unknown input")
+    in_value = sum([ioput.value for ioput in self.inputs]) 
+    out_value = sum([destination[1] for destination in self._destinations])
+    relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
+    # +1 for destination is for change address
+    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
+    remainder = in_value - out_value - self.fee
+    if remainder<0:
+      raise Exception("Not enough money in inputs to cover outputs")
+    # TODO We need logic here to cover too low remainders (less than new output fee)
+    change_address =  change_address if change_address else priv_data['change address']
+    self._destinations.append((change_address, remainder))
+    privkey_sum=0
+    out_blinding_key_sum = None
+    for out_index in range(len(self._destinations)-1):
+      address, value = self._destinations[out_index]
+      output = IOput()
+      output.fill(address, value, generator = default_generator_ser)
+      self.outputs.append( output )
+      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+    # privkey for the last one output isn't arbitrary
+    address, value = self._destinations[-1]
+    in_blinding_key_sum = None
+    for _input in self.inputs:
+      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
+      in_blinding_key_sum += priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
+    output = IOput()
+    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
+      relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
+    self.outputs.append(output)
+    [output.generate() for output in self.outputs]
+    self.sort_ioputs()
+    self.verify()
     
 
   def calc_relay_fee(self, relay_fee_per_kb):

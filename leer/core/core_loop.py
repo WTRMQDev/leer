@@ -333,44 +333,21 @@ def core_loop(syncer, config):
         notify("best advertised height", best_advertised_height)
 
 
-      if message["action"] == "send to address": #TODO Move to wallet
+      if message["action"] == "generate tx by tx template": #TODO Move to wallet
         notify("core workload", "generating transactions")
-        value  = int(message["value"])
-        taddress = message["address"]
-        a = Address()
-        a.from_text(taddress)
-        if storage_space.mempool_tx.key_manager:
-          _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
-                     storage_space.utxo_index,
-                     storage_space.txos_storage,
-                     storage_space.blockchain.current_height)
-          list_to_spend = []
-          summ = 0 
-          for address in _list:
-            for texted_index in _list[address]:
-              if summ>value+100000000: #TODO fee here
-                continue
-              if isinstance(_list[address][texted_index], int):
-                _index = base64.b64decode(texted_index.encode())
-                utxo = storage_space.txos_storage.confirmed[_index]
-                if not utxo.lock_height<=storage_space.blockchain.current_height:
-                    continue
-                list_to_spend.append(utxo)
-                summ+=_list[address][texted_index]
-          if summ <value:
-            send_message(message["sender"], {"id": message["id"], "error": "Not enough matured coins"})
-          tx = Transaction(txos_storage = storage_space.txos_storage, key_manager = storage_space.mempool_tx.key_manager)
-          for utxo in list_to_spend:
-            tx.push_input(utxo)
-          tx.add_destination( (a, value) )
-          tx.generate(relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
-          tx.verify()
-          storage_space.mempool_tx.add_tx(tx)
-          tx_skel = TransactionSkeleton(tx=tx)
-          notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
-          send_message(message["sender"], {"id": message["id"], "result":"generated"})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
+        tx_template = message["tx_template"]
+        tx = Transaction(txos_storage = storage_space.txos_storage)
+        for utxo_index in tx_template['utxos']:
+          utxo = storage_space.txos_storage.confirmed[utxo_index]
+        tx.add_destination( (tx_template["address"], tx_template["value"]) )
+        tx.generate_new(priv_data=tx_template,
+                        change_address = tx_template['change address'],
+                        relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
+        tx.verify()
+        storage_space.mempool_tx.add_tx(tx)
+        tx_skel = TransactionSkeleton(tx=tx)
+        notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+        send_message(message["sender"], {"id": message["id"], "result":"generated"})
 
       #message from core_loop
       if message["action"] == "check txouts download status":
