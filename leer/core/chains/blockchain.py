@@ -64,7 +64,7 @@ class Blockchain:
     self.storage_space.blocks_storage.put_rollback_object(block_hash, rb)
     self.storage_space.mempool_tx.update(reason="new block")
     if self.notify_wallet:
-      self.notify_wallet("apply", block.tx, block.height)
+      self.notify_wallet("apply", block.tx, block.header.height)
     
 
   def _rollback(self):

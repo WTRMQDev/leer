@@ -120,7 +120,7 @@ def set_ask_for_txouts_hook(block_storage, message_queue):
 
 def set_notify_wallet_hook(blockchain, wallet_message_queue):
     def notify_wallet(reason, *args):
-      message['sender'] = "Blockchain"
+      message={'sender':"Blockchain"}
       #no id: notification
       if reason == "apply":
         message['action'] = "process new block"
