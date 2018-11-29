@@ -126,7 +126,7 @@ class IOput:
     if len(serialized_output)<145:
         raise Exception("Serialized output doesn't contain enough bytes for constant length parameters")
 
-    part1, part2 = serialized_output[:80], serialized_output[80:]
+    part1, part2 = serialized_output[:82], serialized_output[82:]
     (self.version, self.block_version, self.lock_height,
       self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", part1) 
 
