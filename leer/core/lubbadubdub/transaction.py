@@ -216,7 +216,7 @@ class Transaction:
       raise NotImplemented
     return ret
 
-  def deserialize(self, serialized_tx):
+  def deserialize(self, serialized_tx, skip_verification=False):
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for inputs array length")
     inputs_len_buffer, serialized_tx =serialized_tx[:2], serialized_tx[2:]
@@ -267,7 +267,8 @@ class Transaction:
       e.deserialize_raw(ae_buffer)
       self.additional_excesses.append(e )
 
-    self.verify()
+    if not skip_verification:
+      self.verify()
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
 
