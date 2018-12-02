@@ -72,7 +72,13 @@ config = {
                                   'host':'95.179.147.141',
                                   'port':'8888',
                                   'pub':b'\x03g*?\x08\xfa\xf8>!\xf7f&r\xb0zo\xe7\xe9`\x08W\xfd \rt6\xb3ks\xa2\xd6\x06e'
+                                },
+                                {
+                                  'host':'185.10.68.161',
+                                  'port':'8888',
+                                  'pub':b'\x026\xa0\xb6\xcb\x08\xe3m\x85\xfdn?\x9e\x05\x8a\xf4ouq\x98\xef`Zx\xae\xedV\xc6\x9d\xfd-s\xe4'
                                 }
+
                               ],
            'wallet' : True 
                        
