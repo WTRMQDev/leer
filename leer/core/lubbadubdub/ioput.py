@@ -126,9 +126,9 @@ class IOput:
     if len(serialized_output)<145:
         raise Exception("Serialized output doesn't contain enough bytes for constant length parameters")
 
-    part1, part2 = serialized_output[:80], serialized_output[80:]
+    part1, part2 = serialized_output[:82], serialized_output[82:]
     (self.version, self.block_version, self.lock_height,
-      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H H 33s Q 33s", part1) 
+      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", part1) 
 
     if self.generator in generators:
       self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinded_generator = generators[self.generator])
@@ -161,7 +161,7 @@ class IOput:
 
     return part3[2+range_proof_len:]
 
-  def detect_value(self, key_manager):
+  def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
     try:
           privkey = key_manager.priv_by_address(self.address)
           nonce = self.apc
@@ -171,6 +171,23 @@ class IOput:
           if not self._calc_pedersen_wos()==self.unpc:
             self.blinding_key, self.value = None,None
             raise Exception("Incorrect blinding key and value")
+    except Exception as e:
+         #TODO definetely some logic should be added here to notify about missed info
+         pass  
+    return bool(self.value)
+
+  def detect_value_new(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
+    try:
+          privkey = inputs_info['priv_by_pub'][self.address.serialized_pubkey]
+          nonce = self.apc
+          decrypted_message = decrypt(privkey, nonce, self.encrypted_message)
+          raw_blinding_key, self.value = struct.unpack( "> 32s Q", decrypted_message)
+          self.blinding_key=PrivateKey(raw_blinding_key, raw=True)
+          if not self._calc_pedersen_wos()==self.unpc:
+            self.blinding_key, self.value = None,None
+            raise Exception("Incorrect blinding key and value")
+    except KeyError as e:
+         raise e #Wrong inputs_info
     except Exception as e:
          #TODO definetely some logic should be added here to notify about missed info
          pass  
@@ -185,7 +202,7 @@ class IOput:
       representation elements which should be signed.
     """
     ret = b''
-    ret += struct.pack("> H H H 33s Q 33s",
+    ret += struct.pack("> H H L 33s Q 33s",
       self.version, self.block_version, self.lock_height,
       self.generator, self.relay_fee,
       self.authorized_pedersen_commitment.serialize())

@@ -95,19 +95,17 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       raise
     self.update(reason="Tx addition")
 
-  def set_key_manager(self, key_manager):
+  def set_key_manager(self, key_manager): #TODO remove
     self.key_manager = key_manager
 
-  def give_block_template(self):
-    if not self.key_manager:
-      raise Exception("Key manager is not set")
+  def give_block_template(self, coinbase_address):
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
     value = next_reward(self.storage_space.blockchain.current_tip, self.storage_space.headers_storage)+transaction_fees
     coinbase = IOput()
-    coinbase.fill(self.key_manager.new_address(), value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height + 1 + coinbase_maturity)
+    coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height + 1 + coinbase_maturity)
     coinbase.generate()
     self.storage_space.txos_storage.mempool[coinbase.serialized_index]=coinbase
-    tx=Transaction(txos_storage = self.storage_space.txos_storage, key_manager= self.key_manager)
+    tx=Transaction(txos_storage = self.storage_space.txos_storage)
     tx.add_coinbase(coinbase)
     tx.compose_block_transaction()
     block = generate_block_template(tx, self.storage_space)

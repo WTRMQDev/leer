@@ -9,11 +9,12 @@ from leer.core.parameters.dynamic import next_reward
 from leer.core.utils import DOSException
 
 class Blockchain:
-  def __init__(self, storage_space):
+  def __init__(self, storage_space, notify_wallet=None):
     self.storage_space = storage_space
     self.awaited_blocks = {} # requested but not downloaded blocks
     self.storage_space.register_blockchain(self)
     self.download_queue = [] #Note: it's different from awaited blocks: download queue is queue of blocks still to be requested
+    self.notify_wallet = notify_wallet
 
   def add_block(self, block, no_update=False):
     cb = ContextBlock(block=block)
@@ -62,12 +63,17 @@ class Blockchain:
     rb.num_of_added_excesses = excesses_num
     self.storage_space.blocks_storage.put_rollback_object(block_hash, rb)
     self.storage_space.mempool_tx.update(reason="new block")
+    if self.notify_wallet:
+      self.notify_wallet("apply", block.tx, block.header.height)
     
 
   def _rollback(self):
     rb = self.storage_space.blocks_storage.pop_rollback_object(self.current_tip)
+    h = self.current_height
     self.storage_space.txos_storage.rollback(pruned_inputs=rb.pruned_inputs, num_of_added_outputs=rb.num_of_added_outputs, prev_state=rb.prev_state)
     self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state)
+    if self.notify_wallet:
+      self.notify_wallet("rollback", rb, h)
 
   def clean_old_block_requests(self):
     for bh in self.awaited_blocks:

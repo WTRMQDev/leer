@@ -10,6 +10,8 @@ from leer.syncer import Syncer
 from leer.transport.network_manager import NM_launcher
 from leer.rpc.rpc_manager import RPCM_launcher
 from leer.core.core_loop import core_loop
+from leer.notification.notification_center import notification_center_launcher
+from leer.wallet.wallet import wallet as wallet_launcher
 import multiprocessing
 import time
 
@@ -62,7 +64,8 @@ config = {
                     'port': 9238,
                  },
            'location': {
-                         'basedir': join(expanduser("~"), ".leertest") 
+                         'basedir': join(expanduser("~"), ".leertest2") ,
+                         'wallet': join(expanduser("~"), ".leertestwallet2")
                        },
            'bootstrap_nodes': [
                                 {
@@ -71,6 +74,7 @@ config = {
                                   'pub':b'\x03g*?\x08\xfa\xf8>!\xf7f&r\xb0zo\xe7\xe9`\x08W\xfd \rt6\xb3ks\xa2\xd6\x06e'
                                 }
                               ],
+           'wallet' : True 
                        
          }
 
@@ -85,6 +89,10 @@ async def start_server(config, delay_before_connect=5):
     core = multiprocessing.Process(target=core_loop, args=(syncer, config))
     core.start()
     await asyncio.sleep(delay_before_connect)
+    notifications = multiprocessing.Process(target=notification_center_launcher, args=(syncer, config))
+    notifications.start()
+    wallet = multiprocessing.Process(target=wallet_launcher, args=(syncer, config))
+    wallet.start()
     for node in config['bootstrap_nodes']:
       #print("Require connection from %d to %d: %s:%s:%s"%(server_id, node, 'localhost', p2p_port_by_id(node), pub_key_by_id(node)))
       syncer.queues['NetworkManager'].put(

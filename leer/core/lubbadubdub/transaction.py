@@ -70,7 +70,7 @@ class Transaction:
 
 
   # should be moved to wallet???
-  def generate(self, change_address=None, relay_fee_per_kb=0):
+  def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
     if not len(self.inputs):
@@ -114,14 +114,58 @@ class Transaction:
     [output.generate() for output in self.outputs]
     self.sort_ioputs()
     self.verify()
+
+  # should be moved to wallet???
+  def generate_new(self, priv_data, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+    if self.coinbase:
+      raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
+    if not len(self.inputs):
+      raise Exception("Tx should have at least one input")
+    if not len(self._destinations):
+      raise Exception("Tx should have at least one destination")
+    for ioput in self.inputs:
+      if not ioput.detect_value_new(inputs_info=priv_data):
+        raise Exception("Trying to generate tx which spends unknown input")
+    in_value = sum([ioput.value for ioput in self.inputs]) 
+    out_value = sum([destination[1] for destination in self._destinations])
+    relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
+    # +1 for destination is for change address
+    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
+    remainder = in_value - out_value - self.fee
+    if remainder<0:
+      raise Exception("Not enough money in inputs to cover outputs")
+    # TODO We need logic here to cover too low remainders (less than new output fee)
+    change_address =  change_address if change_address else priv_data['change address']
+    self._destinations.append((change_address, remainder))
+    privkey_sum=0
+    out_blinding_key_sum = None
+    for out_index in range(len(self._destinations)-1):
+      address, value = self._destinations[out_index]
+      output = IOput()
+      output.fill(address, value, generator = default_generator_ser)
+      self.outputs.append( output )
+      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+    # privkey for the last one output isn't arbitrary
+    address, value = self._destinations[-1]
+    in_blinding_key_sum = None
+    for _input in self.inputs:
+      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
+      in_blinding_key_sum += priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
+    output = IOput()
+    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
+      relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
+    self.outputs.append(output)
+    [output.generate() for output in self.outputs]
+    self.sort_ioputs()
+    self.verify()
     
 
   def calc_relay_fee(self, relay_fee_per_kb):
     inputs_num, outputs_num, excesses_num = len(self.inputs), len(self._destinations)+1, len(self.additional_excesses)
-    input_size = 65+2
-    ouput_size = 5364+2
+    input_size = 67+2
+    output_size = 5366+2
     excess_size = 65+2
-    estimated_size = 6+inputs_num*input_size + outputs_num*ouput_size + excesses_num*excess_size
+    estimated_size = 6+inputs_num*input_size + outputs_num*output_size + excesses_num*excess_size
     return int((estimated_size/1000.)*relay_fee_per_kb)
 
 
@@ -172,7 +216,7 @@ class Transaction:
       raise NotImplemented
     return ret
 
-  def deserialize(self, serialized_tx):
+  def deserialize(self, serialized_tx, skip_verification=False):
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for inputs array length")
     inputs_len_buffer, serialized_tx =serialized_tx[:2], serialized_tx[2:]
@@ -189,9 +233,12 @@ class Transaction:
         if not GLOBAL_TEST['spend from mempool']:
             raise NotImplemented
         else:
-          if not input_index_buffer in self.txos_storage.confirmed:
-            raise Exception("Unknown input index")
-          self.inputs.append(self.txos_storage.confirmed[input_index_buffer])
+          if not skip_verification:
+            if (not input_index_buffer in self.txos_storage.confirmed):
+              raise Exception("Unknown input index")
+            self.inputs.append(self.txos_storage.confirmed[input_index_buffer])
+          else:
+            self.inputs.append(input_index_buffer)
 
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for outputs array length")
@@ -223,7 +270,8 @@ class Transaction:
       e.deserialize_raw(ae_buffer)
       self.additional_excesses.append(e )
 
-    self.verify()
+    if not skip_verification:
+      self.verify()
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
 
@@ -411,7 +459,7 @@ class Transaction:
     
 
   def merge(self, another_tx):
-    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager)
+    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager) #TODO instead of key_manager, inputs info should be merged here
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses

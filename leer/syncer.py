@@ -2,7 +2,7 @@ import multiprocessing
 
 class Syncer:
   'This class holds all sync objects'
-  queue_ids = ['NetworkManager', 'Blockchain', 'RPCManager']
+  queue_ids = ['NetworkManager', 'Blockchain', 'RPCManager', 'Notifications', 'Wallet']
   def __init__(self, chains_ids=[], file_paths=[]):
    self.file_locks = {}
    for file_path in file_paths:

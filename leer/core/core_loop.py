@@ -92,7 +92,7 @@ def init_storage_space(config):
   bc = Blockchain(storage_space)
   mptx = MempoolTx(storage_space)
   utxoi = UTXOIndex(storage_space, _paths["utxo_index_path"])
-  km = KeyManagerClass(path = _paths["key_manager_path"])
+  km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
   mptx.set_key_manager(km)
   init_blockchain()
 
@@ -118,17 +118,55 @@ def set_ask_for_txouts_hook(block_storage, message_queue):
   
   block_storage.ask_for_txouts_hook = f
 
+def set_notify_wallet_hook(blockchain, wallet_message_queue):
+    def notify_wallet(reason, *args):
+      message={'sender':"Blockchain"}
+      #no id: notification
+      if reason == "apply":
+        message['action'] = "process new block"
+        message['tx'] = args[0].serialize()
+        message['height'] = args[1]      
+      elif reason == "rollback":
+        message['action'] = "process rollback"
+        message['rollback_object'] = args[0].serialize()
+        message['block_height'] = args[1]
+      else:
+        pass
+      wallet_message_queue.put(message)
+    storage_space.blockchain.notify_wallet = notify_wallet 
 
 def core_loop(syncer, config):
   message_queue = syncer.queues['Blockchain']
-  init_storage_space(config)
-
+  init_storage_space(config)    
 
   nodes = {}
   set_ask_for_blocks_hook(storage_space.blockchain, message_queue)
   set_ask_for_txouts_hook(storage_space.blocks_storage, message_queue)
+  if config['wallet']:
+    set_notify_wallet_hook(storage_space.blockchain, syncer.queues['Wallet'])
   requests = {}
   message_queue.put({"action":"give nodes list reminder"})
+
+  def get_new_address(): #blocking
+    _id = str(uuid4())
+    syncer.queues['Wallet'].put({'action':'give new address', 'id':_id, 'sender': "Blockchain"})
+    while True:
+      put_back = [] #We wait for specific message, all others will wait for being processed
+      while not message_queue.empty():
+        message = message_queue.get()
+        if (not 'id' in message)  or (not message['id']==_id):
+          put_back.append(message)
+          continue
+        if message['result']=='error':
+          raise KeyError
+        address = Address()
+        logger.info("Receiving address %s (len %d)"%( message["result"], len(message["result"])))
+
+        address.deserialize_raw(message['result'])
+        return address
+      sleep(0.01)
+      for message in put_back:
+        message_queue.put(message)
 
   def send_message(destination, message):
     if not 'id' in message:
@@ -139,12 +177,28 @@ def core_loop(syncer, config):
 
   def send_to_nm(message):
     send_message("NetworkManager", message)
-  
+
+  notification_cache = {}
+  def notify(key, value, timestamp=None):
+    if (key in notification_cache) and (notification_cache[key]['value'] == value) and (time()-notification_cache[key]['timestamp'])<5:
+      return #Do not spam notifications with the same values
+    message = {}
+    message['id'] = uuid4()
+    message['sender'] = "Blockchain"
+    if not timestamp:
+      timestamp = time()
+    message['time'] = timestamp
+    message['action']="set"
+    message['key']=key
+    message['value']=value
+    syncer.queues["Notifications"].put(message)
+    notification_cache[key] = {'value':value, 'timestamp':timestamp}
 
   logger.debug("Start of core loop")
   while True:
     sleep(0.05)
     put_back_messages = []
+    notify("core workload", "idle")
     while not message_queue.empty():
       message = message_queue.get()
       if 'time' in message and message['time']>time(): # delay this message
@@ -161,33 +215,47 @@ def core_loop(syncer, config):
         continue
       try:
         if message["action"] == "take the headers":
+          notify("core workload", "processing new headers")
           process_new_headers(message)
+          notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
+          notify("core workload", "processing new blocks")
           initial_tip = storage_space.blockchain.current_tip
           process_new_blocks(message)
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
-            notify_all_nodes_about_new_tip(nodes, send_to_nm)  
+            notify_all_nodes_about_new_tip(nodes, send_to_nm) 
+          notify("blockchain height", storage_space.blockchain.current_height)         
           look_forward(nodes, send_to_nm)       
         if message["action"] == "take the txos":
+          notify("core workload", "processing new txos")
           process_new_txos(message)
+          #After downloading new txos some blocs may become downloaded
+          notify("blockchain height", storage_space.blockchain.current_height) 
           look_forward(nodes, send_to_nm)          
         if message["action"] == "give blocks":
+          notify("core workload", "giving blocks")
           process_blocks_request(message, send_message)
         if message["action"] == "give next headers":
+          notify("core workload", "giving headers")
           process_next_headers_request(message, send_message)
         if message["action"] == "give txos":
+          notify("core workload", "giving txos")
           process_txos_request(message, send_message)
         if message["action"] == "find common root":
           process_find_common_root(message, send_message)
         if message["action"] == "find common root response":
           process_find_common_root_reponse(message, nodes[message["node"]], send_message)
         if message["action"] == "give TBM transaction":
+          notify("core workload", "giving mempool tx")
           process_tbm_tx_request(message, send_message)
         if message["action"] == "take TBM transaction":
+          notify("core workload", "processing mempool tx")
           process_tbm_tx(message, send_to_nm, nodes)
         if message["action"] == "give tip height":
-          send_message(message["sender"], {"id": message["id"], "result": storage_space.blockchain.current_height})
+          _ch=storage_space.blockchain.current_height
+          send_message(message["sender"], {"id": message["id"], "result": _ch})
+          notify("blockchain height", _ch)
       
         if message["action"] == "take tip info":
           if not message["node"] in nodes:
@@ -200,10 +268,13 @@ def core_loop(syncer, config):
         raise e
 
       if message["action"] == "give block template":
-        block = storage_space.mempool_tx.give_block_template()
+        notify("core workload", "generating block template")
+        address = get_new_address()
+        block = storage_space.mempool_tx.give_block_template(address)
         ser_head = block.header.serialize()
         send_message(message["sender"], {"id": message["id"], "result":ser_head})
       if message["action"] == "take solved block template":
+        notify("core workload", "processing solved block")
         try:
           initial_tip = storage_space.blockchain.current_tip
           header = Header()
@@ -217,11 +288,16 @@ def core_loop(syncer, config):
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
             notify_all_nodes_about_new_tip(nodes, send_to_nm)
+          our_height = storage_space.blockchain.current_height
+          best_known_header = storage_space.headers_manager.best_header_height
+          notify("best header", best_known_header)
+          notify("blockchain height", our_height)
         except Exception as e:
           raise e
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
-      if message["action"] == "get confirmed balance stats":
+      if message["action"] == "get confirmed balance stats": #TODO Move to wallet
+        notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           stats = storage_space.mempool_tx.key_manager.get_confirmed_balance_stats( 
                      storage_space.utxo_index,
@@ -231,7 +307,8 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "get confirmed balance list":
+      if message["action"] == "get confirmed balance list": #TODO Move to wallet
+        notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
                      storage_space.utxo_index,
@@ -241,14 +318,15 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "give new address":
+      if message["action"] == "give new address": #TODO Move to wallet
+        notify("core workload", "retrieving new address")
         if storage_space.mempool_tx.key_manager:
           texted_address = storage_space.mempool_tx.key_manager.new_address().to_text()
           send_message(message["sender"], {"id": message["id"], "result": texted_address})
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "give private key":
+      if message["action"] == "give private key": #TODO Move to wallet
         if storage_space.mempool_tx.key_manager:
           km = storage_space.mempool_tx.key_manager
           a=Address()
@@ -258,7 +336,7 @@ def core_loop(syncer, config):
         else:
           send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
 
-      if message["action"] == "take private key":
+      if message["action"] == "take private key": #TODO Move to wallet
         if storage_space.mempool_tx.key_manager:
           km = storage_space.mempool_tx.key_manager
           pk=PrivateKey()
@@ -279,45 +357,46 @@ def core_loop(syncer, config):
                                          "result": {'height': our_height, 
                                                     'best_known_header': best_known_header,
                                                     'best_advertised_height': best_advertised_height}})
+        notify("best header", best_known_header)
+        notify("blockchain height", our_height)
+        notify("best advertised height", best_advertised_height)
 
 
-      if message["action"] == "send to address":
-        value  = int(message["value"])
-        taddress = message["address"]
-        a = Address()
-        a.from_text(taddress)
-        if storage_space.mempool_tx.key_manager:
-          _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
-                     storage_space.utxo_index,
-                     storage_space.txos_storage,
-                     storage_space.blockchain.current_height)
-          list_to_spend = []
-          summ = 0 
-          for address in _list:
-            for texted_index in _list[address]:
-              if summ>value+100000000: #TODO fee here
-                continue
-              if isinstance(_list[address][texted_index], int):
-                _index = base64.b64decode(texted_index.encode())
-                utxo = storage_space.txos_storage.confirmed[_index]
-                if not utxo.lock_height<=storage_space.blockchain.current_height:
-                    continue
-                list_to_spend.append(utxo)
-                summ+=_list[address][texted_index]
-          if summ <value:
-            send_message(message["sender"], {"id": message["id"], "error": "Not enough matured coins"})
-          tx = Transaction(txos_storage = storage_space.txos_storage, key_manager = storage_space.mempool_tx.key_manager)
-          for utxo in list_to_spend:
+      if message["action"] == "generate tx by tx template": #TODO Move to wallet
+        notify("core workload", "generating transactions")
+        response = {"id": message["id"]}
+        try:
+          tx_template = message["tx_template"]
+          #Deserialization        
+          destination_address, change_address = Address(), Address()
+          destination_address.deserialize_raw(tx_template['address'])
+          change_address.deserialize_raw(tx_template['change address'])
+          tx_template['address'], tx_template['change address'] = destination_address, change_address
+          for pub in tx_template['priv_by_pub']:
+            tx_template['priv_by_pub'][pub] =  PrivateKey(tx_template['priv_by_pub'][pub], raw=True)
+        except Exception as e:
+          response['result'] = 'error'
+          response['error'] = str(e)
+          logger.error("Problem in tx_template: %s"%str(e))
+        try: #Tx generation
+          tx = Transaction(txos_storage = storage_space.txos_storage)
+          for utxo_index in tx_template['utxos']:
+            utxo = storage_space.txos_storage.confirmed[utxo_index]
             tx.push_input(utxo)
-          tx.add_destination( (a, value) )
-          tx.generate(relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
+          tx.add_destination( (tx_template["address"], tx_template["value"]) )
+          tx.generate_new(priv_data=tx_template,
+                        change_address = tx_template['change address'],
+                        relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
           tx.verify()
           storage_space.mempool_tx.add_tx(tx)
           tx_skel = TransactionSkeleton(tx=tx)
           notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
-          send_message(message["sender"], {"id": message["id"], "result":"generated"})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
+          response['result']="generated"
+        except Exception as e:
+          response['result'] = 'error'
+          response['error'] = str(e)
+          logger.error("Cannot generate tx by template: %s"%str(e))
+        send_message(message["sender"], response)
 
       #message from core_loop
       if message["action"] == "check txouts download status":
