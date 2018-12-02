@@ -162,10 +162,10 @@ class Transaction:
 
   def calc_relay_fee(self, relay_fee_per_kb):
     inputs_num, outputs_num, excesses_num = len(self.inputs), len(self._destinations)+1, len(self.additional_excesses)
-    input_size = 65+2
-    ouput_size = 5364+2
+    input_size = 67+2
+    output_size = 5366+2
     excess_size = 65+2
-    estimated_size = 6+inputs_num*input_size + outputs_num*ouput_size + excesses_num*excess_size
+    estimated_size = 6+inputs_num*input_size + outputs_num*output_size + excesses_num*excess_size
     return int((estimated_size/1000.)*relay_fee_per_kb)
 
 
@@ -233,9 +233,12 @@ class Transaction:
         if not GLOBAL_TEST['spend from mempool']:
             raise NotImplemented
         else:
-          if not input_index_buffer in self.txos_storage.confirmed:
-            raise Exception("Unknown input index")
-          self.inputs.append(self.txos_storage.confirmed[input_index_buffer])
+          if not skip_verification:
+            if (not input_index_buffer in self.txos_storage.confirmed):
+              raise Exception("Unknown input index")
+            self.inputs.append(self.txos_storage.confirmed[input_index_buffer])
+          else:
+            self.inputs.append(input_index_buffer)
 
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for outputs array length")

@@ -5,10 +5,13 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 
+from uuid import uuid4
+import logging
+import base64
      
 
 
-
+logger = logging.getLogger("Wallet")
 
 def wallet(syncer, config):
   '''
@@ -28,25 +31,26 @@ def wallet(syncer, config):
           put_back.append(message)
         if message['result']=='error':
           raise KeyError
-        return message['result']
+        return message['result']['value']
       sleep(0.01)
       for message in put_back:
         message_queue.put(message)
 
   message_queue = syncer.queues['Wallet']
-  _path = config['location']['wallet_path']
-  km = KeyManagerClass(_path)
+  _path = config['location']['wallet']
+  km = KeyManagerClass(path=_path)
   while True:
     sleep(0.01)
     while not message_queue.empty():
       message = message_queue.get()
+      logger.info("Process message %s"% message)
       if not 'action' in message:
         continue
       if message['action']=="process new block":
-        tx = message['tx']
+        tx = Transaction(txos_storage=None)
+        tx.deserialize(message['tx'],skip_verification=True)
         block_height = message['height']
-        for _i in tx.inputs:
-          index = _i.serialized_index
+        for index in tx.inputs:
           if km.is_unspent(index): #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
             km.spend_output(index, block_height)
         for _o in tx.outputs:
@@ -58,13 +62,15 @@ def wallet(syncer, config):
         km.rollback(block_height)
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
-      if message['action']=="give new address raw object"
-        pass
-      if message['action']=="give new address"
+      if message['action']=="give new taddress":
         address = km.new_address()
-        response = {"id": message["id"], "result": address}
+        response = {"id": message["id"], "result": address.to_text()}
         syncer.queues[message['sender']].put(response)
-      if message['action']=="get confirmed balance stats"
+      if message['action']=="give new address":
+        address = km.new_address()
+        response = {"id": message["id"], "result": address.serialize()}
+        syncer.queues[message['sender']].put(response)
+      if message['action']=="get confirmed balance stats":
         response = {"id": message["id"]}
         try:
           height = get_height()
@@ -73,7 +79,7 @@ def wallet(syncer, config):
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
         syncer.queues[message['sender']].put(response)
-      if message['action']=="get confirmed balance list"
+      if message['action']=="get confirmed balance list":
         response = {"id": message["id"]}
         try:
           height = get_height()
@@ -82,18 +88,18 @@ def wallet(syncer, config):
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
         syncer.queues[message['sender']].put(response)
-      if message['action']=="give private key"
+      if message['action']=="give private key":
         pass
-      if message['action']=="take private key"
+      if message['action']=="take private key":
         pass
-      if message['action']=="generate tx template"
+      if message['action']=="generate tx template":
         response = {"id": message["id"]}
         value  = int(message["value"])
         taddress = message["address"]
         a = Address()
         a.from_text(taddress)
         try:
-          height = get_height()
+          current_height = get_height()
         except KeyError:
            response["result"] = "error"
            response["error"] = "core_loop didn't set height yet"
@@ -117,8 +123,8 @@ def wallet(syncer, config):
             syncer.queues[message['sender']].put(response)
             continue
         
-        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address(), 'utxos':utxos
-                        'address': a, 'value': value }
+        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address().serialize(), 'utxos':utxos,
+                        'address': a.serialize(), 'value': value }
         for utxo in utxos:
           pub,priv = km.priv_and_pub_by_output_index(utxo)
           tx_template['priv_by_pub'][pub]=priv

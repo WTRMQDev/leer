@@ -113,7 +113,7 @@ class RPCManager():
 
   async def getbalancestats(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'get confirmed balance stats', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'get confirmed balance stats', 'id':_id,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
@@ -123,7 +123,7 @@ class RPCManager():
 
   async def getbalancelist(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'get confirmed balance list', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'get confirmed balance list', 'id':_id,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
@@ -132,7 +132,7 @@ class RPCManager():
 
   async def getbalance(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'get confirmed balance stats', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'get confirmed balance stats', 'id':_id,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
@@ -141,8 +141,17 @@ class RPCManager():
 
   async def sendtoaddress(self, address, value):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'send to address', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'generate tx template', 'id':_id,
                                           'address': address, 'value': value,
+                                          'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    if answer['result']=='error':
+      return answer['error']
+    _id = str(uuid4())
+    self.syncer.queues['Blockchain'].put({'action':'generate tx by tx template', 'id':_id,
+                                          'tx_template': answer['result'],
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
@@ -151,7 +160,7 @@ class RPCManager():
 
   async def getnewaddress(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'give new address', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'give new taddress', 'id':_id,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]

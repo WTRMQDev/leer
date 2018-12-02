@@ -124,11 +124,11 @@ def set_notify_wallet_hook(blockchain, wallet_message_queue):
       #no id: notification
       if reason == "apply":
         message['action'] = "process new block"
-        message['tx'] = args[0]
+        message['tx'] = args[0].serialize()
         message['height'] = args[1]      
       elif reason == "rollback":
         message['action'] = "process rollback"
-        message['rollback_object'] = args[0]
+        message['rollback_object'] = args[0].serialize()
         message['block_height'] = args[1]
       else:
         pass
@@ -147,6 +147,27 @@ def core_loop(syncer, config):
   requests = {}
   message_queue.put({"action":"give nodes list reminder"})
 
+  def get_new_address(): #blocking
+    _id = str(uuid4())
+    syncer.queues['Wallet'].put({'action':'give new address', 'id':_id, 'sender': "Blockchain"})
+    while True:
+      put_back = [] #We wait for specific message, all others will wait for being processed
+      while not message_queue.empty():
+        message = message_queue.get()
+        if (not 'id' in message)  or (not message['id']==_id):
+          put_back.append(message)
+          continue
+        if message['result']=='error':
+          raise KeyError
+        address = Address()
+        logger.info("Receiving address %s (len %d)"%( message["result"], len(message["result"])))
+
+        address.deserialize_raw(message['result'])
+        return address
+      sleep(0.01)
+      for message in put_back:
+        message_queue.put(message)
+
   def send_message(destination, message):
     if not 'id' in message:
       message['id'] = uuid4()
@@ -157,18 +178,21 @@ def core_loop(syncer, config):
   def send_to_nm(message):
     send_message("NetworkManager", message)
 
+  notification_cache = {}
   def notify(key, value, timestamp=None):
+    if (key in notification_cache) and (notification_cache[key]['value'] == value) and (time()-notification_cache[key]['timestamp'])<5:
+      return #Do not spam notifications with the same values
     message = {}
     message['id'] = uuid4()
     message['sender'] = "Blockchain"
     if not timestamp:
-      message['time'] = time()
-    else:
-      message['time'] = timestamp
+      timestamp = time()
+    message['time'] = timestamp
     message['action']="set"
     message['key']=key
     message['value']=value
     syncer.queues["Notifications"].put(message)
+    notification_cache[key] = {'value':value, 'timestamp':timestamp}
 
   logger.debug("Start of core loop")
   while True:
@@ -245,7 +269,8 @@ def core_loop(syncer, config):
 
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
-        block = storage_space.mempool_tx.give_block_template()
+        address = get_new_address()
+        block = storage_space.mempool_tx.give_block_template(address)
         ser_head = block.header.serialize()
         send_message(message["sender"], {"id": message["id"], "result":ser_head})
       if message["action"] == "take solved block template":
@@ -263,6 +288,10 @@ def core_loop(syncer, config):
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
             notify_all_nodes_about_new_tip(nodes, send_to_nm)
+          our_height = storage_space.blockchain.current_height
+          best_known_header = storage_space.headers_manager.best_header_height
+          notify("best header", best_known_header)
+          notify("blockchain height", our_height)
         except Exception as e:
           raise e
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
@@ -335,19 +364,39 @@ def core_loop(syncer, config):
 
       if message["action"] == "generate tx by tx template": #TODO Move to wallet
         notify("core workload", "generating transactions")
-        tx_template = message["tx_template"]
-        tx = Transaction(txos_storage = storage_space.txos_storage)
-        for utxo_index in tx_template['utxos']:
-          utxo = storage_space.txos_storage.confirmed[utxo_index]
-        tx.add_destination( (tx_template["address"], tx_template["value"]) )
-        tx.generate_new(priv_data=tx_template,
+        response = {"id": message["id"]}
+        try:
+          tx_template = message["tx_template"]
+          #Deserialization        
+          destination_address, change_address = Address(), Address()
+          destination_address.deserialize_raw(tx_template['address'])
+          change_address.deserialize_raw(tx_template['change address'])
+          tx_template['address'], tx_template['change address'] = destination_address, change_address
+          for pub in tx_template['priv_by_pub']:
+            tx_template['priv_by_pub'][pub] =  PrivateKey(tx_template['priv_by_pub'][pub], raw=True)
+        except Exception as e:
+          response['result'] = 'error'
+          response['error'] = str(e)
+          logger.error("Problem in tx_template: %s"%str(e))
+        try: #Tx generation
+          tx = Transaction(txos_storage = storage_space.txos_storage)
+          for utxo_index in tx_template['utxos']:
+            utxo = storage_space.txos_storage.confirmed[utxo_index]
+            tx.push_input(utxo)
+          tx.add_destination( (tx_template["address"], tx_template["value"]) )
+          tx.generate_new(priv_data=tx_template,
                         change_address = tx_template['change address'],
                         relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
-        tx.verify()
-        storage_space.mempool_tx.add_tx(tx)
-        tx_skel = TransactionSkeleton(tx=tx)
-        notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
-        send_message(message["sender"], {"id": message["id"], "result":"generated"})
+          tx.verify()
+          storage_space.mempool_tx.add_tx(tx)
+          tx_skel = TransactionSkeleton(tx=tx)
+          notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+          response['result']="generated"
+        except Exception as e:
+          response['result'] = 'error'
+          response['error'] = str(e)
+          logger.error("Cannot generate tx by template: %s"%str(e))
+        send_message(message["sender"], response)
 
       #message from core_loop
       if message["action"] == "check txouts download status":

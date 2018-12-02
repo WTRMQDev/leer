@@ -35,6 +35,7 @@ class NetworkManager:
     s=Key(key=PrivateKey(lspriv.to_bytes(32,'big'), raw=True))
     our_node_params = { 'network': {'host': self.config['p2p']['host'], 'port':self.config['p2p']['port']}, 'static_full_key':s}
     self.our_node = Node(None, our_node_params, self.loop, None)
+    logger.info("Our node public key %s"%s.pubkey())
     #other = { 'network': {'IP':None, 'port':None}, 'lightning':{'id':None, 'static_key':Key().pubkey()}}
     self.nodes={}
 

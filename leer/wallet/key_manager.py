@@ -28,10 +28,7 @@ class KeyManagerClass:
     return PrivateKey(raw_priv, raw=True)
 
   def priv_and_pub_by_output_index(self, output_index):
-    raw_priv = self.wallet.get_priv_and_pub_by_output_index(output_index)
-    if not raw_priv:
-      raise KeyError("Private key not in the wallet")
-    return PrivateKey(raw_priv, raw=True)
+       return self.wallet.get_priv_and_pub_by_output_index(output_index)
 
   def priv_by_address(self, address):
     raw_priv = self.wallet.get_privkey(address.pubkey.serialize())
@@ -65,7 +62,7 @@ class KeyManagerClass:
     except KeyError:
       return False
 
-  def is_owned_key(self, serialized_pubkey):
+  def is_owned_pubkey(self, serialized_pubkey):
     pk = self.wallet.get_privkey(serialized_pubkey)
     if not pk:
       return False
@@ -78,11 +75,12 @@ class KeyManagerClass:
     index = output.serialized_index
     pubkey = output.address.serialized_pubkey
     taddress = output.address.to_text().encode()
-    value = output.detect_value_new(inputs_info = 
+    output.detect_value_new(inputs_info = 
          {'priv_by_pub':{
-                           pubkey : priv_by_address(output.address)
+                           pubkey : self.priv_by_address(output.address)
                         }
          }) 
+    value = output.value
     self.wallet.put_output(index, (block_height, output.lock_height, value, taddress))
     self.wallet.put_pubkey_output_assoc(pubkey, index)
 
@@ -97,7 +95,7 @@ class KeyManagerClass:
             }
     with self.wallet.env.begin(write=False) as txn:
       cursor = txn.cursor(db=self.wallet.pubkey_index)
-      for output_index in cursor.iternext(values=True):
+      for pubkey, output_index  in cursor.iternext(values=True):
         try:
           created_height, lock_height, value, serialized_index = self.wallet.get_output(output_index)
         except KeyError:
@@ -119,7 +117,7 @@ class KeyManagerClass:
     ret = {}
     with self.wallet.env.begin(write=False) as txn:
       cursor = txn.cursor(db=self.wallet.pubkey_index)
-      for output_index in cursor.iternext(values=True):
+      for pubkey, output_index in cursor.iternext(values=True):
         try:
           created_height, lock_height, value, taddress = self.wallet.get_output(output_index)
         except KeyError:
@@ -134,7 +132,7 @@ class KeyManagerClass:
             ret[taddress][texted_index]=value
         else:
             ret[taddress][texted_index]='unknown'      
-    return stats
+    return ret
 
     
 
@@ -273,7 +271,7 @@ class DiscWallet:
   def put(self, serialized_pubkey, serialized_privkey, txn=None):
     if not txn:
       with self.env.begin(write=True) as txn:
-        self.put(serialized_pubkey, serialized_privkey, txn=txn)
+        return self.put(serialized_pubkey, serialized_privkey, txn=txn)
     else:
       p1=txn.put( bytes(serialized_pubkey), bytes(serialized_privkey), db=self.main_db)    
   
@@ -281,16 +279,17 @@ class DiscWallet:
   def put_output(self, output_index, output_params, txn=None):
     if not txn:
       with self.env.begin(write=True) as txn:
-        self.put_output(output_index, output_params, txn=txn)
+        return self.put_output(output_index, output_params, txn=txn)
     else:     
       p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)    
 
   def get_output(self, output_index, txn=None):
     if not txn:
       with self.env.begin(write=False) as txn:
-        self.get_output(output_index, txn=txn)
+        return self.get_output(output_index, txn=txn)
     else:     
       output_params = txn.get( bytes(output_index), db=self.output)    
+
       if not output_params:
          raise KeyError
       else:
@@ -374,7 +373,7 @@ class DiscWallet:
   def add_block_spent_output_association(self, block_height, output_index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.add_block_spent_output_association(block_height, output_index, w_txn)
+        return self.add_block_spent_output_association(block_height, output_index, w_txn)
     else:   
       w_txn.put( _(block_height), b"\x01"+output_index, db=self.block_index, dupdata=True)
         
@@ -382,7 +381,7 @@ class DiscWallet:
   def add_block_new_output_association(self, block_height, output_index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.add_block_new_output_association(block_height, output_index, w_txn)
+        return self.add_block_new_output_association(block_height, output_index, w_txn)
     else:     
       w_txn.put( _(block_height), b"\x00"+output_index, db=self.block_index, dupdata=True)
 
@@ -390,7 +389,7 @@ class DiscWallet:
   def remove_block_spent_output_association(self, block_height, output_index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.remove_block_spent_output_association(block_height, output_index, w_txn)
+        return self.remove_block_spent_output_association(block_height, output_index, w_txn)
     else:     
       w_txn.delete( _(block_height), b"\x01"+output_index, db=self.block_index)
 
@@ -398,7 +397,7 @@ class DiscWallet:
   def remove_block_new_output_association(self, block_height, output_index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.remove_block_new_output_association(block_height, output_index, w_txn)
+        return self.remove_block_new_output_association(block_height, output_index, w_txn)
     else:     
       w_txn.delete( _(block_height), b"\x00"+output_index, db=self.block_index)
 
@@ -406,7 +405,7 @@ class DiscWallet:
   def remove_all_outputs_created_in_block(self, block_height, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.remove_all_outputs_created_in_block(block_height, output_index, w_txn)
+        return self.remove_all_outputs_created_in_block(block_height, output_index, w_txn)
     else: 
       cursor = w_txn.cursor(db=self.block_index)
       if not cursor.set_key(_(block_height)):
@@ -421,7 +420,7 @@ class DiscWallet:
   def restore_all_outputs_spent_in_block(self, block_height, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.restore_all_outputs_spent_in_block(block_height, output_index, w_txn)
+        return self.restore_all_outputs_spent_in_block(block_height, output_index, w_txn)
     else:     
       cursor = w_txn.cursor(db=self.block_index)
       if not cursor.set_key(_(block_height)):
@@ -436,7 +435,7 @@ class DiscWallet:
   def put_pubkey_output_assoc(self, pubkey, index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.put_pubkey_output_assoc(pubkey, index, w_txn)
+        return self.put_pubkey_output_assoc(pubkey, index, w_txn)
     else:     
       w_txn.put( pubkey, index, db=self.pubkey_index, dupdata=True)
       w_txn.put( index, pubkey, db=self.pubkey_index_reversed, dupdata=True)
@@ -444,7 +443,7 @@ class DiscWallet:
   def get_priv_and_pub_by_output_index(self, output_index, r_txn=None):
     if not r_txn:
       with self.env.begin(write=False) as r_txn:
-        self.get_priv_by_output_index( output_index, r_txn)
+        return self.get_priv_and_pub_by_output_index( output_index, r_txn)
     else:
       pubkey = r_txn.get(output_index, db=self.pubkey_index_reversed)
       if not pubkey:
