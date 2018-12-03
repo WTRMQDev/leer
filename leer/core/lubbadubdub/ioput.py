@@ -6,6 +6,7 @@ from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.utils import encrypt, decrypt
+from leer.core.storage.verification_cache import verification_cache
 
 def is_sorted(lst, key=lambda x: x):
     for i, el in enumerate(lst[1:]):
@@ -372,16 +373,26 @@ class IOput:
      2) generator is known
      3) range_proof is valid and signs (version, address, asset_type, encrypted_message, relay_fee)
     """
+    try:
+      return verification_cache[self.serialize]
+    except KeyError:
+      pass
+    result = True
+
     if self.version==1 or self.version==0:
       try:
         assert self.address.verify(), "Bad address"
         assert self.generator in generators, "Bad generator"
         assert self.rangeproof.verify(), "Bad rangeproof"
       except AssertionError as e:
-        return False
+        result = False
     else:
-      return False
-    return self.address.verify()
+      result = False
+    if result:  
+      result = self.address.verify()
+
+    verification_cache[self.serialize] = result
+    return result
 
   def info(self):
     """

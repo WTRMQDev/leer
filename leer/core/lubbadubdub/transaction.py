@@ -10,8 +10,8 @@ from leer.core.storage.txos_storage import TXOsStorage
 
 
 from leer.core.parameters.constants import coinbase_maturity, output_creation_fee
-
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
+from leer.core.storage.verification_cache import verification_cache
 
 def is_sorted(lst, key=lambda x: x):
     for i, el in enumerate(lst[1:]):
@@ -292,6 +292,10 @@ class Transaction:
 
   def non_context_verify(self, block_height):
     #Actually we partially use context via block_height. Consider renaming.
+    try:
+      return verification_cache[(self.serialize, block_height)]
+    except KeyError:
+      pass
 
     assert is_sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize()), "Inputs are not sorted"
     assert is_sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize()), "Outputs are not sorted"
@@ -398,6 +402,7 @@ class Transaction:
 
     tx_skel = TransactionSkeleton(tx=self)
     assert len(tx_skel.serialize(rich_format=False))<50000, "Too big tx_skeleton"
+    verification_cache[(self.serialize, block_height)] = True
     return True
 
     

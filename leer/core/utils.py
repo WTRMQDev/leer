@@ -52,7 +52,10 @@ class ObliviousDictionary:
     self.inner_dict[_index]=_object
     self.trigger_time_list.append((time()+self.sink_delay, _index))
 
-  def __contains__(self, _index):
+  def __contains__(self, _index): 
+    #TODO This method probably should be deleted, we easily get to situation, 
+    # when we checked that smth is in dict, but when we try to get it, it's gone
+    # better sorry than ask
     return _index in self.inner_dict
 
   def __len__(self):
