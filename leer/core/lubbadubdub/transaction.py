@@ -34,6 +34,7 @@ class Transaction:
     self.coinbase = None
     self.new_outputs_fee = None
     self.txid = None
+    self.serialized = None
 
     self.txos_storage = txos_storage #we can switch fron global txos_storage to stubs for testing
     self.key_manager = key_manager
@@ -51,9 +52,11 @@ class Transaction:
   #TODO coinbase should be @property
 
   def add_coinbase(self, coinbase_output):
+    self.serialized = None
     self.coinbase = coinbase_output
 
   def compose_block_transaction(self, combined_transaction=None):
+    self.serialized = None
     if not self.coinbase:
       raise Exception("coinbase output is required")
     cb = self.coinbase
@@ -71,6 +74,7 @@ class Transaction:
 
   # should be moved to wallet???
   def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+    self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
     if not len(self.inputs):
@@ -117,6 +121,7 @@ class Transaction:
 
   # should be moved to wallet???
   def generate_new(self, priv_data, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+    self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
     if not len(self.inputs):
@@ -194,6 +199,8 @@ class Transaction:
     self.txid = h.digest()
 
   def serialize(self):
+    if self.serialized:
+      return self.serialized
     ret=b""
     ret += struct.pack("> H", len(self.inputs)) 
     for _input in self.inputs:
@@ -214,9 +221,11 @@ class Transaction:
         ret += s_e
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
+    self.serialized = ret
     return ret
 
   def deserialize(self, serialized_tx, skip_verification=False):
+    self.serialized = None
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for inputs array length")
     inputs_len_buffer, serialized_tx =serialized_tx[:2], serialized_tx[2:]
@@ -459,6 +468,7 @@ class Transaction:
     
 
   def merge(self, another_tx):
+    self.serialized = None
     tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager) #TODO instead of key_manager, inputs info should be merged here
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs

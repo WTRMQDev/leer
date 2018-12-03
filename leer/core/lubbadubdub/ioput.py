@@ -41,6 +41,8 @@ class IOput:
     self.unauthorized_pedersen_commitment = None
     self.value = None
     self.blinding_key = None
+    self.serialized = None
+    self._serialized_apc = None
 
     if json_object:
       self.from_json(json_object)
@@ -55,12 +57,15 @@ class IOput:
 
   def serialize(self):
     """ Returns binary representation of output"""
+    if self.serialized:
+      return self.serialized
     ret = self.signed_part()
 
     ser_range_proof = self.rangeproof.proof
     ret += struct.pack("> H", len(ser_range_proof))
     ret += ser_range_proof
 
+    self.serialized = ret
     return ret
 
   @property
@@ -74,6 +79,12 @@ class IOput:
   def index_len(self):
     #len apc + len hash
     return 33+32
+
+  @property
+  def serialized_apc(self):
+    if not self._serialized_apc:
+      self._serialized_apc = self.authorized_pedersen_commitment.serialize()
+    return self._serialized_apc
 
   @property
   def serialized_index(self):
@@ -99,7 +110,7 @@ class IOput:
       in comparisson with rangeproof) but allows both basic checks and unambiguous
       indexing.
     """
-    return self.authorized_pedersen_commitment.serialize()+self.hash
+    return self.serialized_apc+self.hash
 
   @property
   def commitment_index(self):
@@ -107,8 +118,8 @@ class IOput:
       Special index which is used for building commitment merkle tree
     """
     m=hashlib.sha256()
-    m.update(self.authorized_pedersen_commitment.serialize())
-    return self.authorized_pedersen_commitment.serialize() + m.digest()
+    m.update(self.serialized_apc)
+    return self.serialized_apc + m.digest()
 
   @property
   def is_coinbase(self):
@@ -116,12 +127,16 @@ class IOput:
 
   def deserialize(self, serialized_output):
     """ Decode output from serialized representation. """
+    self.serialized = None
+    self._serialized_apc = None
     self.deserialize_raw(serialized_output)
 
   def deserialize_raw(self, serialized_output):  
     #TODO part1, part2, part3 should be substitued with construction `something, serialized = serialized[:x], serialized[x:]`
     # as it is done in other modules
     """ Decode output from serialized representation. Return residue of data after serialization"""
+    self.serialized = None
+    self._serialized_apc = None
 
     if len(serialized_output)<145:
         raise Exception("Serialized output doesn't contain enough bytes for constant length parameters")
@@ -205,7 +220,7 @@ class IOput:
     ret += struct.pack("> H H L 33s Q 33s",
       self.version, self.block_version, self.lock_height,
       self.generator, self.relay_fee,
-      self.authorized_pedersen_commitment.serialize())
+      self.serialized_apc)
     ret += self.address.serialize()
     ret += struct.pack("> H", len(self.encrypted_message))
     ret += self.encrypted_message
@@ -238,6 +253,8 @@ class IOput:
     [optional] lock_height : integer
         Default: 0. Minimal height at which output can be spent.
     """
+    self.serialized = None
+    self._serialized_apc = None
     self.address = address
     self.generator = generator
     self.value = value
@@ -276,6 +293,7 @@ class IOput:
     """
     assert self.unauthorized_pedersen_commitment
     assert self.generator
+    self._serialized_apc = None
     self.authorized_pedersen_commitment = \
       (self.unauthorized_pedersen_commitment.to_public_key() + self.address.pubkey).to_pedersen_commitment(
       blinded_generator = generators[self.generator])
@@ -325,10 +343,12 @@ class IOput:
                     degree of confidence that value is between 64 and 127.
                     
     """    
+    self.serialized = None
+    self._serialized_apc = None
     self._calc_pedersen()
     self._calc_authorized_pedersen()
 
-    apc = self.authorized_pedersen_commitment.serialize() 
+    apc = self.serialized_apc 
     plaintext = struct.pack( "> 32s Q", self.blinding_key.private_key, self.value)
     self.encrypted_message = encrypt(self.address.pubkey, apc, plaintext);
 
@@ -376,7 +396,7 @@ class IOput:
     s=""
     s+="Output[ coinbase: %s, Pedersen: 0x%s, Pubkey: 0x%s, RangeProof: %s, Value: %s, Fee: %s, Blinding key: %s...]" %(
       "+" if self.version==0 else "-", 
-      self.authorized_pedersen_commitment.serialize()[:8].hex(),
+      self.serialized_apc[:8].hex(),
       self.address.pubkey.serialize()[:10].hex(),
       "+" if self.rangeproof else "-", 
       str(self.value) if self.value else 'unknown',
