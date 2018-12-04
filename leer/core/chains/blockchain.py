@@ -76,9 +76,12 @@ class Blockchain:
       self.notify_wallet("rollback", rb, h)
 
   def clean_old_block_requests(self):
+    to_delete = []
     for bh in self.awaited_blocks:
       if self.awaited_blocks[bh]+3600 < time():
-         self.awaited_blocks.pop(bh)
+         to_delete.append(bh)
+    for bh in to_delete:
+      self.awaited_blocks.pop(bh)
 
   def _lazy_ask_for_block(self, block_hash):
     self.download_queue.append(block_hash)
