@@ -174,7 +174,7 @@ class IOput:
     info=self.info()
     if info['min_value']==info['max_value']:
       self.value=info['min_value']
-
+    self.serialized = part1 + part2 + part3[:2+range_proof_len]
     return part3[2+range_proof_len:]
 
   def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
@@ -362,6 +362,9 @@ class IOput:
       self.rangeproof._sign(min_value=min_value, nonce=nonce,
                         exp=exp, concealed_bits=concealed_bits)
     
+  def set_verified_and_correct(self):
+    verification_cache[self.serialize] = True
+
   #rename to validate?
   def verify(self):
     """

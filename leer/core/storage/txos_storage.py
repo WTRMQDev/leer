@@ -59,16 +59,19 @@ class ConfirmedTXOStorage:
         raise KeyError(hash_and_pc)
       utxo=IOput()
       utxo.deserialize(res)
+      utxo.set_verified_and_correct() #Trust saved outputs
       return utxo
 
-    def __setitem__(self, hash_and_pc, utxo):
-      #TODO __setitem__ interface should be substituted with append-like interface
-      #XXX problem here: commitments indexes should be apc+hash(apc), not hash_and_pc
-      #here we should save
-      self.txos.append(_hash(hash_and_pc),utxo.serialize())
-      self.commitments.append(utxo.commitment_index,b"")
+    #TODO Full method removement is postponed till comments inside will be resolved
+    #def __setitem__(self, hash_and_pc, utxo):
+    #  #TODO __setitem__ interface should be substituted with append-like interface
+    #  #XXX problem here: commitments indexes should be apc+hash(apc), not hash_and_pc
+    #  #here we should save
+    #  self.txos.append(_hash(hash_and_pc),utxo.serialize())
+    #  self.commitments.append(utxo.commitment_index,b"")
 
     def append(self, utxo):
+      assert utxo.verify() #Should be fast due since cached
       self.txos.append(_hash(utxo.serialized_index), utxo.serialize())
       self.commitments.append(utxo.commitment_index,b"")
 
