@@ -1,8 +1,5 @@
 from leer.core.utils import ObliviousDictionary
 
-
-
-
 class VerificationCache:
   '''
    Verification cache is in memory cache for storing (non-context and semi-non-context) validity 
@@ -30,17 +27,10 @@ class VerificationCache:
 
   def __setitem__(self, _index, _object):
     if isinstance(_index, tuple):
-       _index, check_block = _index
+      _index, check_block = _index
       self.od[_index]=(_object, check_block)
     else:
       self.od[_index]=_object
-
-
-
-
-
-
-
 
 
 verification_cache = VerificationCache()
