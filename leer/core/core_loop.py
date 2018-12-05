@@ -449,7 +449,7 @@ def core_loop(syncer, config):
           node = nodes[node_params]
           if node in already_asked_nodes:
             continue
-          if node["height"] < lowest_height:
+          if (not "height" in node) or node["height"] < lowest_height:
             continue
           already_asked_nodes += [node]
           send_to_nm({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
