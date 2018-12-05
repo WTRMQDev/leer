@@ -138,6 +138,7 @@ class IOput:
     """ Decode output from serialized representation. Return residue of data after serialization"""
     self.serialized = None
     self._serialized_apc = None
+    consumed = b""
 
     if len(serialized_output)<145:
         raise Exception("Serialized output doesn't contain enough bytes for constant length parameters")
@@ -145,6 +146,7 @@ class IOput:
     part1, part2 = serialized_output[:82], serialized_output[82:]
     (self.version, self.block_version, self.lock_height,
       self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", part1) 
+    consumed+=part1
 
     if self.generator in generators:
       self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinded_generator = generators[self.generator])
@@ -152,7 +154,10 @@ class IOput:
       raise NotImplemented
 
     self.address = Address()
-    part2 = self.address.deserialize_raw(part2)
+    
+    _part2 = self.address.deserialize_raw(part2)
+    consumed += part2[:len(part2)-len(_part2)]
+    part2 = _part2
     
     if len(part2)<2:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message length")
@@ -160,6 +165,7 @@ class IOput:
     if len(part2)<2+encrypted_message_len:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message")
     self.encrypted_message = part2[2:2+encrypted_message_len]
+    consumed += part2[:2+encrypted_message_len]
 
     part3=part2[2+encrypted_message_len:]
     (range_proof_len,) = struct.unpack("> H", part3[:2])
@@ -171,10 +177,12 @@ class IOput:
         pedersen_commitment=self.unauthorized_pedersen_commitment, 
         additional_data = self.signed_part())
 
+    consumed += part3[:2+range_proof_len]
+
     info=self.info()
     if info['min_value']==info['max_value']:
       self.value=info['min_value']
-    self.serialized = part1 + part2 + part3[:2+range_proof_len]
+    self.serialized = consumed
     return part3[2+range_proof_len:]
 
   def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
