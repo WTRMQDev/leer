@@ -489,6 +489,11 @@ def core_loop(syncer, config):
 
     try:
       check_sync_status(nodes, send_to_nm)
+      try:
+        best_advertised_height = max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
+      except:
+          best_advertised_height = None
+      notify("best advertised height", best_advertised_height)
     except Exception as e:
       logger.error(e)
 
