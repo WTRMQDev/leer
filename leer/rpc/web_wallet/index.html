@@ -191,7 +191,7 @@ function update_sync_status() {
       var coreStatus = document.getElementById("coreStatus");
       var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
       var bkh = sync_status['best_known_header'];
-      var bah = sync_status['best_advertised_height'];
+      var bah = sync_status['best_advertised_header'];
       if ('core_workload' in sync_status) { var workload = sync_status['core_workload'];}
       else {var workload = false;}
       if(bah==null)
