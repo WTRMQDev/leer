@@ -102,6 +102,7 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height,  historical=
          tx.outputs.append(txos_storage.mempool[_o])
   tx.additional_excesses = tx_skeleton.additional_excesses.copy()
   tx.combined_excesses = tx_skeleton.combined_excesses.copy()
+  tx.mixer_offset = tx_skeleton.mixer_offset
   if historical or non_context:
     assert tx.non_context_verify(block_height=block_height)
   else:

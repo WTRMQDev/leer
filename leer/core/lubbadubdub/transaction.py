@@ -29,6 +29,7 @@ class Transaction:
     self.outputs = []
     self.additional_excesses = []
     self.combined_excesses = OrderedDict()
+    self.mixer_offset = 0
     #inner data
     self._destinations = [] #destinations are unprepared outputs
     self.coinbase = None
@@ -170,7 +171,8 @@ class Transaction:
     input_size = 67+2
     output_size = 5366+2
     excess_size = 65+2
-    estimated_size = 6+inputs_num*input_size + outputs_num*output_size + excesses_num*excess_size
+    mixer_offset_size = 32
+    estimated_size = 6+inputs_num*input_size + outputs_num*output_size + excesses_num*excess_size + mixer_offset_size
     return int((estimated_size/1000.)*relay_fee_per_kb)
 
 
@@ -219,6 +221,7 @@ class Transaction:
         s_e = _excess.serialize()
         ret += struct.pack("> H", len(s_e))
         ret += s_e
+    ret += self.mixer_offset.to_bytes(32, "big")
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
     self.serialized = ret
@@ -279,6 +282,9 @@ class Transaction:
       e.deserialize_raw(ae_buffer)
       self.additional_excesses.append(e )
 
+    if len(serialized_tx)<32:
+        raise Exception("Serialized transaction doesn't contain enough bytes for mixer_offset")
+    self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
     if not skip_verification:
       self.verify()
     if not GLOBAL_TEST['skip combined excesses']:
@@ -478,6 +484,8 @@ class Transaction:
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses
+    # 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 - order of secp256k1 group
+    tx.mixer_offset = (self.mixer_offset + another_tx.mixer_offset) % 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
       #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
