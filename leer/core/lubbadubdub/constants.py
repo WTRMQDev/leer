@@ -8,6 +8,7 @@ def generator_from_string_seed(seed):
   bytes_seed = m.digest()
   g = GeneratorOnCurve()
   g._from_seed(bytes_seed)
+  g.initialise_bulletproof_generators(128)
   return g
 
 default_generator = generator_from_string_seed(seed)

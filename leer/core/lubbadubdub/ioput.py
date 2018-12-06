@@ -172,10 +172,15 @@ class IOput:
     if len(part3)<2+range_proof_len: 
         raise Exception("Serialized output doesn't contain enough bytes for rangeproof")
 
-    self._calc_unauthorized_pedersen()    
-    self.rangeproof = RangeProof(proof=part3[2:2+range_proof_len], 
-        pedersen_commitment=self.unauthorized_pedersen_commitment, 
-        additional_data = self.signed_part())
+    self._calc_unauthorized_pedersen()  
+    if self.version in [0,1]:
+      self.rangeproof = RangeProof(proof=part3[2:2+range_proof_len], 
+          pedersen_commitment=self.unauthorized_pedersen_commitment, 
+          additional_data = self.signed_part())
+    elif self.version == 2:
+      self.rangeproof = BulletProof(proof=part3[2:2+range_proof_len], 
+          pedersen_commitment=self.unauthorized_pedersen_commitment, 
+          additional_data = self.signed_part())      
 
     consumed += part3[:2+range_proof_len]
 
@@ -327,11 +332,11 @@ class IOput:
     Calc all necessery params like APC, rangeproofs and so on. After generation
     ouput is ready for serialization. Params listed below control what should be
     concealed by proof.
+    Note, if version = 2 is set, bullerproofs with min_value equal to 0, 
+    concealed_bits = 56 are used. All optional params are neglected
 
     Parameters
     ----------
-    address : Address
-        Address of output
     [optional] min_value : int
         Default: 0. Constructs a proof where the verifer can tell the minimum
                    value is at least the specified amount.
@@ -362,13 +367,20 @@ class IOput:
     self.encrypted_message = encrypt(self.address.pubkey, apc, plaintext);
 
     additional_data = self.signed_part()
-    self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, additional_data = additional_data)
     if self.version==0:
+      self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
       res = self.rangeproof._sign(exp=-1, concealed_bits=0,
                                   nonce=nonce)
     elif self.version==1:
+      self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
       self.rangeproof._sign(min_value=min_value, nonce=nonce,
                         exp=exp, concealed_bits=concealed_bits)
+    elif self.version==2:
+      self.rangeproof = BulletProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
+      self.rangeproof._sign(concealed_bits=56)
     
   def set_verified_and_correct(self):
     verification_cache[self.serialize] = True
@@ -390,17 +402,25 @@ class IOput:
       pass
     result = True
 
-    if self.version==1 or self.version==0:
-      try:
-        assert self.address.verify(), "Bad address"
-        assert self.generator in generators, "Bad generator"
-        assert self.rangeproof.verify(), "Bad rangeproof"
-      except AssertionError as e:
-        result = False
-    else:
+    try:
+      assert self.address.verify(), "Bad address"
+      assert self.generator in generators, "Bad generator"
+    except AssertionError as e:
       result = False
-    if result:  
-      result = self.address.verify()
+
+    if result:
+      if self.version==1 or self.version==0:
+        try:
+          assert self.rangeproof.verify(), "Bad rangeproof"
+        except AssertionError as e:
+          result = False    
+      elif self.version==2:
+        try:
+          assert self.rangeproof.verify(concealed_bits = 56), "Bad bulletproof"
+        except AssertionError as e:
+          result = False  
+      else:
+        result = False
 
     verification_cache[self.serialize] = result
     return result
@@ -411,8 +431,14 @@ class IOput:
       'exp', 'mantissa' (the same as concealed bits), 
       'min_value', 'max_value'
     """
-    a,b,c,d =  self.rangeproof.info()
-    return {'exp':a, 'mantissa':b, 'min_value':c, 'max_value':d}
+    if self.version in [0,1]:
+      #Rangeproof
+      a,b,c,d =  self.rangeproof.info()
+      return {'exp':a, 'mantissa':b, 'min_value':c, 'max_value':d}
+    if self.version == 2:
+      #Bulletproof, no info here
+      assert self.verify() 
+      return {'exp':0, 'mantissa':0, 'min_value':0, 'max_value': 72057594037927935} # 72057594037927935==2**56-1
 
   def __str__(self):
     s=""
