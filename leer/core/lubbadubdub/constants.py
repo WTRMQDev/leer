@@ -1,7 +1,16 @@
 from secp256k1_zkp import GeneratorOnCurve
+from hashlib import sha256
 
-default_generator = GeneratorOnCurve()
-default_generator._from_seed(b'\x03\x07\x11'+b'\xfa'*29)
+seed = "Leer is experimental cryptocurrency implementing LubbaDubDub technology"
+def generator_from_string_seed(seed):
+  m=sha256()
+  m.update(seed.encode())
+  bytes_seed = m.digest()
+  g = GeneratorOnCurve()
+  g._from_seed(bytes_seed)
+  return g
+
+default_generator = generator_from_string_seed(seed)
 default_generator_ser=default_generator.serialize()
 
 generators = { default_generator_ser: default_generator}
