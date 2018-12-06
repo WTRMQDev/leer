@@ -355,7 +355,7 @@ class Transaction:
         left_side.append(additional_excesses_sum)
 
     if coinbase_num:
-        minted_pc = PedersenCommitment(blinded_generator = default_generator)
+        minted_pc = PedersenCommitment(blinding_generator = default_generator)
         minted_pc.create(self.coinbase.value, b'\x00'*32)
         left_side.append(minted_pc)
      
@@ -377,7 +377,7 @@ class Transaction:
       fee = -fee
 
     if not fee==0:
-      fee_pc = PedersenCommitment(blinded_generator = default_generator) #TODO think about fees for assets
+      fee_pc = PedersenCommitment(blinding_generator = default_generator) #TODO think about fees for assets
       fee_pc.create(fee, b'\x00'*32)
       if negative_fee:
         left_side.append(fee_pc)

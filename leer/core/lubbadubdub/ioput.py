@@ -149,7 +149,7 @@ class IOput:
     consumed+=part1
 
     if self.generator in generators:
-      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinded_generator = generators[self.generator])
+      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinding_generator = generators[self.generator])
     else:
       raise NotImplemented
 
@@ -285,7 +285,7 @@ class IOput:
     """
     assert(self.generator and self.address and self.blinding_key and isinstance(self.value, int)) #self.value can be 0
     if self.generator in generators:
-      unpc = PedersenCommitment(blinded_generator = generators[self.generator])
+      unpc = PedersenCommitment(blinding_generator = generators[self.generator])
     else:
       raise NotImplemented #TODO
     unpc.create(self.value, self.blinding_key.private_key)
@@ -305,7 +305,7 @@ class IOput:
     self._serialized_apc = None
     self.authorized_pedersen_commitment = \
       (self.unauthorized_pedersen_commitment.to_public_key() + self.address.pubkey).to_pedersen_commitment(
-      blinded_generator = generators[self.generator])
+      blinding_generator = generators[self.generator])
 
   def _calc_unauthorized_pedersen(self):
     """
@@ -317,7 +317,7 @@ class IOput:
       raise NotImplemented
     self.unauthorized_pedersen_commitment = \
       (self.authorized_pedersen_commitment.to_public_key() - self.address.pubkey).to_pedersen_commitment(
-      blinded_generator = generators[self.generator])
+      blinding_generator = generators[self.generator])
 
   #TODO default exp should be more wise
   def generate(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
