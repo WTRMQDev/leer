@@ -248,9 +248,10 @@ class RPCManager():
               self.requests[message['id']].set_result(message)
             except InvalidStateError:
               self.requests.pop(message['id'])
-              
+          elif message["action"] == "stop":
+            self.loop.stop()    
         else:
-          pass # Now RPCManager can only get answers to own requests
+          pass 
       await asyncio.sleep(0.2)
     
 

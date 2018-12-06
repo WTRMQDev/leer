@@ -483,6 +483,9 @@ def core_loop(syncer, config):
         requests[_id] = "give nodes list"
         put_back_messages.append({"action": "give nodes list reminder", "time":int(time())+3} )
 
+      if message["action"] == "stop":
+        logger.info("Core loop stops")
+        return
 
     for _message in put_back_messages:
       message_queue.put(_message)

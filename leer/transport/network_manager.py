@@ -412,6 +412,9 @@ class NetworkManager:
               for node in self.nodes:
                 coro = node.send( "ping 0")
                 asyncio.ensure_future(coro, loop=self.loop)'''
+          if action == "stop":
+            self.loop.stop()
+            return
       if self.up:
         self.loop.call_later(0.5, self.check_global_message_queue)
     
