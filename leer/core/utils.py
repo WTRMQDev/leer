@@ -72,3 +72,10 @@ class ObliviousDictionary:
       else:
          break #trigger_time_list is sorted
     self.trigger_time_list=self.trigger_time_list[n:]
+
+
+import hashlib
+def sha256(data):
+        m=hashlib.sha256()
+        m.update(bytes(data))
+        return m.digest()
