@@ -293,7 +293,7 @@ def core_loop(syncer, config):
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
         except Exception as e:
-          raise e
+          logger.ERROR("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
       if message["action"] == "get confirmed balance stats": #TODO Move to wallet
