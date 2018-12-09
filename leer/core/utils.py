@@ -8,7 +8,7 @@ def encode_target(target):
     order=order
     significand = float(target)/(2**order)-1 # 1 is hidden bit
     significand = int(significand*256)
-    if significand == 256:
+    if significand >= 256:
       significand = 255
     return significand, order
 
