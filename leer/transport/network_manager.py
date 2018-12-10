@@ -54,7 +54,7 @@ class NetworkManager:
   async def handle_connection(self, reader, writer):
     extra_info = writer.get_extra_info('peername')
     host, port = extra_info[:2]
-    print("New connection from %s %s"%(str(host), str(port)))
+    logger.info("New connection from %s %s"%(str(host), str(port)))
     params = {'network':{'host':host, 'port':port}}
     new_node = Node(self.our_node, params, self.loop, self.handle_message)
     await new_node.accept_connection(reader, writer)

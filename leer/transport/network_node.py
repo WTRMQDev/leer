@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from traceback import print_tb
 import sys
 from concurrent.futures import CancelledError
 
@@ -90,7 +89,7 @@ class NetworkNode:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      print_tb(exc_traceback)
+      logger.error("Handshake error", exc_info=True)
       self.logger.error("Close connection due to error in handshake `%s`"%(str(e)))
       asyncio.ensure_future(self._on_closed_connection(error=e))
     
@@ -106,7 +105,7 @@ class NetworkNode:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      print_tb(exc_traceback)
+      logger.error("Handshake error", exc_info=True)
       self.logger.error("Close connection due to error in handshake `%s`"%(str(e)))
       asyncio.ensure_future(self._on_closed_connection(error=e))
 
