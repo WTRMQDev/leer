@@ -216,12 +216,12 @@ def core_loop(syncer, config):
       try:
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
-          process_new_headers(message)
+          process_new_headers(message, notify=partial(notify, "best header"))
           notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
           notify("core workload", "processing new blocks")
           initial_tip = storage_space.blockchain.current_tip
-          process_new_blocks(message)
+          process_new_blocks(message, notify=partial(notify, "blockchain height"))
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
             notify_all_nodes_about_new_tip(nodes, send_to_nm) 
@@ -512,7 +512,7 @@ def look_forward(nodes, send_to_nm):
 
 
 
-def process_new_headers(message):
+def process_new_headers(message, notify=None):
   dupplication_header_dos = False
   try:
     serialized_headers = message["headers"]
@@ -524,18 +524,26 @@ def process_new_headers(message):
         dupplication_header_dos=True
         continue
       storage_space.headers_manager.add_header(header)
+      if notify and not i%20:
+        notify(storage_space.headers_manager.best_header_height)
     storage_space.blockchain.update(reason="downloaded new headers")
   except Exception as e:
     raise e
 
-def process_new_blocks(message):
+def process_new_blocks(message, notify=None):
   try:
     serialized_blocks = message["blocks"]
     num = message["num"]
+    prev_not = time()
     for i in range(num):
       block = Block(storage_space=storage_space)
       serialized_blocks = block.deserialize_raw(serialized_blocks)
       storage_space.blockchain.add_block(block, no_update=True)
+      if notify:
+        if time()-prev_not>15:
+          storage_space.blockchain.update(reason="downloaded new blocks")
+          notify(storage_space.blockchain.current_height)
+          prev_not = time()
     storage_space.blockchain.update(reason="downloaded new blocks")
   except Exception as e:
     raise e #XXX "DoS messages should be returned"
