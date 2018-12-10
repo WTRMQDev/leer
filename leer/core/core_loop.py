@@ -293,7 +293,7 @@ def core_loop(syncer, config):
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
         except Exception as e:
-          logger.ERROR("Wrong block solution %s"%str(e))
+          logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
       if message["action"] == "get confirmed balance stats": #TODO Move to wallet
@@ -679,7 +679,10 @@ def process_tip_info(message, node_info, send):
 
   our_tip_hash = storage_space.blockchain.current_tip
 
-  if (not "sent_tip" in node_info) or (not node_info["sent_tip"]==our_tip_hash):
+  if (not "sent_tip" in node_info) or 
+     (not node_info["sent_tip"]==our_tip_hash) or 
+     (not "last_send" in node_info) or
+     (time() - node_info["last_send"]>300):
     send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash)
   node_info.update({"node":node, "height":height, "tip_hash":tip_hash, 
                     "prev_hash":prev_hash, "total_difficulty":total_difficulty, 
