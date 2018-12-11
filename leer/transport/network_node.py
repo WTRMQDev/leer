@@ -6,6 +6,7 @@ from concurrent.futures import CancelledError
 from secp256k1_zkp import PrivateKey, PublicKey
 
 from lnoise import Key, HandshakeState, PartialData
+from .messages import inv_message_id
 
 async def tripple_read(r):
     message = await r(65536)
@@ -89,8 +90,7 @@ class NetworkNode:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      logger.error("Handshake error", exc_info=True)
-      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)))
+      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
       asyncio.ensure_future(self._on_closed_connection(error=e))
     
 
@@ -99,14 +99,15 @@ class NetworkNode:
       raise
     self.logger.debug("Trying to accept connection")
     self.reader, self.writer = reader, writer
+    if self.reader.at_eof():
+      return
     self.handshake.initialize('Noise_XK', prologue=b'leer', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=None, re=None, initiator=False)
     #self.connected = True
     try:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      logger.error("Handshake error", exc_info=True)
-      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)))
+      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
       asyncio.ensure_future(self._on_closed_connection(error=e))
 
   async def do_handshake(self):
@@ -145,7 +146,10 @@ class NetworkNode:
                 self.partial_data = None
                 while len(data):
                   message, data = self.handshake.session.decode(data)
-                  self.logger.info("Got message %s"%(str(message)))
+                  if message in [inv_message_id["ping"], inv_message_id["pong"]]:
+                    self.logger.debug("Got message %s"%(str(message)))
+                  else:
+                    self.logger.info("Got message %s"%(str(message)))
                   result = await self.handle_message(message)
             except PartialData:
               self.partial_data=data

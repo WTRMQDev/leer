@@ -28,6 +28,8 @@ from secp256k1_zkp import PrivateKey
 
 import logging
 from functools import partial
+from ipaddress import ip_address
+
 logger = logging.getLogger("core_loop")
 
 storage_space = StorageSpace()
@@ -118,6 +120,17 @@ def set_ask_for_txouts_hook(block_storage, message_queue):
   
   block_storage.ask_for_txouts_hook = f
 
+def is_ip_port_array(x):
+  res = True
+  for _ in x:
+    try:
+      address, port = ip_address(_[0]), int(_[1])
+    except:
+      res=False
+      break
+  return res
+
+
 def set_notify_wallet_hook(blockchain, wallet_message_queue):
     def notify_wallet(reason, *args):
       message={'sender':"Blockchain"}
@@ -204,7 +217,14 @@ def core_loop(syncer, config):
       if 'time' in message and message['time']>time(): # delay this message
         put_back_messages.append(message)
         continue
-      logger.info("Processing message %s"%message)
+      if (('result' in message) and message['result']=="processed") or \
+         (('result' in message) and message['result']=="set") or \
+         (('action' in message) and message['action']=="give nodes list reminder") or \
+         (('action' in message) and message['action']=="take nodes list") or \
+         (('result' in message) and is_ip_port_array(message['result'])):
+        logger.debug("Processing message %s"%message)
+      else:
+        logger.info("Processing message %s"%message)
       if not 'action' in message: #it is response
         if message['id'] in requests: # response is awaited
           if requests[message['id']]=="give nodes list":
