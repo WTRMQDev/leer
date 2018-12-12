@@ -2,6 +2,7 @@ block_time = 60 #in seconds
 max_target_increase = 1.2
 max_target_decrease = 0.8
 initial_target = 2**240
+minimal_target = 2**248
 
 COIN = 100000000
 initial_reward = 600*COIN

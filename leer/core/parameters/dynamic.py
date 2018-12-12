@@ -19,6 +19,8 @@ def next_target(_hash, headers_storage):
     runner = headers_storage[runner.prev]
   average_period = (header.timestamp - runner.timestamp)/span
   target = average_target * max(min(average_period/block_time, max_target_increase), max_target_decrease)
+  if target < minimal_target:
+    target = minimal_target
   target = decode_target(*encode_target(target))
   return target
 
