@@ -1,4 +1,5 @@
 from aiohttp import web
+from aiohttp_remotes import AllowedHosts, setup
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
 from asyncio.base_futures import InvalidStateError
@@ -27,10 +28,12 @@ class RPCManager():
     rpc_manager_location = __file__
     web_wallet_dir = join(path_split(rpc_manager_location)[0], "web_wallet")
     self.app = web.Application(loop=self.loop)
+    setup(app)
     
     self.app.router.add_static('/',web_wallet_dir)
     self.app.router.add_route('*', '/rpc', self.handle)
     self.server = self.loop.create_server(self.app.make_handler(), self.host, self.port)
+    asyncio.ensure_future(setup(self.app, AllowedHosts(allowed_hosts=config['rpc'].get('allowed_hosts', '127.0.0.1'))))
     asyncio.ensure_future(self.server, loop=loop)
     asyncio.ensure_future(self.check_queue())
 

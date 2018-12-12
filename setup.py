@@ -15,7 +15,7 @@ setuptools.setup(
     packages=setuptools.find_packages(exclude=["example", ".git"]),
     package_data = {'leer.rpc':['web_wallet/*']},
     include_package_data = True,
-    install_requires=['setuptools', 'wheel', 'lnoise', 'secp256k1_zkp>=0.14.3', 'lmdb', 'aiohttp', 'jsonrpcserver==3.5.6'],
+    install_requires=['setuptools', 'wheel', 'lnoise', 'secp256k1_zkp>=0.14.3', 'lmdb', 'aiohttp', 'jsonrpcserver==3.5.6', 'aiohttp_remotes'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Development Status :: 3 - Alpha",
