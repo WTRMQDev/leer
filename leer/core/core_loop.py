@@ -70,6 +70,28 @@ def init_blockchain():
     logger.info("Best header tip after greedy search %d"%storage_space.headers_manager.best_tip[1])
 
 
+def validate_state(storage_space):
+  '''
+    Since writes to different storages (excesses, blocks, txos etc) 
+    are not transactional for now, it is possible that previous halt was
+    in between of writes. In this case state is (irreversibly) screwed. 
+    Cheking it here.
+  '''
+  if storage_space.blockchain.current_height<1:
+    return
+  tip = storage_space.blockchain.current_tip
+  header = storage_space.headers_storage[tip]
+  last_block_merkles = header.merkles
+  state_merkles = [storage_space.txos_storage.confirmed.get_commitment_root(), \
+                   storage_space.txos_storage.confirmed.get_txo_root(), \
+                   storage_space.excesses_storage.get_root()]
+  try:
+    assert last_block_merkles == state_merkles
+  except Exception as e:
+    logger.error("State is screwed: state merkles are not coinside with last applyed block merkles. Consider full resync.\n %s\n %s\n Block num: %d"%(last_block_merkles, state_merkles, header.height))
+    raise e
+  
+
 def init_storage_space(config):
   _paths = {}
   _paths["txo_storage_path"], _paths[ "txo_storage_path"], _paths[ "excesses_storage_path"],\
@@ -97,7 +119,7 @@ def init_storage_space(config):
   km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
   mptx.set_key_manager(km)
   init_blockchain()
-
+  validate_state(storage_space)
   
 
 def set_ask_for_blocks_hook(blockchain, message_queue):
