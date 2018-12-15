@@ -127,7 +127,7 @@ class TransactionSkeleton:
       self.additional_excesses.append(e)
     if len(serialized)<32:
       raise Exception("Not enough bytes for mixer offset")
-    self.mixer_offset, serialized = int.from_bytes(serialized[:32], "big"), serilized[32:]
+    self.mixer_offset, serialized = int.from_bytes(serialized[:32], "big"), serialized[32:]
 
     if not self.verify():
       #TODO consider renmaing verify to validate_excesses or make exception text more general
