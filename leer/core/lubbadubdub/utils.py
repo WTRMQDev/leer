@@ -56,7 +56,7 @@ def compare_supply_and_merkle_roots(total_supply, commitment_root, excesses_root
   '''
   commitment_summ = PedersenCommitment(commitment=commitment_root[:33], raw=True) 
   excesses_summ = PublicKey(pubkey= excesses_root[:33], raw=True).to_pedersen_commitment()
-  supply_pc = PedersenCommitment(blinding_generator = default_generator)
+  supply_pc = PedersenCommitment(value_generator = default_generator)
   supply_pc.create(total_supply, b'\x00'*32)
   checker = PedersenCommitment()
   return checker.verify_sum([excesses_summ, supply_pc], [commitment_summ])

@@ -1,7 +1,7 @@
 import struct
 import hashlib
 
-from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof
+from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof, BulletProof
 
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
 from leer.core.lubbadubdub.address import Address
@@ -29,7 +29,7 @@ class IOput:
         serialized output.
     """
     #serializable data
-    self.version = 1
+    self.version = 2
     self.block_version = 1
     self.lock_height = 0
     self.authorized_pedersen_commitment = None
@@ -149,7 +149,7 @@ class IOput:
     consumed+=part1
 
     if self.generator in generators:
-      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinding_generator = generators[self.generator])
+      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, value_generator = generators[self.generator])
     else:
       raise NotImplemented
 
@@ -290,7 +290,7 @@ class IOput:
     """
     assert(self.generator and self.address and self.blinding_key and isinstance(self.value, int)) #self.value can be 0
     if self.generator in generators:
-      unpc = PedersenCommitment(blinding_generator = generators[self.generator])
+      unpc = PedersenCommitment(value_generator = generators[self.generator])
     else:
       raise NotImplemented #TODO
     unpc.create(self.value, self.blinding_key.private_key)
@@ -310,7 +310,7 @@ class IOput:
     self._serialized_apc = None
     self.authorized_pedersen_commitment = \
       (self.unauthorized_pedersen_commitment.to_public_key() + self.address.pubkey).to_pedersen_commitment(
-      blinding_generator = generators[self.generator])
+      value_generator = generators[self.generator])
 
   def _calc_unauthorized_pedersen(self):
     """
@@ -322,7 +322,7 @@ class IOput:
       raise NotImplemented
     self.unauthorized_pedersen_commitment = \
       (self.authorized_pedersen_commitment.to_public_key() - self.address.pubkey).to_pedersen_commitment(
-      blinding_generator = generators[self.generator])
+      value_generator = generators[self.generator])
 
   #TODO default exp should be more wise
   def generate(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
@@ -333,7 +333,7 @@ class IOput:
     ouput is ready for serialization. Params listed below control what should be
     concealed by proof.
     Note, if version = 2 is set, bullerproofs with min_value equal to 0, 
-    concealed_bits = 56 are used. All optional params are neglected
+    concealed_bits = 64 are used. All optional params are neglected
 
     Parameters
     ----------
@@ -380,7 +380,7 @@ class IOput:
     elif self.version==2:
       self.rangeproof = BulletProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
                                    additional_data = additional_data)
-      self.rangeproof._sign(concealed_bits=56)
+      self.rangeproof._sign(concealed_bits=64)
     
   def set_verified_and_correct(self):
     verification_cache[self.serialize] = True
@@ -416,7 +416,7 @@ class IOput:
           result = False    
       elif self.version==2:
         try:
-          assert self.rangeproof.verify(concealed_bits = 56), "Bad bulletproof"
+          assert self.rangeproof.verify(concealed_bits = 64), "Bad bulletproof"
         except AssertionError as e:
           result = False  
       else:
@@ -438,7 +438,7 @@ class IOput:
     if self.version == 2:
       #Bulletproof, no info here
       assert self.verify() 
-      return {'exp':0, 'mantissa':0, 'min_value':0, 'max_value': 72057594037927935} # 72057594037927935==2**56-1
+      return {'exp':0, 'mantissa':0, 'min_value':0, 'max_value': 18446744073709551615} # 18446744073709551615==2**64-1
 
   def __str__(self):
     s=""
