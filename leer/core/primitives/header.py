@@ -249,9 +249,16 @@ class Header:
 class ContextHeader(Header):
   def __init__(self, header=None):
     if header:
-      Header.__init__(self, header.height, header.supply, header.merkles, header.popow, 
-                          header.votedata, header.timestamp, header.target, 
-                          header.version, header.nonce)
+      Header.__init__(self, height = header.height,
+                            supply = header.supply,
+                            full_offset = header.full_offset,
+                            merkles = header.merkles,
+                            popow = header.popow,
+                            votedata = header.votedata,
+                            timestamp = header.timestamp,
+                            target = header.target,
+                            version = header.version,
+                            nonce = header.nonce)
     else:
       Header.__init__(self)
     self.descendants = set()

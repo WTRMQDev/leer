@@ -125,7 +125,8 @@ def generate_genesis(tx, storage_space):
     popow = PoPoW([])
     votedata = VoteData()
     target = initial_target
-    header=Header(height = 0, supply=tx.coinbase.value, merkles=merkles, popow=popow, votedata=votedata, timestamp=int(time()), target=target, version=int(1), nonce=b"\x00"*16)
+    full_offset = tx.mixer_offset
+    header=Header(height = 0, supply=tx.coinbase.value, full_offset=full_offset, merkles=merkles, popow=popow, votedata=votedata, timestamp=int(time()), target=target, version=int(1), nonce=b"\x00"*16)
     
     tx_skeleton = TransactionSkeleton(tx=tx)
     new_block = Block(storage_space, header, tx_skeleton)
@@ -166,10 +167,11 @@ def generate_block_template(tx, storage_space, get_tx_from_mempool = True, times
     supply = current_block.header.supply + tx.coinbase.value - tx.calc_new_outputs_fee() - tx.relay_fee 
     height = current_block.header.height+1
     votedata = VoteData()
-    target = next_target(current_block.hash, storage_space.headers_storage)
+    target = next_target(current_block.hash, storage_space.headers_storage)    
+    full_offset = (current_block.header.full_offset+tx.mixer_offset)%0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #TODO sum_offset to utils
     if not timestamp:
       timestamp = max(int(time()), storage_space.headers_storage[storage_space.blockchain.current_tip].timestamp+1)
-    header=Header(height = height, supply=supply, merkles=merkles, popow=popow, votedata=votedata, timestamp=timestamp, target=target, version=int(1), nonce=b"\x00"*16)
+    header=Header(height = height, supply=supply, full_offset=full_offset, merkles=merkles, popow=popow, votedata=votedata, timestamp=timestamp, target=target, version=int(1), nonce=b"\x00"*16)
     
     tx_skeleton = TransactionSkeleton(tx=tx)
     new_block = Block(storage_space, header, tx_skeleton)

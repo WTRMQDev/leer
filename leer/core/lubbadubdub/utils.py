@@ -1,5 +1,5 @@
 from chacha20poly1305 import ChaCha20Poly1305
-from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment
+from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, default_blinding_generator
 from leer.core.lubbadubdub.constants import default_generator
 
 def top_up_nonce(nonce):
@@ -43,23 +43,26 @@ def decrypt(privkey, nonce, ciphertext):
     return res
 
 
-def compare_supply_and_merkle_roots(total_supply, commitment_root, excesses_root):
+def compare_supply_and_merkle_roots(total_supply, commitment_root, excesses_root, full_offset):
   '''
-    Each txout (authorized pedersen) commitment is v*G + r*H, where v is value and r is blinding key, G and H - generators.
+    Each txout (authorized pedersen) commitment is v*H + r*G, where v is value and r is blinding key, G and H - generators.
     Each blinding key is previous blinding key + private_key of address +/- blinding key which should be compensated by additional excesses.
-    Thus if we summarized all commitments result should V*G+R*H, where
+    Thus if we summarized all commitments result should V*H+R*G, where
     V - is supply: sum of all unspend values on blockchain. Note that supply is not equal to all minted coins, 
         since new_outputs_fee retains some coins.
-    R - is summ of private keys and private keys of additional excsses. For know excsses are append-only to blockchain, thus R*H is summ of all addresses's pubkeys and all additional excsses. Note, while R is not known, R*H can be calculated from public data.
+    R - is summ of private keys, private keys of additional excsses and full_offset (summ of offset of all transactions). Thus R*H is summ of all addresses's pubkeys, all additional excsses and full_offset*H. Note, that while R is not known, R*G can be calculated from public data.
     This function check that calculated
-        V*G (calculated from supply) plus R*H (calculated from excesses and addresses) is equal to summ of commitments V*G+R*H.
+        V*H (calculated from supply) plus R*G (calculated from excesses and addresses) + full_offset*G is equal to summ of commitments V*H+R*G.
   '''
   commitment_summ = PedersenCommitment(commitment=commitment_root[:33], raw=True) 
   excesses_summ = PublicKey(pubkey= excesses_root[:33], raw=True).to_pedersen_commitment()
-  supply_pc = PedersenCommitment(value_generator = default_generator)
-  supply_pc.create(total_supply, b'\x00'*32)
+  # Instead of generating separately supply_pc (which is actually public key v*H) and
+  # full_offset_pc (which is actually public key fo*G) lets generate sum
+  minus_fo = (0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141-full_offset)%0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+  supply_and_offset_pc = PedersenCommitment(value_generator = default_generator, blinding_generator = default_blinding_generator)
+  supply_and_offset_pc.create(total_supply, minus_fo.to_bytes(32,"big"))
   checker = PedersenCommitment()
-  return checker.verify_sum([excesses_summ, supply_pc], [commitment_summ])
+  return checker.verify_sum([excesses_summ, supply_and_offset_pc], [commitment_summ])
   
 
 

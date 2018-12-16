@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import struct
 
-from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof
+from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
 
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
 from leer.core.lubbadubdub.address import Address, Excess, excess_from_private_key
@@ -63,7 +63,9 @@ class Transaction:
     cb = self.coinbase
     self.__init__(txos_storage = self.txos_storage) #reset self
     self.outputs = [cb]
-    self.additional_excesses = [excess_from_private_key(cb.blinding_key, cb.serialized_index[:33])]
+    offset_pk = PrivateKey()
+    self.mixer_offset = int.from_bytes(offset_pk.private_key, "big")
+    self.additional_excesses = [excess_from_private_key(cb.blinding_key+offset_pk, cb.serialized_index[:33])]
     if combined_transaction:
       new_tx = self.merge(combined_transaction)
       self.inputs = new_tx.inputs
@@ -151,6 +153,8 @@ class Transaction:
       output.fill(address, value, generator = default_generator_ser)
       self.outputs.append( output )
       out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+    offset_pk = PrivateKey()
+    self.mixer_offset = int.from_bytes(offset_pk.private_key, "big")
     # privkey for the last one output isn't arbitrary
     address, value = self._destinations[-1]
     in_blinding_key_sum = None
@@ -158,7 +162,7 @@ class Transaction:
       in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
       in_blinding_key_sum += priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
     output = IOput()
-    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
+    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum-offset_pk,
       relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
     self.outputs.append(output)
     [output.generate() for output in self.outputs]
@@ -389,6 +393,9 @@ class Transaction:
         left_side.append(fee_pc)
       else:
         right_side.append(fee_pc)
+
+    mixer_pc = (Point(default_blinding_generator)*self.mixer_offset).to_pedersen_commitment() #TODO we should optimise here and generate fee_mixer pc
+    right_side.append(mixer_pc)
 
     checker = PedersenCommitment()
     # For transaction which contains coinbase only, both sides will be empty

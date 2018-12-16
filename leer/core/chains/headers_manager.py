@@ -287,7 +287,7 @@ class HeadersManager:
       v 1. check height sequence
       2. (obsolete) check version
       v 3. check supply sequence
-      4. (to be implemented) partially check merkles: we cannot fully validate merkles without tx, however
+      v 4. partially check merkles: we cannot fully validate merkles without tx, however
            we can check that summ of money supply and excesses is equal to commitment sum
            (TODO more explanations should be added here) (TODO consider moving to header self validation)
       v 5. check popow sequence
@@ -325,7 +325,7 @@ class HeadersManager:
       assert initial_target==header.target, "Wrong target"
 
     #4
-    assert compare_supply_and_merkle_roots(header.supply, header.merkles[0], header.merkles[2])
+    assert compare_supply_and_merkle_roots(header.supply, header.merkles[0], header.merkles[2], header.full_offset)
     #8
     if(not self.do_not_check_pow):
       assert header.integer_hash<header.target, "PoW less than target"
