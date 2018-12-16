@@ -345,19 +345,23 @@ class HeadersManager:
 
 
   def find_ancestor_with_height(self, header_hash, height):
+    # Previously we used recursion here, however we found in the wild 
+    # (testnet2) that we can hit recursion limit: if PoW is constantly less
+    # than 2**252 our fast PoPoW navigation doesn't work and instead we searchin
+    # block after block. Thousand of such 'low PoW blocks' and we hit limit.
     header = self.storage_space.headers_storage[header_hash]
     confirmed_search_point = header
-    for pointer in header.popow.pointers[:-1]:
-      next_search_point = self.storage_space.headers_storage[pointer]
-      if next_search_point.height<height:
-        break
-      else:
-        confirmed_search_point = next_search_point
-    if confirmed_search_point.height<height:
-      raise Exception("Asking for ancestor with higher height")
-    if confirmed_search_point.height==height:
-        return confirmed_search_point.hash
-    if confirmed_search_point.height==height+1:
-        return confirmed_search_point.prev
-    return self.find_ancestor_with_height(confirmed_search_point.hash, height)
+    while True:
+      for pointer in confirmed_search_point.popow.pointers[:-1]:
+        next_search_point = self.storage_space.headers_storage[pointer]
+        if next_search_point.height<height:
+          break
+        else:
+          confirmed_search_point = next_search_point
+      if confirmed_search_point.height<height:
+        raise Exception("Asking for ancestor with higher height")
+      if confirmed_search_point.height==height:
+          return confirmed_search_point.hash
+      if confirmed_search_point.height==height+1:
+          return confirmed_search_point.prev
 

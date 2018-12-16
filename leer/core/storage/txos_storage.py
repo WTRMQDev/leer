@@ -2,16 +2,9 @@ from leer.core.storage.merkle_storage import MMR
 from secp256k1_zkp import PedersenCommitment, PublicKey
 from leer.core.storage.default_paths import txo_storage_path
 from leer.core.lubbadubdub.ioput import IOput
+from leer.core.utils import sha256
 import os
-import hashlib
 
-
-
-def _hash(data):
-        #TODO move to utils
-        m=hashlib.sha256()
-        m.update(bytes(data))
-        return m.digest()
 
 
 
@@ -26,13 +19,13 @@ class CommitmentMMR(MMR):
         pk.combine([comm1.to_public_key().public_key, comm2.to_public_key().public_key])
         sm = pk.to_pedersen_commitment()
         first_part = sm.serialize()
-        second_part = _hash(hash1+hash2)
+        second_part = sha256(hash1+hash2)
         return first_part+second_part
         
 
 class TXOMMR(MMR):
       def sum(self, x1,x2):
-        return _hash(x1+x2)
+        return sha256(x1+x2)
 
 class ConfirmedTXOStorage:
     '''
@@ -54,7 +47,7 @@ class ConfirmedTXOStorage:
       self.txos = TXOMMR("txos", os.path.join(path, "confirmed"), discard_only=True)
 
     def __getitem__(self, hash_and_pc):
-      res = self.txos.get_by_hash(_hash(hash_and_pc))
+      res = self.txos.get_by_hash(sha256(hash_and_pc))
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
@@ -72,11 +65,11 @@ class ConfirmedTXOStorage:
 
     def append(self, utxo):
       assert utxo.verify() #Should be fast due since cached
-      self.txos.append(_hash(utxo.serialized_index), utxo.serialize())
+      self.txos.append(sha256(utxo.serialized_index), utxo.serialize())
       self.commitments.append(utxo.commitment_index,b"")
 
     def spend(self, utxo, return_revert_obj=False):
-      txos = self.txos.discard(_hash(utxo.serialized_index))
+      txos = self.txos.discard(sha256(utxo.serialized_index))
       commitment = self.commitments.clear(utxo.commitment_index)
       if return_revert_obj:
         return (txos, commitment)
@@ -86,7 +79,7 @@ class ConfirmedTXOStorage:
         In contrast with __getitem__ find will try to find even spent
         outputs for other (syncing) nodes.
       '''
-      res = self.txos.find_by_hash(_hash(hash_and_pc))
+      res = self.txos.find_by_hash(sha256(hash_and_pc))
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
@@ -99,7 +92,7 @@ class ConfirmedTXOStorage:
       self.commitments.revert_clearing(commitment)
 
     def __contains__(self, serialized_index):
-      return bool(self.txos.get_by_hash(_hash(serialized_index)))
+      return bool(self.txos.get_by_hash(sha256(serialized_index)))
 
     def remove(self,n):
       self.commitments.remove(n)
@@ -125,7 +118,7 @@ class ConfirmedTXOStorage:
       self.commitments.set_state(state)
 
     def find_wo_deser(self, hash_and_pc):
-      res = self.txos.find_by_hash(_hash(hash_and_pc))
+      res = self.txos.find_by_hash(sha256(hash_and_pc))
       if not res:
         raise KeyError(hash_and_pc)
       return res

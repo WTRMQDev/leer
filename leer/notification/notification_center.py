@@ -42,4 +42,5 @@ def notification_center_launcher(syncer, config):
             syncer.queues[message['sender']].put({'id':message['id'], 'result':result})
         else:
             syncer.queues[message['sender']].put({'id':message['id'], 'result':'error', 'error':str(error)})
-
+      if message['action']=="stop":
+        return

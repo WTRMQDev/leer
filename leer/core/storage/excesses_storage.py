@@ -3,13 +3,7 @@ from secp256k1_zkp import PedersenCommitment, PublicKey
 from leer.core.storage.default_paths import excesses_storage_path
 import hashlib
 import os
-
-
-def _hash(data):
-        #TODO move to utils
-        m=hashlib.sha256()
-        m.update(data)
-        return m.digest()
+from leer.core.utils import sha256
 
 class ExcessMMR(MMR):
       def sum(self, x1,x2):
@@ -21,7 +15,7 @@ class ExcessMMR(MMR):
         pk= PublicKey()
         pk.combine([pubkey1.public_key, pubkey2.public_key])
         first_part = pk.serialize()
-        second_part = _hash(hash1+hash2)
+        second_part = sha256(hash1+hash2)
         return first_part+second_part
 
 

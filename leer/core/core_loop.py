@@ -28,6 +28,8 @@ from secp256k1_zkp import PrivateKey
 
 import logging
 from functools import partial
+from ipaddress import ip_address
+
 logger = logging.getLogger("core_loop")
 
 storage_space = StorageSpace()
@@ -68,6 +70,28 @@ def init_blockchain():
     logger.info("Best header tip after greedy search %d"%storage_space.headers_manager.best_tip[1])
 
 
+def validate_state(storage_space):
+  '''
+    Since writes to different storages (excesses, blocks, txos etc) 
+    are not transactional for now, it is possible that previous halt was
+    in between of writes. In this case state is (irreversibly) screwed. 
+    Cheking it here.
+  '''
+  if storage_space.blockchain.current_height<1:
+    return
+  tip = storage_space.blockchain.current_tip
+  header = storage_space.headers_storage[tip]
+  last_block_merkles = header.merkles
+  state_merkles = [storage_space.txos_storage.confirmed.get_commitment_root(), \
+                   storage_space.txos_storage.confirmed.get_txo_root(), \
+                   storage_space.excesses_storage.get_root()]
+  try:
+    assert last_block_merkles == state_merkles
+  except Exception as e:
+    logger.error("State is screwed: state merkles are not coinside with last applyed block merkles. Consider full resync.\n %s\n %s\n Block num: %d"%(last_block_merkles, state_merkles, header.height))
+    raise e
+  
+
 def init_storage_space(config):
   _paths = {}
   _paths["txo_storage_path"], _paths[ "txo_storage_path"], _paths[ "excesses_storage_path"],\
@@ -95,7 +119,7 @@ def init_storage_space(config):
   km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
   mptx.set_key_manager(km)
   init_blockchain()
-
+  validate_state(storage_space)
   
 
 def set_ask_for_blocks_hook(blockchain, message_queue):
@@ -117,6 +141,17 @@ def set_ask_for_txouts_hook(block_storage, message_queue):
     message_queue.put(new_message)
   
   block_storage.ask_for_txouts_hook = f
+
+def is_ip_port_array(x):
+  res = True
+  for _ in x:
+    try:
+      address, port = ip_address(_[0]), int(_[1])
+    except:
+      res=False
+      break
+  return res
+
 
 def set_notify_wallet_hook(blockchain, wallet_message_queue):
     def notify_wallet(reason, *args):
@@ -204,7 +239,14 @@ def core_loop(syncer, config):
       if 'time' in message and message['time']>time(): # delay this message
         put_back_messages.append(message)
         continue
-      logger.info("Processing message %s"%message)
+      if (('result' in message) and message['result']=="processed") or \
+         (('result' in message) and message['result']=="set") or \
+         (('action' in message) and message['action']=="give nodes list reminder") or \
+         (('action' in message) and message['action']=="take nodes list") or \
+         (('result' in message) and is_ip_port_array(message['result'])):
+        logger.debug("Processing message %s"%message)
+      else:
+        logger.info("Processing message %s"%message)
       if not 'action' in message: #it is response
         if message['id'] in requests: # response is awaited
           if requests[message['id']]=="give nodes list":
@@ -216,12 +258,12 @@ def core_loop(syncer, config):
       try:
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
-          process_new_headers(message)
+          process_new_headers(message, notify=partial(notify, "best header"))
           notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
           notify("core workload", "processing new blocks")
           initial_tip = storage_space.blockchain.current_tip
-          process_new_blocks(message)
+          process_new_blocks(message, notify=partial(notify, "blockchain height"))
           after_tip = storage_space.blockchain.current_tip
           if not after_tip==initial_tip:
             notify_all_nodes_about_new_tip(nodes, send_to_nm) 
@@ -293,7 +335,7 @@ def core_loop(syncer, config):
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
         except Exception as e:
-          raise e
+          logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
       if message["action"] == "get confirmed balance stats": #TODO Move to wallet
@@ -483,6 +525,9 @@ def core_loop(syncer, config):
         requests[_id] = "give nodes list"
         put_back_messages.append({"action": "give nodes list reminder", "time":int(time())+3} )
 
+      if message["action"] == "stop":
+        logger.info("Core loop stops")
+        return
 
     for _message in put_back_messages:
       message_queue.put(_message)
@@ -509,7 +554,7 @@ def look_forward(nodes, send_to_nm):
 
 
 
-def process_new_headers(message):
+def process_new_headers(message, notify=None):
   dupplication_header_dos = False
   try:
     serialized_headers = message["headers"]
@@ -521,18 +566,26 @@ def process_new_headers(message):
         dupplication_header_dos=True
         continue
       storage_space.headers_manager.add_header(header)
+      if notify and not i%20:
+        notify(storage_space.headers_manager.best_header_height)
     storage_space.blockchain.update(reason="downloaded new headers")
   except Exception as e:
     raise e
 
-def process_new_blocks(message):
+def process_new_blocks(message, notify=None):
   try:
     serialized_blocks = message["blocks"]
     num = message["num"]
+    prev_not = time()
     for i in range(num):
       block = Block(storage_space=storage_space)
       serialized_blocks = block.deserialize_raw(serialized_blocks)
       storage_space.blockchain.add_block(block, no_update=True)
+      if notify:
+        if time()-prev_not>15:
+          storage_space.blockchain.update(reason="downloaded new blocks")
+          notify(storage_space.blockchain.current_height)
+          prev_not = time()
     storage_space.blockchain.update(reason="downloaded new blocks")
   except Exception as e:
     raise e #XXX "DoS messages should be returned"
@@ -676,7 +729,10 @@ def process_tip_info(message, node_info, send):
 
   our_tip_hash = storage_space.blockchain.current_tip
 
-  if (not "sent_tip" in node_info) or (not node_info["sent_tip"]==our_tip_hash):
+  if (not "sent_tip" in node_info) or \
+     (not node_info["sent_tip"]==our_tip_hash) or \
+     (not "last_send" in node_info) or \
+     (time() - node_info["last_send"]>300):
     send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash)
   node_info.update({"node":node, "height":height, "tip_hash":tip_hash, 
                     "prev_hash":prev_hash, "total_difficulty":total_difficulty, 

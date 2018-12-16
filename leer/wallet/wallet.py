@@ -131,7 +131,8 @@ def wallet(syncer, config):
         
         response["result"]=tx_template
         syncer.queues[message['sender']].put(response)
-
+      if message['action']=="stop":
+        return
 
     
 
