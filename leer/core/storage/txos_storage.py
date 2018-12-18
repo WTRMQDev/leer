@@ -1,6 +1,5 @@
 from leer.core.storage.merkle_storage import MMR
 from secp256k1_zkp import PedersenCommitment, PublicKey
-from leer.core.storage.default_paths import txo_storage_path
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.utils import sha256
 import os
@@ -42,9 +41,9 @@ class ConfirmedTXOStorage:
 
     '''
 
-    def __init__(self, path=txo_storage_path):
-      self.commitments = CommitmentMMR("commitments", os.path.join(path, "confirmed"), clear_only=False)
-      self.txos = TXOMMR("txos", os.path.join(path, "confirmed"), discard_only=True)
+    def __init__(self, path, env):
+      self.commitments = CommitmentMMR("commitments", path, clear_only=False, env=env)
+      self.txos = TXOMMR("txos", path, discard_only=True, env=env)
 
     def __getitem__(self, hash_and_pc):
       res = self.txos.get_by_hash(sha256(hash_and_pc))
@@ -157,12 +156,13 @@ class TXOsStorage:
   __shared_states = {}
 
 
-  def __init__(self, storage_space, path):
+  def __init__(self, storage_space):
+    path = storage_space.path
     if not path in self.__shared_states:
         self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
     self.path = path
-    self.confirmed = ConfirmedTXOStorage(self.path)
+    self.confirmed = ConfirmedTXOStorage(self.path, env=storage_space.env)
     self.mempool = self.Interface()
     self.storage_space = storage_space
     self.storage_space.register_txos_storage(self)

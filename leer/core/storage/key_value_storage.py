@@ -1,12 +1,10 @@
 class KeyValueStorage:
-  def __init__(self, dir_path):
+  def __init__(self, dir_path, name, env):
     self.dir_path = dir_path
-
-    if not os.path.exists(self.dir_path): 
-        os.makedirs(self.dir_path) #TODO catch
-    self.env = lmdb.open(self.dir_path, max_dbs=10)
+    self.name = name.encode("utf-8")
+    self.env = env
     with self.env.begin(write=True) as txn:
-      self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=False)
+      self.main_db = self.env.open_db(self.name + b'main_db', txn=txn, dupsort=False)
 
   def put(self, key, value, w_txn=None):
     if not w_txn:

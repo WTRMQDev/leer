@@ -1,16 +1,16 @@
 from leer.core.primitives.header import Header, ContextHeader
 import shutil, os, time, lmdb, math
-from leer.core.storage.default_paths import headers_storage_path
 
 class HeadersStorage:
 
   __shared_states = {}
 
-  def __init__(self, storage_space, path):
+  def __init__(self, storage_space):
+    path = storage_space.path
     if not path in self.__shared_states:
         self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
-    self.storage = HeadersDiscStorage(path)
+    self.storage = HeadersDiscStorage(path, env=storage_space.env)
     self.storage_space = storage_space
     self.storage_space.register_headers_storage(self)
 
@@ -48,15 +48,13 @@ def __(x):
   return (x).to_bytes(4,'big')
 
 class HeadersDiscStorage:
-  def __init__(self, dir_path):
+  def __init__(self, dir_path, env):
     self.dir_path = dir_path
 
-    if not os.path.exists(self.dir_path): 
-        os.makedirs(self.dir_path) #TODO catch
-    self.env = lmdb.open(self.dir_path, max_dbs=10)
+    self.env = env
     with self.env.begin(write=True) as txn:
-      self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=False)
-      self.height_db = self.env.open_db(b'height_db', txn=txn, dupsort=True)
+      self.main_db = self.env.open_db(b'headers_main_db', txn=txn, dupsort=False)
+      self.height_db = self.env.open_db(b'headers_height_db', txn=txn, dupsort=True)
 
   def put(self, height, _hash, serialized_header):
     with self.env.begin(write=True) as txn:

@@ -6,7 +6,7 @@ from leer.core.storage.blocks_storage import BlocksStorage
 from leer.core.storage.excesses_storage import ExcessesStorage
 from leer.core.storage.utxo_index_storage import UTXOIndex
 from leer.core.storage.mempool_tx import MempoolTx
-from leer.core.storage.key_manager import KeyManagerClass
+#from leer.core.storage.key_manager import KeyManagerClass
 from leer.core.primitives.block import Block
 from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
@@ -32,7 +32,7 @@ from ipaddress import ip_address
 
 logger = logging.getLogger("core_loop")
 
-storage_space = StorageSpace()
+storage_space = None
 
 def init_blockchain():
   '''
@@ -93,7 +93,10 @@ def validate_state(storage_space):
   
 
 def init_storage_space(config):
-  _paths = {}
+  global storage_space
+  _path = config["location"]["basedir"]
+  storage_space=StorageSpace(_path)
+  '''_paths = {}
   _paths["txo_storage_path"], _paths[ "txo_storage_path"], _paths[ "excesses_storage_path"],\
   _paths[ "headers_storage_path"], _paths[ "blocks_storage_path"], _paths[ "wallet_path"],\
   _paths[ "key_manager_path"], _paths[ "utxo_index_path"] = calc_paths(default_base_dir)
@@ -107,17 +110,17 @@ def init_storage_space(config):
     for _path in _paths:
       if _path in config["location"]:
         _paths[_path] = config["location"][_path]
-      
-  hs = HeadersStorage(storage_space, _paths["headers_storage_path"])
+  ''' 
+  hs = HeadersStorage(storage_space)
   hm = HeadersManager(storage_space)
-  bs = BlocksStorage(storage_space, _paths["blocks_storage_path"])
-  es = ExcessesStorage(storage_space, _paths["excesses_storage_path"])
-  ts = TXOsStorage(storage_space, _paths["txo_storage_path"])
+  bs = BlocksStorage(storage_space)
+  es = ExcessesStorage(storage_space)
+  ts = TXOsStorage(storage_space)
   bc = Blockchain(storage_space)
   mptx = MempoolTx(storage_space)
-  utxoi = UTXOIndex(storage_space, _paths["utxo_index_path"])
-  km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
-  mptx.set_key_manager(km)
+  utxoi = UTXOIndex(storage_space)
+  #km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
+  #mptx.set_key_manager(km)
   init_blockchain()
   validate_state(storage_space)
   

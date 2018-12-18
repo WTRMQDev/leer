@@ -44,26 +44,25 @@ class MMR:
   Special value is leaf db with index `b'state'. It is used to store identifier of current MMR state on disc.
     `set_state` and `get_state` write and read this value
   """
-  def __init__(self, name, dir_path, waterline_depth=16, default_index_size=65, discard_only=False, clear_only=False, save_pruned=True):
+  def __init__(self, name, dir_path, env, waterline_depth=16, default_index_size=65, discard_only=False, clear_only=False, save_pruned=True):
     self.index={}
     self.dir_path = dir_path
-    self.directory = dir_path+"/"+name
+    self.name = bytes(name.encode("utf-8"))
     self.default_index_size = default_index_size
     self.discard_only = discard_only
     self.clear_only = clear_only
     self.save_pruned = save_pruned # Do not really delete data from db for debug purposes
 
-    if not os.path.exists(self.directory): 
-        os.makedirs(self.directory) #TODO catch
-    self.env = lmdb.open(self.directory, max_dbs=10)
+
+    self.env = env
     with self.env.begin(write=True) as txn:
-      self.leaf_db = self.env.open_db(b'leaf_db', txn=txn)
-      self.node_db = self.env.open_db(b'node_db', txn=txn)
-      self.order_db = self.env.open_db(b'order_db', txn=txn)
-      self.reverse_order_db = self.env.open_db(b'reverse_order_db', txn=txn)
+      self.leaf_db = self.env.open_db(self.name+b'leaf_db', txn=txn)
+      self.node_db = self.env.open_db(self.name+b'node_db', txn=txn)
+      self.order_db = self.env.open_db(self.name+b'order_db', txn=txn)
+      self.reverse_order_db = self.env.open_db(self.name+b'reverse_order_db', txn=txn)
       if self.save_pruned:
-        self.pruned_db = self.env.open_db(b'pruned_db', txn=txn)
-        self.pruned_ro_db = self.env.open_db(b'pruned_ro_db', txn=txn)
+        self.pruned_db = self.env.open_db(self.name+b'pruned_db', txn=txn)
+        self.pruned_ro_db = self.env.open_db(self.name+b'pruned_ro_db', txn=txn)
 
   def _get_node(self, level, sequence_num, tx=None):
     if not tx:

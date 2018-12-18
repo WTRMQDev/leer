@@ -7,16 +7,17 @@ class UTXOIndex:
   '''
   __shared_states = {}
 
-  def __init__(self, storage_space, path):
+  def __init__(self, storage_space):
+    path = storage_space.path
     if not path in self.__shared_states:
       self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
     self.directory = path
     if not os.path.exists(path): 
         os.makedirs(self.directory) #TODO catch
-    self.env = lmdb.open(self.directory, max_dbs=10)
+    self.env = storage_space.env
     with self.env.begin(write=True) as txn:
-      self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=True, dupfixed=True) #TODO duplicate
+      self.main_db = self.env.open_db(b'utxoi_main_db', txn=txn, dupsort=True, dupfixed=True) #TODO duplicate
     self.storage_space = storage_space
     self.storage_space.register_utxo_index(self)
 

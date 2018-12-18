@@ -1,16 +1,16 @@
 from leer.core.storage.txos_storage import TXOsStorage
-from leer.core.storage.default_paths import blocks_storage_path
 from leer.core.primitives.block import Block, ContextBlock
 import shutil, os, time, lmdb, math
 
 class BlocksStorage:
   __shared_states = {}
-  def __init__(self, storage_space, path):
+  def __init__(self, storage_space):
+    path = storage_space.path
     if not path in self.__shared_states:
       self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
 
-    self.storage = BlocksDiscStorage(path)
+    self.storage = BlocksDiscStorage(path, env=storage_space.env)
     self.storage_space = storage_space
     self.storage_space.register_blocks_storage(self)
     self.download_queue = []
@@ -136,15 +136,13 @@ class RollBack:
 
 
 class BlocksDiscStorage:
-  def __init__(self, dir_path):
+  def __init__(self, dir_path, env):
     self.dir_path = dir_path
 
-    if not os.path.exists(self.dir_path): 
-        os.makedirs(self.dir_path) #TODO catch
-    self.env = lmdb.open(self.dir_path, max_dbs=10)
+    self.env = env
     with self.env.begin(write=True) as txn:
-      self.main_db = self.env.open_db(b'main_db', txn=txn, dupsort=False) # block_hash -> serialized_contextblock
-      self.revert_db = self.env.open_db(b'revert_db', txn=txn, dupsort=False) # block_hash -> object_for_reverting
+      self.main_db = self.env.open_db(b'blocks_main_db', txn=txn, dupsort=False) # block_hash -> serialized_contextblock
+      self.revert_db = self.env.open_db(b'blocks_revert_db', txn=txn, dupsort=False) # block_hash -> object_for_reverting
 
   def put(self, _hash, serialized_block):
     with self.env.begin(write=True) as txn:

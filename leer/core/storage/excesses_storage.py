@@ -1,6 +1,5 @@
 from leer.core.storage.merkle_storage import MMR
 from secp256k1_zkp import PedersenCommitment, PublicKey
-from leer.core.storage.default_paths import excesses_storage_path
 import hashlib
 import os
 from leer.core.utils import sha256
@@ -28,11 +27,12 @@ class ExcessesStorage():
     '''
     __shared_states = {}
 
-    def __init__(self, storage_space, path):
+    def __init__(self, storage_space):
+      path = storage_space.path
       if not path in self.__shared_states:
         self.__shared_states[path]={}
       self.__dict__ = self.__shared_states[path]
-      self.excesses = ExcessMMR("excesses", os.path.join(path, "confirmed"), clear_only=False)
+      self.excesses = ExcessMMR("excesses", path, env=storage_space.env, clear_only=False)
       self.storage_space = storage_space
       storage_space.register_excesses_storage(self)
       
