@@ -41,12 +41,12 @@ class ConfirmedTXOStorage:
 
     '''
 
-    def __init__(self, path, env):
-      self.commitments = CommitmentMMR("commitments", path, clear_only=False, env=env)
-      self.txos = TXOMMR("txos", path, discard_only=True, env=env)
+    def __init__(self, path, env, wtx):
+      self.commitments = CommitmentMMR("commitments", path, clear_only=False, env=env, wtx=wtx)
+      self.txos = TXOMMR("txos", path, discard_only=True, env=env, wtx=wtx)
 
-    def __getitem__(self, hash_and_pc):
-      res = self.txos.get_by_hash(sha256(hash_and_pc))
+    def get(self, hash_and_pc, rtx):
+      res = self.txos.get_by_hash(sha256(hash_and_pc), rtx=rtx)
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
@@ -62,40 +62,41 @@ class ConfirmedTXOStorage:
     #  self.txos.append(_hash(hash_and_pc),utxo.serialize())
     #  self.commitments.append(utxo.commitment_index,b"")
 
-    def append(self, utxo):
-      assert utxo.verify() #Should be fast due since cached
-      self.txos.append(sha256(utxo.serialized_index), utxo.serialize())
-      self.commitments.append(utxo.commitment_index,b"")
+    def append(self, utxo, wtx):
+      assert utxo.verify() #Should be fast since cached
+      self.txos.append(wtx=wtx, obj_index=sha256(utxo.serialized_index), obj=utxo.serialize())
+      self.commitments.append(wtx=wtx, obj_index=utxo.commitment_index, obj=b"")
 
-    def spend(self, utxo, return_revert_obj=False):
-      txos = self.txos.discard(sha256(utxo.serialized_index))
-      commitment = self.commitments.clear(utxo.commitment_index)
+    def spend(self, utxo, wtx, return_revert_obj=False):
+      txos = self.txos.discard(sha256(utxo.serialized_index), wtx=wtx)
+      commitment = self.commitments.clear(utxo.commitment_index, wtx=wtx)
       if return_revert_obj:
         return (txos, commitment)
 
-    def find(self, hash_and_pc):
+    def find(self, hash_and_pc, rtx):
       '''
         In contrast with __getitem__ find will try to find even spent
         outputs for other (syncing) nodes.
       '''
-      res = self.txos.find_by_hash(sha256(hash_and_pc))
+      res = self.txos.find_by_hash(sha256(hash_and_pc), rtx=rtx)
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
       utxo.deserialize(res)
+      utxo.set_verified_and_correct() #Trust saved outputs
       return utxo
 
-    def unspend(self, revert_obj):
+    def unspend(self, revert_obj, wtx):
       (txos, commitment) = revert_obj
-      self.txos.revert_discarding(txos)
-      self.commitments.revert_clearing(commitment)
+      self.txos.revert_discarding(txos, wtx=wtx)
+      self.commitments.revert_clearing(commitment, wtx=wtx)
 
-    def __contains__(self, serialized_index):
-      return bool(self.txos.get_by_hash(sha256(serialized_index)))
+    def has(self, serialized_index, rtx):
+      return bool(self.txos.get_by_hash(sha256(serialized_index), rtx=rtx))
 
-    def remove(self,n):
-      self.commitments.remove(n)
-      ser_removed_outputs = self.txos.remove(n)
+    def remove(self,n, wtx):
+      self.commitments.remove(n,wtx=wtx)
+      ser_removed_outputs = self.txos.remove(n,wtx=wtx)
       removed_outputs=[]
       for _ser in ser_removed_outputs:
         utxo=IOput()
@@ -103,21 +104,21 @@ class ConfirmedTXOStorage:
         removed_outputs.append(utxo)
       return removed_outputs
 
-    def get_commitment_root(self):
-      return self.commitments.get_root()
+    def get_commitment_root(self, rtx):
+      return self.commitments.get_root(rtx=rtx)
 
-    def get_txo_root(self):
-      return self.txos.get_root()
+    def get_txo_root(self, rtx):
+      return self.txos.get_root(rtx=rtx)
 
-    def get_state(self):
-      return self.commitments.get_state()
+    def get_state(self, rtx):
+      return self.commitments.get_state(rtx=rtx)
 
-    def set_state(self, state):
-      self.txos.set_state(state)
-      self.commitments.set_state(state)
+    def set_state(self, state, wtx):
+      self.txos.set_state(state, wtx=wtx)
+      self.commitments.set_state(state, wtx=wtx)
 
-    def find_wo_deser(self, hash_and_pc):
-      res = self.txos.find_by_hash(sha256(hash_and_pc))
+    def find_wo_deser(self, hash_and_pc, rtx):
+      res = self.txos.find_by_hash(sha256(hash_and_pc), rtx=rtx)
       if not res:
         raise KeyError(hash_and_pc)
       return res
@@ -156,72 +157,73 @@ class TXOsStorage:
   __shared_states = {}
 
 
-  def __init__(self, storage_space):
+  def __init__(self, storage_space, wtx):
     path = storage_space.path
     if not path in self.__shared_states:
         self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
     self.path = path
-    self.confirmed = ConfirmedTXOStorage(self.path, env=storage_space.env)
+    self.confirmed = ConfirmedTXOStorage(self.path, env=storage_space.env, wtx=wtx)
     self.mempool = self.Interface()
     self.storage_space = storage_space
     self.storage_space.register_txos_storage(self)
       
 
-  def known(self, output_index):
-      return (output_index in self.confirmed) or (output_index in self.mempool)
+  def known(self, output_index, rtx):
+      return self.confirmed.has(output_index, rtx=rtx) or (output_index in self.mempool)
 
-  def confirm(self, output_index):
+  def confirm(self, output_index, wtx):
     utxo = self.mempool.storage.pop(output_index)
-    self.confirmed.append(utxo)
+    self.confirmed.append(utxo, wtx=wtx)
 
-  def apply_tx_get_merkles_and_rollback(self, tx):
+  def apply_tx_get_merkles_and_rollback(self, tx, wtx):
     rollback_inputs = []
     for _i in tx.inputs:
-        rollback_inputs.append(self.confirmed.spend(_i, return_revert_obj=True))
+        rollback_inputs.append(self.confirmed.spend(_i, wtx=wtx, return_revert_obj=True))
     for _o in tx.outputs:
-        self.confirmed.append(_o)
-    roots=[self.confirmed.get_commitment_root(), self.confirmed.get_txo_root()]
+        self.confirmed.append(_o, wtx=wtx)
+    roots=[self.confirmed.get_commitment_root(rtx=wtx), self.confirmed.get_txo_root(rtx=wtx)]
     for r_i in rollback_inputs:
-      self.confirmed.unspend(r_i)
-    self.confirmed.remove(len(tx.outputs))
+      self.confirmed.unspend(r_i, wtx=wtx)
+    self.confirmed.remove(len(tx.outputs), wtx=wtx)
     return roots
 
   #TODO bad naming. It should be apply block, or block_transaction
-  def apply_tx(self, tx, new_state):
+  def apply_tx(self, tx, new_state, wtx):
     rollback_inputs = []
     for _i in tx.inputs:
         if self.storage_space.utxo_index:
-          self.storage_space.utxo_index.remove_utxo(_i)
-        rollback_inputs.append(self.confirmed.spend(_i, return_revert_obj=True))
+          self.storage_space.utxo_index.remove_utxo(_i, wtx=wtx)
+        rollback_inputs.append(self.confirmed.spend(_i, return_revert_obj=True, wtx=wtx))
     for _o in tx.outputs:
         if self.storage_space.utxo_index:
-          self.storage_space.utxo_index.add_utxo(_o)
-        self.confirmed.append(_o)
+          self.storage_space.utxo_index.add_utxo(_o, wtx=wtx)
+        self.confirmed.append(_o, wtx=wtx)
         self.mempool.remove(_o)
-    self.confirmed.set_state(new_state)
+    self.confirmed.set_state(new_state, wtx=wtx)
     return (rollback_inputs, len(tx.outputs))
 
-  def rollback(self, pruned_inputs, num_of_added_outputs, prev_state):
+  def rollback(self, pruned_inputs, num_of_added_outputs, prev_state, wtx):
     for r_i in pruned_inputs:
       if self.storage_space.utxo_index:
         #r_i[0][2] is serialized txo (0 is txo, 2 is serialized object)
         utxo=IOput()
         utxo.deserialize(r_i[0][2])
-        self.storage_space.utxo_index.add_utxo(utxo)
-      self.confirmed.unspend(r_i)
-    outputs_for_mempool = self.confirmed.remove(num_of_added_outputs)
+        self.storage_space.utxo_index.add_utxo(utxo, wtx=wtx)
+      self.confirmed.unspend(r_i, wtx=wtx)
+    outputs_for_mempool = self.confirmed.remove(num_of_added_outputs, wtx=wtx)
     for _o in outputs_for_mempool:
       self.mempool[_o.serialized_index]=_o
-      self.storage_space.utxo_index.remove_utxo(_o)
-    self.confirmed.set_state(prev_state)
+      if self.storage_space.utxo_index:
+        self.storage_space.utxo_index.remove_utxo(_o, wtx=wtx)
+    self.confirmed.set_state(prev_state, wtx=wtx)
         
 
-  def find_serialized(self, output_index):
+  def find_serialized(self, output_index, rtx):
     if output_index in self.mempool:
       return self.mempool[output_index].serialize()
     else:
-      return self.confirmed.find_wo_deser(output_index)
+      return self.confirmed.find_wo_deser(output_index, rtx=rtx)
     
 
 

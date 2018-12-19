@@ -1,12 +1,11 @@
 from secp256k1_zkp import PrivateKey
-from leer.core.storage.default_paths import key_manager_path
 import shutil, os, time, lmdb, math
 from hashlib import sha256
 from leer.core.lubbadubdub.address import address_from_private_key
 import base64
 
 class KeyManagerClass:
-  def __init__(self, password=None, path = key_manager_path):
+  def __init__(self, path, password=None):
     #self.privkey = None
     #if password:
     #  password_bytes = bytes(password+")dod8q=(3fnS#904ff", "utf-16")
@@ -405,7 +404,7 @@ class DiscWallet:
   def remove_all_outputs_created_in_block(self, block_height, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        return self.remove_all_outputs_created_in_block(block_height, output_index, w_txn)
+        return self.remove_all_outputs_created_in_block(block_height, w_txn)
     else: 
       cursor = w_txn.cursor(db=self.block_index)
       if not cursor.set_key(_(block_height)):

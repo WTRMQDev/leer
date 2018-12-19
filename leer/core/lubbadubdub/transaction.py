@@ -56,7 +56,7 @@ class Transaction:
     self.serialized = None
     self.coinbase = coinbase_output
 
-  def compose_block_transaction(self, combined_transaction=None):
+  def compose_block_transaction(self, rtx, combined_transaction=None):
     self.serialized = None
     if not self.coinbase:
       raise Exception("coinbase output is required")
@@ -72,7 +72,7 @@ class Transaction:
       self.outputs = new_tx.outputs
       self.additional_excesses = new_tx.additional_excesses
       self.combined_excesses = new_tx.combined_excesses
-    self.verify()
+    self.verify(rtx=rtx)
 
 
   # should be moved to wallet???
@@ -123,7 +123,7 @@ class Transaction:
     self.verify()
 
   # should be moved to wallet???
-  def generate_new(self, priv_data, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+  def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
     self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
@@ -167,7 +167,7 @@ class Transaction:
     self.outputs.append(output)
     [output.generate() for output in self.outputs]
     self.sort_ioputs()
-    self.verify()
+    self.verify(rtx=rtx)
     
 
   def calc_relay_fee(self, relay_fee_per_kb):
@@ -231,7 +231,7 @@ class Transaction:
     self.serialized = ret
     return ret
 
-  def deserialize(self, serialized_tx, skip_verification=False):
+  def deserialize(self, serialized_tx, rtx, skip_verification=False):
     self.serialized = None
     if len(serialized_tx)<2:
         raise Exception("Serialized transaction doesn't contain enough bytes for inputs array length")
@@ -250,9 +250,9 @@ class Transaction:
             raise NotImplemented
         else:
           if not skip_verification:
-            if (not input_index_buffer in self.txos_storage.confirmed):
+            if (not self.txos_storage.confirmed.has(input_index_buffer, rtx=rtx)):
               raise Exception("Unknown input index")
-            self.inputs.append(self.txos_storage.confirmed[input_index_buffer])
+            self.inputs.append(self.txos_storage.confirmed.get(input_index_buffer, rtx=rtx))
           else:
             self.inputs.append(input_index_buffer)
 
@@ -290,7 +290,7 @@ class Transaction:
         raise Exception("Serialized transaction doesn't contain enough bytes for mixer_offset")
     self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
     if not skip_verification:
-      self.verify()
+      self.verify(rtx=rtx)
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
 
@@ -420,7 +420,7 @@ class Transaction:
 
     
 
-  def verify(self, block_height = None, skip_non_context=False):
+  def verify(self, rtx, block_height = None, skip_non_context=False):
     """
      Transaction is valid if:
       0) inputs and outputs are sorted  (non context verification)
@@ -440,7 +440,7 @@ class Transaction:
       # 1) While generating new transaction. In this case transaction will be in the next block.
       # 2) While checking transaction in the block. In this case, current blockchain state is set 
       #     to prev block (prev to which we are checking) and block_height is current+1
-      block_height = self.txos_storage.storage_space.blockchain.current_height + 1
+      block_height = self.txos_storage.storage_space.blockchain.current_height(rtx=rtx) + 1
 
     if not skip_non_context: # skip_non_context is used when non context verification for that tx was made earlier
       assert self.non_context_verify(block_height)
@@ -452,10 +452,10 @@ class Transaction:
         assert len(set([_input.serialized_index for _input in self.inputs]))==len(self.inputs)
         for _input in self.inputs:
           index=_input.serialized_index
-          if not index in self.txos_storage.confirmed:
+          if not self.txos_storage.confirmed.has(index, rtx=rtx):
               raise Exception("Spend unknown output")
           else:
-              database_inputs.append(self.txos_storage.confirmed[index])
+              database_inputs.append(self.txos_storage.confirmed.get(index, rtx=rtx))
           self.inputs = database_inputs
            
 
@@ -465,7 +465,7 @@ class Transaction:
     else:
         for _output in self.outputs:
           _o_index = _output.serialized_index
-          if _o_index in self.txos_storage.confirmed:
+          if self.txos_storage.confirmed.has(_o_index, rtx=rtx):
               raise Exception("Create duplicate output")
           elif _o_index in self.txos_storage.mempool:
               pass #It's ok
@@ -485,7 +485,7 @@ class Transaction:
     #sum(inputs)+sum(additional_excesses)+sum(outputs_excesses) == sum(outputs) + sum(fee)
     
 
-  def merge(self, another_tx):
+  def merge(self, another_tx, rtx):
     self.serialized = None
     tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager) #TODO instead of key_manager, inputs info should be merged here
     tx.inputs=self.inputs+another_tx.inputs
@@ -501,7 +501,7 @@ class Transaction:
       # If we merge transactions where the second spends outputs from the first, result is invalid
       # since we don't delete identical ioputs 
       raise NotImplemented
-    assert tx.verify()
+    assert tx.verify(rtx=rtx)
     return tx
 
   def __repr__(self):

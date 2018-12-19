@@ -34,31 +34,31 @@ logger = logging.getLogger("core_loop")
 
 storage_space = None
 
-def init_blockchain():
+def init_blockchain(wtx):
   '''
     If blockchain is empty this function will set genesis.
   '''
   genesis = Block(storage_space = storage_space)
   genesis.deserialize(serialized_genesis_block)
-  storage_space.headers_manager.set_genesis(genesis.header)
-  if not storage_space.blockchain.current_height>=0:
-    storage_space.headers_manager.context_validation(genesis.header.hash)
-    genesis.non_context_verify()
-    storage_space.blockchain.add_block(genesis)
+  storage_space.headers_manager.set_genesis(genesis.header, wtx=wtx)
+  if storage_space.blockchain.current_height(rtx=wtx)<0:
+    storage_space.headers_manager.context_validation(genesis.header.hash, rtx=wtx)
+    genesis.non_context_verify(rtx=wtx)
+    storage_space.blockchain.add_block(genesis, wtx=wtx)
   else:
-    storage_space.headers_manager.best_tip = (storage_space.blockchain.current_tip, storage_space.blockchain.current_height )
+    storage_space.headers_manager.best_tip = (storage_space.blockchain.current_tip(rtx=wtx), storage_space.blockchain.current_height(rtx=wtx) )
     logger.info("Best header tip from blockchain state %d"%storage_space.headers_manager.best_tip[1])
     #greedy search
     current_tip = storage_space.headers_manager.best_tip[0]
     while True:
       try:
-        header = storage_space.headers_storage[current_tip]
+        header = storage_space.headers_storage.get(current_tip, rtx=wtx)
       except KeyError:
         break
       new_current_tip=current_tip
       if len(header.descendants):
         for d in header.descendants:
-          dh = storage_space.headers_storage[d]
+          dh = storage_space.headers_storage.get(d, rtx=wtx)
           if not dh.invalid:
             new_current_tip = d
             break
@@ -66,25 +66,25 @@ def init_blockchain():
         current_tip=new_current_tip
       else:
         break
-    storage_space.headers_manager.best_tip = (current_tip, storage_space.headers_storage[current_tip].height)
+    storage_space.headers_manager.best_tip = (current_tip, storage_space.headers_storage.get(current_tip, rtx=wtx).height)
     logger.info("Best header tip after greedy search %d"%storage_space.headers_manager.best_tip[1])
 
 
-def validate_state(storage_space):
+def validate_state(storage_space, rtx):
   '''
     Since writes to different storages (excesses, blocks, txos etc) 
     are not transactional for now, it is possible that previous halt was
     in between of writes. In this case state is (irreversibly) screwed. 
     Cheking it here.
   '''
-  if storage_space.blockchain.current_height<1:
+  if storage_space.blockchain.current_height(rtx=rtx)<1:
     return
-  tip = storage_space.blockchain.current_tip
-  header = storage_space.headers_storage[tip]
+  tip = storage_space.blockchain.current_tip(rtx=rtx)
+  header = storage_space.headers_storage.get(tip, rtx=rtx)
   last_block_merkles = header.merkles
-  state_merkles = [storage_space.txos_storage.confirmed.get_commitment_root(), \
-                   storage_space.txos_storage.confirmed.get_txo_root(), \
-                   storage_space.excesses_storage.get_root()]
+  state_merkles = [storage_space.txos_storage.confirmed.get_commitment_root(rtx=rtx), \
+                   storage_space.txos_storage.confirmed.get_txo_root(rtx=rtx), \
+                   storage_space.excesses_storage.get_root(rtx=rtx)]
   try:
     assert last_block_merkles == state_merkles
   except Exception as e:
@@ -111,18 +111,19 @@ def init_storage_space(config):
       if _path in config["location"]:
         _paths[_path] = config["location"][_path]
   ''' 
-  hs = HeadersStorage(storage_space)
-  hm = HeadersManager(storage_space)
-  bs = BlocksStorage(storage_space)
-  es = ExcessesStorage(storage_space)
-  ts = TXOsStorage(storage_space)
-  bc = Blockchain(storage_space)
-  mptx = MempoolTx(storage_space)
-  utxoi = UTXOIndex(storage_space)
+  with storage_space.env.begin(write=True) as wtx:
+    hs = HeadersStorage(storage_space, wtx=wtx)
+    hm = HeadersManager(storage_space)
+    bs = BlocksStorage(storage_space, wtx=wtx)
+    es = ExcessesStorage(storage_space, wtx=wtx)
+    ts = TXOsStorage(storage_space, wtx=wtx)
+    bc = Blockchain(storage_space)
+    mptx = MempoolTx(storage_space)
+    utxoi = UTXOIndex(storage_space, wtx=wtx)
   #km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
   #mptx.set_key_manager(km)
-  init_blockchain()
-  validate_state(storage_space)
+    init_blockchain(wtx=wtx)
+    validate_state(storage_space, rtx=wtx)
   
 
 def set_ask_for_blocks_hook(blockchain, message_queue):
@@ -261,51 +262,62 @@ def core_loop(syncer, config):
       try:
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
-          process_new_headers(message, notify=partial(notify, "best header"))
+          with storage_space.env.begin(write=True) as wtx:
+            process_new_headers(message, notify=partial(notify, "best header"), wtx=wtx)
           notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
           notify("core workload", "processing new blocks")
-          initial_tip = storage_space.blockchain.current_tip
-          process_new_blocks(message, notify=partial(notify, "blockchain height"))
-          after_tip = storage_space.blockchain.current_tip
-          if not after_tip==initial_tip:
-            notify_all_nodes_about_new_tip(nodes, send_to_nm) 
-          notify("blockchain height", storage_space.blockchain.current_height)         
-          look_forward(nodes, send_to_nm)       
+          with storage_space.env.begin(write=True) as wtx:
+            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            process_new_blocks(message, notify=partial(notify, "blockchain height"), wtx=wtx)
+            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
+            if not after_tip==initial_tip:
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx) 
+            look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
-          process_new_txos(message)
-          #After downloading new txos some blocs may become downloaded
-          notify("blockchain height", storage_space.blockchain.current_height) 
-          look_forward(nodes, send_to_nm)          
+          with storage_space.env.begin(write=True) as wtx:
+            process_new_txos(message, wtx=wtx)
+            #After downloading new txos some blocs may become downloaded
+            notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx)) 
+            look_forward(nodes, send_to_nm, rtx=wtx)          
         if message["action"] == "give blocks":
           notify("core workload", "giving blocks")
-          process_blocks_request(message, send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_blocks_request(message, send_message, rtx=rtx)
         if message["action"] == "give next headers":
           notify("core workload", "giving headers")
-          process_next_headers_request(message, send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_next_headers_request(message, send_message, rtx=rtx)
         if message["action"] == "give txos":
           notify("core workload", "giving txos")
-          process_txos_request(message, send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_txos_request(message, send_message, rtx=rtx)
         if message["action"] == "find common root":
-          process_find_common_root(message, send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_find_common_root(message, send_message, rtx)
         if message["action"] == "find common root response":
-          process_find_common_root_reponse(message, nodes[message["node"]], send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_find_common_root_reponse(message, nodes[message["node"]], send_message, rtx=rtx)
         if message["action"] == "give TBM transaction":
           notify("core workload", "giving mempool tx")
-          process_tbm_tx_request(message, send_message)
+          with storage_space.env.begin(write=False) as rtx:
+            process_tbm_tx_request(message, send_message, rtx)
         if message["action"] == "take TBM transaction":
           notify("core workload", "processing mempool tx")
-          process_tbm_tx(message, send_to_nm, nodes)
+          with storage_space.env.begin(write=False) as rtx:
+            process_tbm_tx(message, send_to_nm, nodes, rtx=rtx)
         if message["action"] == "give tip height":
-          _ch=storage_space.blockchain.current_height
-          send_message(message["sender"], {"id": message["id"], "result": _ch})
-          notify("blockchain height", _ch)
-      
+          with storage_space.env.begin(write=False) as rtx:
+            _ch=storage_space.blockchain.current_height(rtx=rtx)
+            send_message(message["sender"], {"id": message["id"], "result": _ch})
+          notify("blockchain height", _ch)      
         if message["action"] == "take tip info":
           if not message["node"] in nodes:
             nodes[message["node"]]={'node':message["node"]}
-          process_tip_info(message, nodes[message["node"]], send=send_to_nm)
+          with storage_space.env.begin(write=False) as rtx:
+            process_tip_info(message, nodes[message["node"]], rtx=rtx, send=send_to_nm)
       except DOSException as e:
         logger.info("DOS Exception %s"%str(e))
         #raise e #TODO send to NM
@@ -315,33 +327,35 @@ def core_loop(syncer, config):
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
         address = get_new_address()
-        block = storage_space.mempool_tx.give_block_template(address)
+        with storage_space.env.begin(write=True) as wtx:
+          block = storage_space.mempool_tx.give_block_template(address, wtx=wtx)
         ser_head = block.header.serialize()
         send_message(message["sender"], {"id": message["id"], "result":ser_head})
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
-          initial_tip = storage_space.blockchain.current_tip
-          header = Header()
-          header.deserialize(message["solved template"])
-          solved_block = storage_space.mempool_tx.get_block_by_header_solution(header)
-          storage_space.headers_manager.add_header(solved_block.header)
-          storage_space.headers_manager.context_validation(solved_block.header.hash)
-          solved_block.non_context_verify()
-          storage_space.blockchain.add_block(solved_block)
+          with storage_space.env.begin(write=True) as wtx:
+            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            header = Header()
+            header.deserialize(message["solved template"])
+            solved_block = storage_space.mempool_tx.get_block_by_header_solution(header)
+            storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
+            storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
+            solved_block.non_context_verify(rtx=wtx)
+            storage_space.blockchain.add_block(solved_block, wtx=wtx)
+            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            our_height = storage_space.blockchain.current_height(rtx=wtx)
+            best_known_header = storage_space.headers_manager.best_header_height
+            if not after_tip==initial_tip:
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx)
           send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
-          after_tip = storage_space.blockchain.current_tip
-          if not after_tip==initial_tip:
-            notify_all_nodes_about_new_tip(nodes, send_to_nm)
-          our_height = storage_space.blockchain.current_height
-          best_known_header = storage_space.headers_manager.best_header_height
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
 
-      if message["action"] == "get confirmed balance stats": #TODO Move to wallet
+      '''if message["action"] == "get confirmed balance stats": #TODO Move to wallet
         notify("core workload", "retrieving balance")
         if storage_space.mempool_tx.key_manager:
           stats = storage_space.mempool_tx.key_manager.get_confirmed_balance_stats( 
@@ -389,10 +403,11 @@ def core_loop(syncer, config):
           km.add_privkey(pk)
           send_message(message["sender"], {"id": message["id"], "result": "imported"})
         else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
+          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})'''
 
       if message["action"] == "give synchronization status":
-        our_height = storage_space.blockchain.current_height
+        with storage_space.env.begin(write=False) as rtx:
+          our_height = storage_space.blockchain.current_height(rtx=rtx)
         best_known_header = storage_space.headers_manager.best_header_height
         try:
           best_advertised_height = max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
@@ -424,18 +439,19 @@ def core_loop(syncer, config):
           response['error'] = str(e)
           logger.error("Problem in tx_template: %s"%str(e))
         try: #Tx generation
-          tx = Transaction(txos_storage = storage_space.txos_storage)
-          for utxo_index in tx_template['utxos']:
-            utxo = storage_space.txos_storage.confirmed[utxo_index]
-            tx.push_input(utxo)
-          tx.add_destination( (tx_template["address"], tx_template["value"]) )
-          tx.generate_new(priv_data=tx_template,
+          with storage_space.env.begin(write=True) as rtx:
+            tx = Transaction(txos_storage = storage_space.txos_storage)
+            for utxo_index in tx_template['utxos']:
+              utxo = storage_space.txos_storage.confirmed.get(utxo_index, rtx=rtx)
+              tx.push_input(utxo)
+            tx.add_destination( (tx_template["address"], tx_template["value"]) )
+            tx.generate_new(priv_data=tx_template, rtx=rtx,
                         change_address = tx_template['change address'],
                         relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
-          tx.verify()
-          storage_space.mempool_tx.add_tx(tx)
-          tx_skel = TransactionSkeleton(tx=tx)
-          notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+            tx.verify(rtx=rtx)
+            storage_space.mempool_tx.add_tx(tx, rtx=rtx)
+            tx_skel = TransactionSkeleton(tx=tx)
+            notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
           response['result']="generated"
         except Exception as e:
           response['result'] = 'error'
@@ -447,9 +463,10 @@ def core_loop(syncer, config):
       if message["action"] == "check txouts download status":
         txos = message["txos_hashes"]
         to_be_downloaded = []
-        for txo in txos:
-          if not storage_space.txos_storage.known(txo):
-            to_be_downloaded.append(txo)
+        with storage_space.env.begin(write=True) as rtx:
+          for txo in txos:
+            if not storage_space.txos_storage.known(txo, rtx=rtx):
+              to_be_downloaded.append(txo)
         if not to_be_downloaded:
           continue #We are good, txouts are already downloaded
         already_asked_nodes = message["already_asked_nodes"]
@@ -480,14 +497,15 @@ def core_loop(syncer, config):
         block_hashes = message["block_hashes"]
         to_be_downloaded = []
         lowest_height=1e10
-        for block_hash in block_hashes:
-          if block_hash in storage_space.blocks_storage:
-            continue #We are good, block already downloaded          
-          if not block_hash in storage_space.blockchain.awaited_blocks:
-            continue #For some reason we don't need this block anymore
-          to_be_downloaded.append(block_hash)
-          if storage_space.headers_storage[block_hash].height<lowest_height:
-            lowest_height = storage_space.headers_storage[block_hash].height
+        with storage_space.env.begin(write=True) as rtx:
+          for block_hash in block_hashes:
+            if storage_space.blocks_storage.has(block_hash, rtx=rtx):
+              continue #We are good, block already downloaded          
+            if not block_hash in storage_space.blockchain.awaited_blocks:
+              continue #For some reason we don't need this block anymore
+            to_be_downloaded.append(block_hash)
+            if storage_space.headers_storage.get(block_hash, rtx=rtx).height<lowest_height:
+              lowest_height = storage_space.headers_storage.get(block_hash, rtx=rtx).height
         already_asked_nodes = message["already_asked_nodes"]
         asked = False
         for node_params in nodes:
@@ -536,7 +554,8 @@ def core_loop(syncer, config):
       message_queue.put(_message)
 
     try:
-      check_sync_status(nodes, send_to_nm)
+      with storage_space.env.begin(write=True) as rtx:
+        check_sync_status(nodes, send_to_nm, rtx=rtx)
       try:
         best_advertised_height = max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
       except:
@@ -545,37 +564,37 @@ def core_loop(syncer, config):
     except Exception as e:
       logger.error(e)
 
-def look_forward(nodes, send_to_nm):
-  if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height+100:
+def look_forward(nodes, send_to_nm, rtx):
+  if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height(rtx=rtx)+100:
     for node_index in nodes:
       node = nodes[node_index]
       if node['height']>storage_space.headers_manager.best_header_height:
-        our_tip_hash = storage_space.blockchain.current_tip
-        send_find_common_root(storage_space.headers_storage[our_tip_hash], node['node'], send = send_to_nm)
+        our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
+        send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_nm)
         break
 
 
 
 
-def process_new_headers(message, notify=None):
-  dupplication_header_dos = False
+def process_new_headers(message, wtx, notify=None):
+  dupplication_header_dos = False #TODO grammatical typo?
   try:
     serialized_headers = message["headers"]
     num = message["num"]
     for i in range(num):
       header = Header()
       serialized_headers = header.deserialize_raw(serialized_headers)
-      if header.hash in storage_space.headers_storage:
+      if storage_space.headers_storage.has(header.hash, rtx=wtx):
         dupplication_header_dos=True
         continue
-      storage_space.headers_manager.add_header(header)
+      storage_space.headers_manager.add_header(header, wtx=wtx)
       if notify and not i%20:
         notify(storage_space.headers_manager.best_header_height)
-    storage_space.blockchain.update(reason="downloaded new headers")
+    storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
     raise e
 
-def process_new_blocks(message, notify=None):
+def process_new_blocks(message, wtx, notify=None):
   try:
     serialized_blocks = message["blocks"]
     num = message["num"]
@@ -583,17 +602,17 @@ def process_new_blocks(message, notify=None):
     for i in range(num):
       block = Block(storage_space=storage_space)
       serialized_blocks = block.deserialize_raw(serialized_blocks)
-      storage_space.blockchain.add_block(block, no_update=True)
+      storage_space.blockchain.add_block(block, wtx=wtx, no_update=True)
       if notify:
         if time()-prev_not>15:
-          storage_space.blockchain.update(reason="downloaded new blocks")
-          notify(storage_space.blockchain.current_height)
+          storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
+          notify(storage_space.blockchain.current_height(rtx=wtx))
           prev_not = time()
-    storage_space.blockchain.update(reason="downloaded new blocks")
+    storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
   except Exception as e:
     raise e #XXX "DoS messages should be returned"
 
-def process_new_txos(message):
+def process_new_txos(message, wtx):
   try:
     serialized_utxos = bytes(message["txos"])
     txos_hashes = bytes(message["txos_hashes"])
@@ -605,24 +624,24 @@ def process_new_txos(message):
       utxo = IOput()
       serialized_utxos = utxo.deserialize_raw(serialized_utxos)
       storage_space.txos_storage.mempool[utxo.serialized_index]=utxo
-    storage_space.blockchain.update(reason="downloaded new txos")
+    storage_space.blockchain.update(wtx=wtx, reason="downloaded new txos")
   except Exception as e:
     raise e #XXX "DoS messages should be returned"
 
-def process_blocks_request(message, send_message):
+def process_blocks_request(message, send_message, rtx):
   num = message["num"]
   _hashes = message["block_hashes"]
   _hashes = [_hashes[i*32:(i+1)*32] for i in range(num)]
   serialized_blocks = b""
   blocks_num=0
   for _hash in _hashes:
-    if not _hash in storage_space.blocks_storage:
+    if not storage_space.blocks_storage.has(_hash, rtx=rtx):
       continue
     try:
-      serialized_block = storage_space.blocks_storage[_hash].serialize(rich_block_format=True)
+      serialized_block = storage_space.blocks_storage.get(_hash, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
     except KeyError:
       #Some outputs were pruned
-      serialized_block = storage_space.blocks_storage[_hash].serialize(rich_block_format=False)
+      serialized_block = storage_space.blocks_storage.get(_hash, rtx=rtx).serialize(rtx=rtx, rich_block_format=False)
     if len(serialized_blocks)+len(serialized_block)<60000:
       serialized_blocks+=serialized_block
       blocks_num +=1
@@ -641,32 +660,32 @@ def send_next_headers_request(from_hash, num, node, send):
   send({"action":"give next headers", "num":num, "from":from_hash, 
                                        "id" : str(uuid4()), "node": node  })
 
-def process_next_headers_request(message, send_message):
+def process_next_headers_request(message, send_message, rtx):
   from_hash = message["from"]
   num = message["num"]
   num = 1024 if num>1024 else num
   try:
-    header = storage_space.headers_storage[from_hash]
+    header = storage_space.headers_storage.get(from_hash, rtx=rtx)
   except KeyError:
     return #unknown hash
-  current_tip  = storage_space.blockchain.current_tip
-  current_height  = storage_space.blockchain.current_height
-  if not storage_space.headers_manager.find_ancestor_with_height(current_tip, header.height) == from_hash:
+  current_tip  = storage_space.blockchain.current_tip(rtx=rtx)
+  current_height  = storage_space.blockchain.current_height(rtx=rtx)
+  if not storage_space.headers_manager.find_ancestor_with_height(current_tip, header.height, rtx=rtx) == from_hash:
     return
     ''' Counter-node is not in our main chain. 
         We will not feed it (actually we just are not sure what we should send here)
     '''
   last_to_send_height = header.height+num
   last_to_send_height = current_height if last_to_send_height>current_height else last_to_send_height
-  last_to_send = storage_space.headers_manager.find_ancestor_with_height(current_tip, last_to_send_height)
-  headers_hashes = storage_space.headers_manager.get_subchain(from_hash, last_to_send)
+  last_to_send = storage_space.headers_manager.find_ancestor_with_height(current_tip, last_to_send_height, rtx=rtx)
+  headers_hashes = storage_space.headers_manager.get_subchain(from_hash, last_to_send, rtx=rtx)
 
   serialized_headers = b""
   headers_num=0
   for _hash in headers_hashes:
-    if not _hash in storage_space.headers_storage:
+    if not storage_space.headers_storage.has(_hash, rtx=rtx):
       continue
-    serialized_header = storage_space.headers_storage[_hash].serialize()
+    serialized_header = storage_space.headers_storage.get(_hash, rtx=rtx).serialize()
     if len(serialized_headers)+len(serialized_header)<60000:
       serialized_headers+=serialized_header
       headers_num +=1
@@ -681,7 +700,7 @@ def process_next_headers_request(message, send_message):
                                             "headers":serialized_headers, "id":message['id'],
                                             "node": message["node"] })
 
-def process_txos_request(message, send_message):
+def process_txos_request(message, send_message, rtx):
   num = message["num"]
   _hashes = message["txos_hashes"]
   _hashes = [bytes(_hashes[i*65:(i+1)*65]) for i in range(num)]
@@ -691,7 +710,7 @@ def process_txos_request(message, send_message):
   txos_lengths = b""
   for _hash in _hashes:
     try:
-      serialized_txo = storage_space.txos_storage.find_serialized(_hash)
+      serialized_txo = storage_space.txos_storage.find_serialized(_hash, rtx=rtx)
     except KeyError:
       continue
     if len(serialized_txos)+len(serialized_txo)<60000:
@@ -712,17 +731,17 @@ def process_txos_request(message, send_message):
                                             "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
                                             "id":message['id'], 'node': message["node"] })
 
-def send_tip_info(node_info, send, our_tip_hash=None ):
-  our_height = storage_space.blockchain.current_height
-  our_tip_hash = our_tip_hash if our_tip_hash else storage_space.blockchain.current_tip
-  our_prev_hash = storage_space.headers_storage[our_tip_hash].prev
-  our_td = storage_space.headers_storage[our_tip_hash].total_difficulty
+def send_tip_info(node_info, send, rtx, our_tip_hash=None ):
+  our_height = storage_space.blockchain.current_height(rtx=rtx)
+  our_tip_hash = our_tip_hash if our_tip_hash else storage_space.blockchain.current_tip(rtx=rtx)
+  our_prev_hash = storage_space.headers_storage.get(our_tip_hash, rtx=rtx).prev
+  our_td = storage_space.headers_storage.get(our_tip_hash, rtx=rtx).total_difficulty
 
   send({"action":"take tip info", "height":our_height, "tip":our_tip_hash, "prev_hash":our_prev_hash, "total_difficulty":our_td, "id":uuid4(), "node": node_info["node"] })
   node_info["sent_tip"]=our_tip_hash
   node_info["last_send"] = time()
 
-def process_tip_info(message, node_info, send):
+def process_tip_info(message, node_info, send, rtx):
   # another node (referenced as counter-Node below) asks us for our best tip and also provides us information about his
   node = message["node"]
   height = message["height"]
@@ -730,39 +749,37 @@ def process_tip_info(message, node_info, send):
   prev_hash = message["prev_hash"]
   total_difficulty = message["total_difficulty"]
 
-  our_tip_hash = storage_space.blockchain.current_tip
+  our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
 
   if (not "sent_tip" in node_info) or \
      (not node_info["sent_tip"]==our_tip_hash) or \
      (not "last_send" in node_info) or \
      (time() - node_info["last_send"]>300):
-    send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash)
+    send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash, rtx=rtx)
   node_info.update({"node":node, "height":height, "tip_hash":tip_hash, 
                     "prev_hash":prev_hash, "total_difficulty":total_difficulty, 
                     "last_update":time()})
-  if (height > storage_space.blockchain.current_height) and (total_difficulty > storage_space.headers_storage[our_tip_hash].total_difficulty):
+  if (height > storage_space.blockchain.current_height(rtx=rtx)) and (total_difficulty > storage_space.headers_storage.get(our_tip_hash, rtx=rtx).total_difficulty):
     #Now there are two options: better headers are unknown or headers are known, but blocks are unknown or bad
-    if (not tip_hash in storage_space.headers_storage):
-      send_find_common_root(storage_space.headers_storage[our_tip_hash], node, send = send)
+    if not storage_space.headers_storage.has(tip_hash, rtx=rtx):
+      send_find_common_root(storage_space.headers_storage.get(our_tip_hash, rtx=rtx), node, send = send)
       #TODO check prev hash first
     else: #header is known
-      header = storage_space.headers_storage[tip_hash]
+      header = storage_space.headers_storage.get(tip_hash, rtx=rtx)
       #TODO do we need to check for connection to genesis?
-      common_root =  storage_space.headers_manager.find_bifurcation_point(tip_hash, our_tip_hash)
+      common_root =  storage_space.headers_manager.find_bifurcation_point(tip_hash, our_tip_hash, rtx=rtx)
       if header.invalid:
         return #Nothing interesting, counter-node is on wrong chain
-      if tip_hash in storage_space.blocks_storage:
-        if storage_space.blocks_storage[tip_hash].invalid:
+      if storage_space.blocks_storage.has(tip_hash, rtx=rtx):
+        if storage_space.blocks_storage.get(tip_hash, rtx=rtx).invalid:
           return #Nothing interesting, counter-node is on wrong chain
       #download blocks
       blocks_to_download = []
-      print("Here")
-      for _block_hash in storage_space.headers_manager.get_subchain(common_root, tip_hash):
-        print(_block_hash, _block_hash in storage_space.blocks_storage)
-        if not _block_hash in storage_space.blocks_storage:
+      for _block_hash in storage_space.headers_manager.get_subchain(common_root, tip_hash, rtx=rtx):
+        if not storage_space.blocks_storage.has(_block_hash, rtx=rtx):
           blocks_to_download.append(_block_hash)
         else:
-          storage_space.blocks_storage.is_block_downloaded(_block_hash)
+          storage_space.blocks_storage.is_block_downloaded(_block_hash, rtx=rtx)
         if len(blocks_to_download)*32>40000: #Too big for one message
           break
       if len(blocks_to_download):
@@ -780,20 +797,20 @@ def send_find_common_root(from_header, node, send):
 
 UNKNOWN, INFORK, MAINCHAIN, ISOLATED = 0, 1, 2, 3
 
-def  process_find_common_root(message, send_message):
+def process_find_common_root(message, send_message, rtx):
   serialized_header = message["serialized_header"]
   header = Header()
   header.deserialize_raw(serialized_header)
   result = []
   for pointer in [header.hash]+header.popow.pointers:
-    if not pointer in storage_space.headers_storage:
+    if not storage_space.headers_storage.has(pointer, rtx=rtx):
       result.append(UNKNOWN)
       continue
-    ph = storage_space.headers_storage[pointer]
+    ph = storage_space.headers_storage.get(pointer, rtx=rtx)
     if not ph.connected_to_genesis:
       result.append(ISOLATED)
       continue
-    if storage_space.headers_manager.find_ancestor_with_height(storage_space.blockchain.current_tip, ph.height) == pointer:
+    if storage_space.headers_manager.find_ancestor_with_height(storage_space.blockchain.current_tip(rtx=rtx), ph.height, rtx=rtx) == pointer:
       result.append(MAINCHAIN)
       continue
     result.append(INFORK)
@@ -804,10 +821,13 @@ def  process_find_common_root(message, send_message):
       "known_headers": b"".join([i.to_bytes(1,"big") for i in result]), 
       "id":message['id'], "node": message["node"] })
 
-def process_find_common_root_reponse(message, node_info, send_message):
+def process_find_common_root_reponse(message, node_info, send_message, rtx):
   header_hash = message["header_hash"]
   result = [int(i) for i in message["known_headers"]]
-  header = storage_space.headers_storage[header_hash]
+  try:
+    header = storage_space.headers_storage.get(header_hash, rtx=rtx)
+  except KeyError:
+    raise DOSException()
   root_found = False
   if not "common_root" in node_info:
     node_info["common_root"]={}
@@ -815,7 +835,7 @@ def process_find_common_root_reponse(message, node_info, send_message):
   for index, pointer in enumerate([header.hash]+header.popow.pointers):
     if result[index] in [MAINCHAIN, INFORK]:
         node_info["common_root"]["best_mutual"]=pointer
-        best_mutual_height = storage_space.headers_storage[node_info["common_root"]["best_mutual"]].height
+        best_mutual_height = storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
         break
     else:
       node_info["common_root"]["worst_nonmutual"]=pointer
@@ -830,38 +850,38 @@ def process_find_common_root_reponse(message, node_info, send_message):
     return
   logger.info(node_info)
   if not root_found:
-    h1,h2 = storage_space.headers_storage[node_info["common_root"]["worst_nonmutual"]].height, storage_space.headers_storage[node_info["common_root"]["best_mutual"]].height
+    h1,h2 = storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx).height, storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
     if h1==h2+1:
       root_found = True
       node_info["common_root"]["root"] = node_info["common_root"]["best_mutual"]
     else:
-      send_find_common_root(storage_space.headers_storage[node_info["common_root"]["worst_nonmutual"]], message['node'],\
+      send_find_common_root(storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx), message['node'],\
                           send = partial(send_message, "NetworkManager") )
   logger.info(node_info)
   height, total_difficulty = node_info['height'],node_info['total_difficulty']
-  logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty))
+  logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
-    if (height > storage_space.headers_manager.best_header_height) and (total_difficulty > storage_space.headers_manager.best_header_total_difficulty):
+    if (height > storage_space.headers_manager.best_header_height) and (total_difficulty > storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)):
       send_next_headers_request(node_info["common_root"]["root"], 
-                                min(256, height-storage_space.headers_storage[node_info["common_root"]["root"]].height),
+                                min(256, height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height),
                                 message["node"], send = partial(send_message, "NetworkManager") )
 
 
 
-def  process_tbm_tx_request(message, send_message):
+def  process_tbm_tx_request(message, send_message, rtx):
   tx_skel = storage_space.mempool_tx.give_tx_skeleton()
   tx = storage_space.mempool_tx.give_tx()
-  serialized_tx_skel = tx_skel.serialize(rich_format=True, max_size=60000, full_tx=tx)
+  serialized_tx_skel = tx_skel.serialize(rich_format=True, max_size=60000, rtx=rtx, full_tx=tx)
   send_message(message['sender'], \
      {"action":"take TBM transaction", "tx_skel": serialized_tx_skel, "mode": 0,
       "id":message['id'], 'node': message["node"] })
 
-def  process_tbm_tx(message, send, nodes):
+def  process_tbm_tx(message, send, nodes, rtx):
   try:
     initial_tbm = storage_space.mempool_tx.give_tx()
     tx_skel = TransactionSkeleton()
     tx_skel.deserialize_raw(message['tx_skel'], storage_space = storage_space)
-    storage_space.mempool_tx.add_tx(tx_skel)
+    storage_space.mempool_tx.add_tx(tx_skel, rtx=rtx)
     final_tbm = storage_space.mempool_tx.give_tx()
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
@@ -871,12 +891,12 @@ def  process_tbm_tx(message, send, nodes):
     pass
 
   
-def check_sync_status(nodes, send):
+def check_sync_status(nodes, send, rtx):
   for node_index in nodes:
     node = nodes[node_index]
     if ((not "last_update" in node) or node["last_update"]+300<time()) and ((not "last_send" in node) or node["last_send"]+5<time()):
       #logger.info("\n node last_update %d was %.4f sec\n"%(("last_update" in node),   (time()-node["last_update"] if ("last_update" in node) else 0 )))
-      send_tip_info(node_info = node, send=send)
+      send_tip_info(node_info = node, send=send, rtx=rtx)
 
 
 def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
@@ -888,8 +908,8 @@ def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
     send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
-def notify_all_nodes_about_new_tip(nodes, send):
+def notify_all_nodes_about_new_tip(nodes, send, rtx):
   for node_index in nodes:
     node = nodes[node_index]
-    send_tip_info(node_info=node, send=send)
+    send_tip_info(node_info=node, send=send, rtx=rtx)
 

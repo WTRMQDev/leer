@@ -31,12 +31,12 @@ class Block():
   def hash(self):
     return self.header.hash
 
-  def serialize(self, rich_block_format=False, max_size =40000):
+  def serialize(self, rtx, rich_block_format=False, max_size =40000):
     serialized=b""
     serialized += self.header.serialize()
     serialized += self.transaction_skeleton.serialize(rich_format=rich_block_format, max_size=max_size,
         full_tx = build_tx_from_skeleton(self.transaction_skeleton,\
-                                         self.storage_space.txos_storage, self.header.height, \
+                                         self.storage_space.txos_storage, self.header.height, rtx=rtx,\
                                          historical = True) if rich_block_format else None)
     return serialized
 
@@ -49,7 +49,7 @@ class Block():
     serialized = self.transaction_skeleton.deserialize_raw(serialized, storage_space=self.storage_space)
     return serialized
 
-  def non_context_verify(self):
+  def non_context_verify(self, rtx):
     '''
       To verify block we need to
         0) check that header is known and valid
@@ -60,20 +60,20 @@ class Block():
         4) check reward size (actually in can be checked on headers level)
     '''
     # stage 1
-    assert self.header.hash in self.storage_space.headers_storage, "Block's header is unknown"
+    assert self.storage_space.headers_storage.has(self.header.hash, rtx=rtx), "Block's header is unknown"
     #self.storage_space.headers_storage.context_validation(self.header.hash)
-    assert not self.storage_space.headers_storage[self.header.hash].invalid, "Block's header is invalid. Reason: `%s`"%self.storage_space.headers_storage[self.header.hash].reason
+    assert not self.storage_space.headers_storage.get(self.header.hash, rtx=rtx).invalid, "Block's header is invalid. Reason: `%s`"%self.storage_space.headers_storage.get(self.header.hash, rtx=rtx).reason
 
     #currently during building we automatically check that tx can ba applied and tx is valid
     self.tx = build_tx_from_skeleton(self.transaction_skeleton, txos_storage=self.storage_space.txos_storage,
-                                     block_height=self.header.height, non_context = True)
+                                     block_height=self.header.height, rtx=rtx, non_context = True)
     # stage 3 => should be moved to blockchain
     #commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(tx)
     #excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(tx)
     #assert [commitment_root, txos_root, excesses_root]==self.header.merkles
 
     # This is context validation too??? TODO
-    assert self.tx.coinbase.value == (next_reward(self.header.prev, self.storage_space.headers_storage)+self.transaction_skeleton.relay_fee), "Wrong block subsidy"
+    assert self.tx.coinbase.value == (next_reward(self.header.prev, self.storage_space.headers_storage, rtx=rtx)+self.transaction_skeleton.relay_fee), "Wrong block subsidy"
     
     return True
 
@@ -83,7 +83,7 @@ class Block():
                     , len(self.transaction_skeleton.input_indexes),len(self.transaction_skeleton.output_indexes) )
     
 
-def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height,  historical=False, non_context = False):
+def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height, rtx, historical=False, non_context = False):
   '''
     By given tx_skeleton and txos_storage return transaction.
     If transaction is invalid or any input/output isn't available exception will be raised.
@@ -91,11 +91,11 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height,  historical=
   '''
   tx=Transaction(txos_storage=txos_storage)
   for _i in tx_skeleton.input_indexes:
-       tx.inputs.append(txos_storage.confirmed[_i])
+       tx.inputs.append(txos_storage.confirmed.get(_i, rtx=rtx))
   for _o in tx_skeleton.output_indexes:
        if historical:
          try:
-           tx.outputs.append(txos_storage.confirmed.find(_o))
+           tx.outputs.append(txos_storage.confirmed.find(_o, rtx=rtx))
          except:
            tx.outputs.append(txos_storage.mempool[_o])
        else:
@@ -106,11 +106,11 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height,  historical=
   if historical or non_context:
     assert tx.non_context_verify(block_height=block_height)
   else:
-    assert tx.verify(block_height=block_height)
+    assert tx.verify(block_height=block_height, rtx=rtx)
   return tx
 
 #To setup utils
-def generate_genesis(tx, storage_space):
+def generate_genesis(tx, storage_space, wtx):
     '''
         1. spend inputs and add outputs and excesses from tx to storage
         2. calc new mercles
@@ -121,7 +121,7 @@ def generate_genesis(tx, storage_space):
     excesses = storage_space.excesses_storage
 
 
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx) + [excesses.apply_tx_get_merkles_and_rollback(tx)]
+    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx)]
     popow = PoPoW([])
     votedata = VoteData()
     target = initial_target
@@ -135,7 +135,7 @@ def generate_genesis(tx, storage_space):
 
 
 
-def generate_block_template(tx, storage_space, get_tx_from_mempool = True, timestamp = None):
+def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, timestamp = None):
     '''
         Generate block template: block is correct but nonce (by default) is equal to zero.
         Thus difficulty target (almost always) isn't met.
@@ -154,23 +154,23 @@ def generate_block_template(tx, storage_space, get_tx_from_mempool = True, times
 
     storage = storage_space.txos_storage
     excesses = storage_space.excesses_storage
-    current_block = storage_space.blocks_storage[storage_space.blockchain.current_tip]
+    current_block = storage_space.blocks_storage.get(storage_space.blockchain.current_tip(rtx=wtx), rtx=wtx)
     if get_tx_from_mempool:
       try:
-        tx = tx.merge(storage_space.mempool_tx.give_tx())
+        tx = tx.merge(storage_space.mempool_tx.give_tx(), rtx=wtx)
       except:
         pass
 
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx) + [excesses.apply_tx_get_merkles_and_rollback(tx)]
+    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx)]
     popow = current_block.header.next_popow()
     #We subtract relay fee, since coinbase value contain relay fees, but it isn't new money, but redistribution
     supply = current_block.header.supply + tx.coinbase.value - tx.calc_new_outputs_fee() - tx.relay_fee 
     height = current_block.header.height+1
     votedata = VoteData()
-    target = next_target(current_block.hash, storage_space.headers_storage)    
+    target = next_target(current_block.hash, storage_space.headers_storage, rtx=wtx)    
     full_offset = (current_block.header.full_offset+tx.mixer_offset)%0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #TODO sum_offset to utils
     if not timestamp:
-      timestamp = max(int(time()), storage_space.headers_storage[storage_space.blockchain.current_tip].timestamp+1)
+      timestamp = max(int(time()), storage_space.headers_storage.get(storage_space.blockchain.current_tip(rtx=wtx), rtx=wtx).timestamp+1)
     header=Header(height = height, supply=supply, full_offset=full_offset, merkles=merkles, popow=popow, votedata=votedata, timestamp=timestamp, target=target, version=int(1), nonce=b"\x00"*16)
     
     tx_skeleton = TransactionSkeleton(tx=tx)
@@ -197,7 +197,7 @@ class ContextBlock(Block):
     self.reason = None
 
   def serialize_with_context(self):
-    ser = super(ContextBlock, self).serialize()
+    ser = super(ContextBlock, self).serialize(rtx=None) # We can pass None as rtx, since rtx is required for rich block serialization
     ser += int(self.invalid).to_bytes(1,'big')
     reason = self.reason if self.reason else ""
     ser += int(len(reason)).to_bytes(2,'big')

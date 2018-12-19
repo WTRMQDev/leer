@@ -27,7 +27,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.key_manager = None
     self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
 
-  def update_current_set(self):
+  def update_current_set(self, rtx):
     '''
       For now we have quite a simple and dirty algo:
       1) sort all tx by input_num (bigger first)
@@ -44,7 +44,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       #TODO build_tx_from_skeleton should raise distinctive exceptions
       downloaded = True
       for _i in tx_skeleton.input_indexes:
-        if not _i in txos_storage.confirmed:
+        if not txos_storage.confirmed.has(_i, rtx=rtx):
           downloaded = False
       for _o in tx_skeleton.output_indexes:
         if not _o in txos_storage.mempool:
@@ -58,7 +58,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
           if tx_skeleton.tx:
             full_tx = tx_skeleton.tx
           else:
-            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage, self.storage_space.blockchain.current_height +1)
+            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage, self.storage_space.blockchain.current_height(rtx=rtx) +1, rtx=rtx)
             tx_skeleton.tx=full_tx
           self.built_tx[tx_skeleton.serialize()]=full_tx
       except Exception as e:
@@ -66,7 +66,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
         continue
       try:
         if self.fee_policy_checker.check_tx(full_tx):
-          merged_tx = merged_tx.merge(full_tx)
+          merged_tx = merged_tx.merge(full_tx, rtx=rtx)
           self.current_set.append(tx_skeleton)
       except Exception as e:
         pass #it is ok, tx contradicts with other transactions in the pool
@@ -75,8 +75,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       self.built_tx.pop(tx.serialize(), None)
     self.combined_tx = merged_tx
 
-  def update(self, reason):
-    self.update_current_set()
+  def update(self, rtx, reason):
+    self.update_current_set(rtx=rtx)
 
   def give_tx(self):
     return self.combined_tx
@@ -84,7 +84,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
   def give_tx_skeleton(self):    
     return TransactionSkeleton(tx = self.combined_tx)
 
-  def add_tx(self,tx):
+  def add_tx(self,tx, rtx):
     if isinstance(tx, Transaction):
       tx_skel = TransactionSkeleton(tx=tx)
       self.built_tx[tx_skel.serialize()]=tx
@@ -93,22 +93,22 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       self.transactions.append(tx)
     else:
       raise
-    self.update(reason="Tx addition")
+    self.update(rtx=rtx, reason="Tx addition")
 
   def set_key_manager(self, key_manager): #TODO remove
     self.key_manager = key_manager
 
-  def give_block_template(self, coinbase_address):
+  def give_block_template(self, coinbase_address, wtx):
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
-    value = next_reward(self.storage_space.blockchain.current_tip, self.storage_space.headers_storage)+transaction_fees
+    value = next_reward(self.storage_space.blockchain.current_tip(rtx=wtx), self.storage_space.headers_storage, rtx=wtx)+transaction_fees
     coinbase = IOput()
-    coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height + 1 + coinbase_maturity)
+    coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height(rtx=wtx) + 1 + coinbase_maturity)
     coinbase.generate()
     self.storage_space.txos_storage.mempool[coinbase.serialized_index]=coinbase
     tx=Transaction(txos_storage = self.storage_space.txos_storage)
     tx.add_coinbase(coinbase)
-    tx.compose_block_transaction()
-    block = generate_block_template(tx, self.storage_space)
+    tx.compose_block_transaction(rtx=wtx)
+    block = generate_block_template(tx, self.storage_space, wtx=wtx)
     self.add_block_template(block)
     return block
   

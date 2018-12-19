@@ -4,61 +4,60 @@ import shutil, os, time, lmdb, math
 
 class BlocksStorage:
   __shared_states = {}
-  def __init__(self, storage_space):
+  def __init__(self, storage_space, wtx):
     path = storage_space.path
     if not path in self.__shared_states:
       self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
 
-    self.storage = BlocksDiscStorage(path, env=storage_space.env)
+    self.storage = BlocksDiscStorage(path, env=storage_space.env, wtx=wtx)
     self.storage_space = storage_space
     self.storage_space.register_blocks_storage(self)
     self.download_queue = []
     
-  def __getitem__(self, _hash):
-    if not _hash in self.storage:
+  def get(self, _hash, rtx):
+    serialized_context_block = self.storage.get_by_hash(_hash, rtx=rtx)
+    if not serialized_context_block:
       raise KeyError(_hash)
-    serialized_context_block = self.storage.get_by_hash(_hash)
     block=Block(storage_space=self.storage_space)
     cblock = ContextBlock(block=block)
     cblock.deserialize_raw(serialized_context_block)
     return cblock
 
-  def __setitem__(self, _hash, block):
-    #here we should save
-    self.storage.put(_hash, block.serialize_with_context())
+  def put(self, _hash, block, wtx):
+    self.storage.put(_hash, block.serialize_with_context(), wtx=wtx)
 
-  def __contains__(self, _hash):
-    return _hash in self.storage  
+  def has(self, _hash, rtx):
+    return self.storage.has(_hash, rtx=rtx)  
 
-  def is_block_downloaded(self, _hash, auto_download=True):
+  def is_block_downloaded(self, _hash, rtx, auto_download=True):
     asked = False
     result = True
-    block = self[_hash]
+    block = self.get(_hash, rtx=rtx)
     for output in block.transaction_skeleton.output_indexes:
-      if not self.storage_space.txos_storage.known(output):
+      if not self.storage_space.txos_storage.known(output, rtx=rtx):
         result = False
         if auto_download:
           self._ask_for_txout(output)
           asked = True
     if asked:
-      self._ask_for_txouts()
+      self._ask_for_txouts()#flushing requests
     return result
 
-  def get_rollback_object(self, _hash):
-    serialized_rollback = self.storage.get_rollback_object(_hash)
+  def get_rollback_object(self, _hash, rtx):
+    serialized_rollback = self.storage.get_rollback_object(_hash, rtx=rtx)
     rb=RollBack()
     rb.deserialize_raw(serialized_rollback)
     return rb
 
-  def pop_rollback_object(self, _hash):
-    serialized_rollback = self.storage.pop_rollback_object(_hash)
+  def pop_rollback_object(self, _hash, wtx):
+    serialized_rollback = self.storage.pop_rollback_object(_hash, wtx=wtx)
     rb=RollBack()
     rb.deserialize_raw(serialized_rollback)
     return rb
 
-  def put_rollback_object(self, _hash, rollback):
-    self.storage.put_rollback_object(_hash, rollback.serialize())
+  def put_rollback_object(self, _hash, rollback, wtx):
+    self.storage.put_rollback_object(_hash, rollback.serialize(), wtx=wtx)
 
 
 
@@ -70,8 +69,8 @@ class BlocksStorage:
     self.ask_for_txouts_hook(self.download_queue)
     self.download_queue = []
 
-  def forget_block(self, _hash):
-    self.storage.delete_block_by_hash(_hash)
+  def forget_block(self, _hash, wtx):
+    self.storage.delete_block_by_hash(_hash, wtx=wtx)
 
 
 
@@ -136,44 +135,36 @@ class RollBack:
 
 
 class BlocksDiscStorage:
-  def __init__(self, dir_path, env):
+  def __init__(self, dir_path, env, wtx):
     self.dir_path = dir_path
 
     self.env = env
-    with self.env.begin(write=True) as txn:
-      self.main_db = self.env.open_db(b'blocks_main_db', txn=txn, dupsort=False) # block_hash -> serialized_contextblock
-      self.revert_db = self.env.open_db(b'blocks_revert_db', txn=txn, dupsort=False) # block_hash -> object_for_reverting
+    self.main_db = self.env.open_db(b'blocks_main_db', txn=wtx, dupsort=False) # block_hash -> serialized_contextblock
+    self.revert_db = self.env.open_db(b'blocks_revert_db', txn=wtx, dupsort=False) # block_hash -> object_for_reverting
 
-  def put(self, _hash, serialized_block):
-    with self.env.begin(write=True) as txn:
-      p1=txn.put( bytes(_hash), bytes(serialized_block), db=self.main_db, dupdata=False, overwrite=True)
+  def put(self, _hash, serialized_block, wtx):
+    p1=wtx.put( bytes(_hash), bytes(serialized_block), db=self.main_db, dupdata=False, overwrite=True)
 
-  def update(self, _hash, serialized_block):
-    with self.env.begin(write=True) as txn:
-      txn.put(bytes(_hash), bytes(serialized_block), db=self.main_db, dupdata=False, overwrite=True)
+  def update(self, _hash, serialized_block, wtx):
+    wtx.put(bytes(_hash), bytes(serialized_block), db=self.main_db, dupdata=False, overwrite=True)
 
-  def get_by_hash(self, _hash):
-    with self.env.begin(write=False) as txn:
-      return txn.get(bytes(_hash), db=self.main_db)
+  def get_by_hash(self, _hash, rtx):
+    return rtx.get(bytes(_hash), db=self.main_db)
 
-  def get_rollback_object(self, _hash):
-    with self.env.begin(write=False) as txn:
-      return txn.get(bytes(_hash), db=self.revert_db)
+  def get_rollback_object(self, _hash, rtx):
+    return rtx.get(bytes(_hash), db=self.revert_db)
 
-  def pop_rollback_object(self, _hash):
-    with self.env.begin(write=True) as txn:
-      return txn.pop(bytes(_hash), db=self.revert_db)
+  def pop_rollback_object(self, _hash, wtx):
+    return wtx.pop(bytes(_hash), db=self.revert_db)
 
-  def put_rollback_object(self, _hash, serialized_rollback_object):
-    with self.env.begin(write=True) as txn:
-      return txn.put(bytes(_hash), bytes(serialized_rollback_object), db=self.revert_db)
+  def put_rollback_object(self, _hash, serialized_rollback_object, wtx):
+    return wtx.put(bytes(_hash), bytes(serialized_rollback_object), db=self.revert_db)
 
-  def __contains__(self, _hash):
-    return bool(self.get_by_hash(_hash))
+  def has(self, _hash, rtx):
+    return bool(self.get_by_hash(_hash, rtx=rtx))
 
-  def delete_block_by_hash(self, _hash):
-    with self.env.begin(write=True) as txn:
-      txn.delete( bytes(_hash), db=self.main_db)
+  def delete_block_by_hash(self, _hash, wtx):
+    wtx.delete( bytes(_hash), db=self.main_db)
     
   
 
