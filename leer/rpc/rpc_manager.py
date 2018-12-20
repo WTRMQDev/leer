@@ -49,6 +49,7 @@ class RPCManager():
     methods.add(self.dumpprivkey)
     methods.add(self.importprivkey)
     methods.add(self.getsyncstatus)
+    methods.add(self.getblock)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -169,7 +170,7 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
-  async def dumpprivkey(self, address):
+  async def dumpprivkey(self, address): #TODO DOESN'T WORK
     _id = str(uuid4())
     self.syncer.queues['Blockchain'].put({'action':'give private key', 'id':_id,
                                           'address':address, 'sender': "RPCManager"})
@@ -178,10 +179,19 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
-  async def importprivkey(self, privkey):
+  async def importprivkey(self, privkey): #TODO DOESN'T WORK
     _id = str(uuid4())
     self.syncer.queues['Blockchain'].put({'action':'take private key', 'id':_id,
                                           'privkey':privkey, 'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return answer['result']
+
+  async def getblock(self, block_num):
+    _id = str(uuid4())
+    self.syncer.queues['Blockchain'].put({'action':'give block info', 'id':_id,
+                                          'block_num':block_num, 'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)

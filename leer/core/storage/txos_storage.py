@@ -224,6 +224,14 @@ class TXOsStorage:
       return self.mempool[output_index].serialize()
     else:
       return self.confirmed.find_wo_deser(output_index, rtx=rtx)
+
+  def find(self, output_index, rtx):
+    if output_index in self.mempool:
+      return self.mempool[output_index]
+    else:
+      return self.confirmed.find(output_index, rtx=rtx)
+
+
     
 
 

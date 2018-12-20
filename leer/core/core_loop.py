@@ -120,8 +120,8 @@ def init_storage_space(config):
     bc = Blockchain(storage_space)
     mptx = MempoolTx(storage_space)
     utxoi = UTXOIndex(storage_space, wtx=wtx)
-  #km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
-  #mptx.set_key_manager(km)
+    #km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
+    #mptx.set_key_manager(km)
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)
   
@@ -323,6 +323,15 @@ def core_loop(syncer, config):
         #raise e #TODO send to NM
       except Exception as e:
         raise e
+
+      if message["action"] == "give block info":
+        notify("core workload", "reading block info")
+        try:
+          with storage_space.env.begin(write=False) as rtx:
+            block_info = compose_block_info(message["block_num"], rtx=rtx)
+          send_message(message["sender"], {"id": message["id"], "result":block_info})
+        except Exception as e:
+          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
 
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
@@ -889,6 +898,40 @@ def  process_tbm_tx(message, send, nodes, rtx):
   except Exception as e:
     print(e)
     pass
+
+
+def compose_block_info(block_num, rtx):
+  ct = storage_space.blockchain.current_tip(rtx=rtx)
+  ch = storage_space.blockchain.current_height(rtx=rtx)
+  if block_num>ch:
+    raise Exception("Unknown block")
+  target_hash = ct
+  if block_num<ch:
+    target_hash = storage_space.headers_manager.find_ancestor_with_height(ct, block_num, rtx=rtx)
+  block = storage_space.blocks_storage.get(target_hash, rtx=rtx)
+  result = {'hash':target_hash.hex()}
+  result['target']=float(block.header.target)
+  result['supply']=block.header.supply
+  result['timestamp']=block.header.timestamp
+  result['height'] = block.header.height
+  result['inputs']=[]
+  result['outputs']=[]
+  for i in block.transaction_skeleton.input_indexes:
+    index=i.hex()
+    address=storage_space.txos_storage.find(i, rtx=rtx).address.to_text()
+    result['inputs'].append((index, address))
+  for o in block.transaction_skeleton.output_indexes:
+    index=o.hex()
+    txo = storage_space.txos_storage.find(o, rtx=rtx)
+    address=txo.address.to_text()
+    lock_height = txo.lock_height
+    relay_fee = txo.relay_fee
+    version = txo.version
+    amount = txo.value
+    result['outputs'].append(({"output_id":index, "address":address, "lock_height":lock_height, "relay_fee":relay_fee, "version":version, "amount":amount}))
+  return result
+  
+  
 
   
 def check_sync_status(nodes, send, rtx):
