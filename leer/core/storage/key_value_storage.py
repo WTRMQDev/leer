@@ -1,9 +1,8 @@
 class KeyValueStorage:
-  def __init__(self, dir_path, name, env, wtx):
-    self.dir_path = dir_path
+  def __init__(self, name, env, wtx):
     self.name = name.encode("utf-8")
     self.env = env
-    self.main_db = self.env.open_db(self.name + b'main_db', txn=wtx, dupsort=False)
+    self.main_db = self.env.open_db(self.name + b'_main_db', txn=wtx, dupsort=False)
 
   def put(self, key, value, wtx):
       return wtx.put( bytes(key), bytes(value), db=self.main_db)
