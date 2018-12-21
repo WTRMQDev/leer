@@ -137,20 +137,20 @@ class MMR:
       self._update_path(0, num, wtx=wtx)
 
   def has_index(self, rtx, obj_index):
-      index = wtx.get( bytes(obj_index), db=self.reverse_order_db)
+      index = rtx.get( bytes(obj_index), db=self.reverse_order_db)
       return bool(index)
 
   def append_unique(self, wtx, obj_index=None, obj=None):
       index = wtx.get( bytes(obj_index), db=self.reverse_order_db)
       if index:
-        raise Exception("Not unique")
+        raise KeyError("Not unique")
       self.append(wtx=wtx, obj_index=obj_index, obj=obj)
 
   def update_index(self, wtx, num_index, obj_index):
       old_index = wtx.get( _(num_index), db=self.order_db)
       wtx.put( _(num_index), bytes(obj_index), db=self.order_db)
-      wtx.delete( bytes(old_index), _(num), db=self.reverse_order_db)
-      wtx.put( bytes(obj_index), _(num), db=self.reverse_order_db)
+      wtx.delete( bytes(old_index), _(num_index), db=self.reverse_order_db)
+      wtx.put( bytes(obj_index), _(num_index), db=self.reverse_order_db)
       obj = wtx.pop(bytes(old_index), db=self.leaf_db)
       wtx.put(bytes(obj_index), bytes(obj) , db=self.leaf_db)
       self._update_path(0, num_index, wtx=wtx)

@@ -178,7 +178,29 @@ def test_state_assignment(env, wtx):
   new_state = b"\x33"*32
   a.set_state(new_state, wtx=wtx)
   assert new_state == a.get_state(rtx=wtx)
-  print("test_state_assignment ok")
+  print("test_state_assignment OK")
+
+
+def test_unique(env, wtx):
+  a=MMRTest1("unique","~/.testleer/", env, wtx, save_pruned=True)
+  for i in range(10):
+    a.append_unique(wtx, bytes(str(i),'ascii'), b"e1ee7 "+bytes(str(i),'ascii'))
+  assert a.get_root(rtx=wtx)==b'((((0+1)+(2+3))+((4+5)+(6+7)))+(8+9))'
+  try:
+    a.append_unique(wtx, bytes(str(8),'ascii'), bytes(str(8),'ascii'))
+    raise Exception
+  except KeyError:
+    pass
+  assert a.has_index(rtx=wtx, obj_index=bytes(str(8),'ascii'))
+  assert not a.has_index(rtx=wtx, obj_index=bytes(str(12),'ascii'))
+  a.update_index(wtx, 2, b"e")
+  assert a.get_root(rtx=wtx)==b'((((0+1)+(e+3))+((4+5)+(6+7)))+(8+9))'
+  assert not a.has_index(rtx=wtx, obj_index=bytes(str(2),'ascii'))
+  assert a.has_index(rtx=wtx, obj_index=b"e")
+  assert a.get_by_hash(b"e", rtx=wtx) == b"e1ee7 2"
+  print("test_unique OK")
+  
+
 
 
 def bench(env, wtx, n=10000):
@@ -206,5 +228,6 @@ def merkle_test():
     test_prune_elements(env, wtx)
     test_save_pruned_db(env, wtx)
     test_state_assignment(env, wtx)
+    test_unique(env, wtx)
   wipe_test_dirs()
 
