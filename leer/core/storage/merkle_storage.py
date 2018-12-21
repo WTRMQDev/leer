@@ -58,10 +58,10 @@ class MMR:
     self.leaf_db = self.env.open_db(self.name+b'leaf_db', txn=wtx)
     self.node_db = self.env.open_db(self.name+b'node_db', txn=wtx)
     self.order_db = self.env.open_db(self.name+b'order_db', txn=wtx)
-    self.reverse_order_db = self.env.open_db(self.name+b'reverse_order_db', txn=wtx)
+    self.reverse_order_db = self.env.open_db(self.name+b'reverse_order_db', txn=wtx, dupsort=True)
     if self.save_pruned:
         self.pruned_db = self.env.open_db(self.name+b'pruned_db', txn=wtx)
-        self.pruned_ro_db = self.env.open_db(self.name+b'pruned_ro_db', txn=wtx)
+        self.pruned_ro_db = self.env.open_db(self.name+b'pruned_ro_db', txn=wtx, dupsort=True)
 
   def _get_node(self, level, sequence_num, rtx):
     if level==0:
@@ -135,6 +135,26 @@ class MMR:
       wtx.put( bytes(obj_index), _(num), db=self.reverse_order_db)
       wtx.put(bytes(obj_index), bytes(obj), db=self.leaf_db)
       self._update_path(0, num, wtx=wtx)
+
+  def has_index(self, rtx, obj_index):
+      index = wtx.get( bytes(obj_index), db=self.reverse_order_db)
+      return bool(index)
+
+  def append_unique(self, wtx, obj_index=None, obj=None):
+      index = wtx.get( bytes(obj_index), db=self.reverse_order_db)
+      if index:
+        raise Exception("Not unique")
+      self.append(wtx=wtx, obj_index=obj_index, obj=obj)
+
+  def update_index(self, wtx, num_index, obj_index):
+      old_index = wtx.get( _(num_index), db=self.order_db)
+      wtx.put( _(num_index), bytes(obj_index), db=self.order_db)
+      wtx.delete( bytes(old_index), _(num), db=self.reverse_order_db)
+      wtx.put( bytes(obj_index), _(num), db=self.reverse_order_db)
+      obj = wtx.pop(bytes(old_index), db=self.leaf_db)
+      wtx.put(bytes(obj_index), bytes(obj) , db=self.leaf_db)
+      self._update_path(0, num_index, wtx=wtx)
+      
     
 
   def remove(self, num, wtx, set_of_indexes=None):
@@ -158,7 +178,7 @@ class MMR:
           el=wtx.get(_(el_n),db=self.order_db)
           cache[el_n] = el
         wtx.delete( _(el_n), db=self.order_db)
-        wtx.delete( cache[el_n], db=self.reverse_order_db)
+        wtx.delete( cache[el_n], _(el_n), db=self.reverse_order_db)
         removed_objects.append(wtx.pop( cache[el_n], db=self.leaf_db))
         #TODO we can make this much faster for bulk deletion by not updating
         # each path separately
