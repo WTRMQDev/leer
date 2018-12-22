@@ -6,6 +6,7 @@ adr1,adr2,adr3,adr4,adr5= [address_from_private_key(PrivateKey()) for i in range
 
 def test_ioput():
   ioput_serialize_deserialize()
+  ioput_proofs_info()
 
 
 def ioput_serialize_deserialize():
@@ -44,3 +45,43 @@ def ioput_serialize_deserialize():
     assert _input1.authorized_burden==_input2.authorized_burden
 
   print("ioput_serialize_deserialize OK")
+
+def ioput_proofs_info():
+  _input1=IOput()
+  _input1.fill(adr1, 100)
+  _input1.version = 1 #To use RangeProof instead of BulletProofs
+  _input1.generate(exp=2, concealed_bits=3)
+  info=_input1.info()
+  assert info['exp']==2
+  assert info['min_value']==0
+  assert info['max_value']==700
+  _input1=IOput()
+  _input1.fill(adr1, 3)
+  _input1.version = 1 #To use RangeProof instead of BulletProofs
+  _input1.generate(exp=0, concealed_bits=3, min_value=1)
+  info=_input1.info()
+  assert info['exp']==0
+  assert info['mantissa']==3
+  assert info['min_value']==1
+  assert info['max_value']==8
+  _input1=IOput()
+  _input1.fill(adr1, 300)
+  _input1.version = 1 #To use RangeProof instead of BulletProofs
+  #coceanled bits cannot be less than bits in value
+  _input1.generate(exp=0, concealed_bits=3)
+  info=_input1.info()
+  assert info['exp']==0
+  assert info['mantissa']==9
+  assert info['min_value']==0
+  assert info['max_value']==511
+  print("ioput_proofs_info OK")
+
+  _input1=IOput()
+  _input1.fill(adr1, 300)
+  _input1.generate()
+  info=_input1.info()
+  assert info['exp']==0
+  assert info['mantissa']==0
+  assert info['min_value']==0
+  assert info['max_value']==2**64-1
+

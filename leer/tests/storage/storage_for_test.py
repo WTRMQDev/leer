@@ -17,7 +17,7 @@ from leer.core.storage.storage_space import StorageSpace
 import shutil, time, os
 
 home = os.path.expanduser("~")
-base_path = join(home, ".testleer")
+base_path = os.path.join(home, ".testleer")
 
 
 def wipe_test_dirs():
