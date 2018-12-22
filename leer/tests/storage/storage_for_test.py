@@ -16,7 +16,7 @@ from leer.core.storage.utxo_index_storage import UTXOIndex
 from leer.core.storage.storage_space import StorageSpace
 import shutil, time, os
 
-home = expanduser("~")
+home = os.path.expanduser("~")
 base_path = join(home, ".testleer")
 
 

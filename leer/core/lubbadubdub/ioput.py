@@ -163,7 +163,7 @@ class IOput:
     has_burden, part2 = part2[:1], part2[1:]
     consumed += has_burden
     if has_burden == b"\01":
-      self.authorized_burden, part2 = part2[:32], part[32:] 
+      self.authorized_burden, part2 = part2[:32], part2[32:] 
       consumed += self.authorized_burden
     
     if len(part2)<2:
