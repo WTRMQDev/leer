@@ -155,6 +155,12 @@ class MMR:
       obj = wtx.pop(bytes(old_index), db=self.leaf_db)
       wtx.put(bytes(obj_index), bytes(obj) , db=self.leaf_db)
       self._update_path(0, num_index, wtx=wtx)
+
+  def update_index_unique(self, wtx, num_index, obj_index):
+      nindex = wtx.get( bytes(obj_index), db=self.reverse_order_db)
+      if nindex:
+        raise KeyError("Not unique")
+      self.update_index(wtx, num_index, obj_index)
       
     
 
