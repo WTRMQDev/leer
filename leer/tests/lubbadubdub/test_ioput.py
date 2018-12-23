@@ -2,11 +2,14 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import address_from_private_key
 from secp256k1_zkp import PrivateKey
 
-adr1,adr2,adr3,adr4,adr5= [address_from_private_key(PrivateKey()) for i in range(5)]
+keys = [PrivateKey() for i in range(5)]
+adr1,adr2,adr3,adr4,adr5= [address_from_private_key(keys[i]) for i in range(5)]
 
 def test_ioput():
   ioput_serialize_deserialize()
   ioput_proofs_info()
+  ioput_encrypted_messsage()
+  test_ioput_indexes()
 
 
 def ioput_serialize_deserialize():
@@ -84,4 +87,26 @@ def ioput_proofs_info():
   assert info['mantissa']==0
   assert info['min_value']==0
   assert info['max_value']==2**64-1
+
+def ioput_encrypted_messsage():
+  _input1=IOput()
+  _input1.fill(adr1, 100)
+  _input1.generate(exp=2, concealed_bits=3)
+
+  _input2=IOput(binary_object=_input1.serialize())
+  _input2.verify()
+  _input2.detect_value_new({'priv_by_pub':{adr1.serialized_pubkey:keys[0]}})
+  
+  assert _input1.value==_input2.value
+  assert _input1.blinding_key.serialize()==_input2.blinding_key.serialize()
+  print("ioput_encrypted_message OK")
+
+def test_ioput_indexes():
+  _input1=IOput()
+  _input1.fill(adr1, 100)
+  _input1.generate(exp=2, concealed_bits=3)
+  assert _input1.index_len==32+33
+  assert len(_input1.serialized_index)==32+33
+  assert len(_input1.commitment_index)==32+33
+  print("ioput_indexes len OK")
 
