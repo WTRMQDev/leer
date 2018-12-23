@@ -20,7 +20,9 @@ class CommitmentMMR(MMR):
         first_part = sm.serialize()
         second_part = sha256(hash1+hash2)
         return first_part+second_part
-        
+      
+      def append(self, wtx, obj_index=None, obj=None):
+        raise TypeError("For commitments append_unique should be used")  
 
 class TXOMMR(MMR):
       def sum(self, x1,x2):
@@ -65,7 +67,7 @@ class ConfirmedTXOStorage:
     def append(self, utxo, wtx):
       assert utxo.verify() #Should be fast since cached
       self.txos.append(wtx=wtx, obj_index=sha256(utxo.serialized_index), obj=utxo.serialize())
-      self.commitments.append(wtx=wtx, obj_index=utxo.commitment_index, obj=b"")
+      self.commitments.append_unique(wtx=wtx, obj_index=utxo.commitment_index, obj=b"")
 
     def spend(self, utxo, wtx, return_revert_obj=False):
       txos = self.txos.discard(sha256(utxo.serialized_index), wtx=wtx)

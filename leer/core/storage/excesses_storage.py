@@ -37,11 +37,11 @@ class ExcessesStorage():
       storage_space.register_excesses_storage(self)
       
     def append_utxo(self, utxo, wtx):
-      self.excesses.append(wtx=wtx, obj_index=utxo.address.index, obj=b"")
+      return self.excesses.append(wtx=wtx, obj_index=utxo.address.index, obj=b"")
 
 
     def append_additional_excess(self, excess, wtx):
-      self.excesses.append(wtx=wtx, obj_index=excess.index, obj=excess.serialize())
+      self.excesses.append_unique(wtx=wtx, obj_index=excess.index, obj=excess.serialize())
 
     #def __contains__(self, serialized_index, ):
     #  return bool(self.excesses.get_by_hash(serialized_index))
@@ -65,8 +65,10 @@ class ExcessesStorage():
 
     #TODO bad naming. It should be apply block, or block_transaction
     def apply_tx(self, tx, new_state, wtx):
+      nums = []
       for _o in tx.outputs:
-          self.append_utxo(_o, wtx=wtx)
+          num = self.append_utxo(_o, wtx=wtx)
+          nums.append(num)
       for _e in tx.additional_excesses:
           self.append_additional_excess(_e, wtx=wtx)
       self.set_state(new_state, wtx=wtx)

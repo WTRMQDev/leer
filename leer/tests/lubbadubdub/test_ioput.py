@@ -27,7 +27,6 @@ def ioput_serialize_deserialize():
           n[opt] = i
         all_possible_options.append(n)
 
-  print("Variants num ", len(all_possible_options))
   for var in all_possible_options:
     _input1=IOput()
     _input1.fill(**var)
