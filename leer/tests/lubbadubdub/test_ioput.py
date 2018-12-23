@@ -95,7 +95,7 @@ def ioput_encrypted_messsage():
 
   _input2=IOput(binary_object=_input1.serialize())
   _input2.verify()
-  _input2.detect_value_new({'priv_by_pub':{adr1.serialized_pubkey:keys[0]}})
+  _input2.detect_value({'priv_by_pub':{adr1.serialized_pubkey:keys[0]}})
   
   assert _input1.value==_input2.value
   assert _input1.blinding_key.serialize()==_input2.blinding_key.serialize()

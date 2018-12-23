@@ -74,7 +74,7 @@ class KeyManagerClass:
     index = output.serialized_index
     pubkey = output.address.serialized_pubkey
     taddress = output.address.to_text().encode()
-    output.detect_value_new(inputs_info = 
+    output.detect_value(inputs_info = 
          {'priv_by_pub':{
                            pubkey : self.priv_by_address(output.address)
                         }

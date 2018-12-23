@@ -74,7 +74,7 @@ class Transaction:
       self.combined_excesses = new_tx.combined_excesses
     self.verify(rtx=rtx)
 
-
+  '''
   # should be moved to wallet???
   def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
     self.serialized = None
@@ -121,6 +121,7 @@ class Transaction:
     [output.generate() for output in self.outputs]
     self.sort_ioputs()
     self.verify()
+  '''
 
   # should be moved to wallet???
   def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
@@ -132,7 +133,7 @@ class Transaction:
     if not len(self._destinations):
       raise Exception("Tx should have at least one destination")
     for ioput in self.inputs:
-      if not ioput.detect_value_new(inputs_info=priv_data):
+      if not ioput.detect_value(inputs_info=priv_data):
         raise Exception("Trying to generate tx which spends unknown input")
     in_value = sum([ioput.value for ioput in self.inputs]) 
     out_value = sum([destination[1] for destination in self._destinations])

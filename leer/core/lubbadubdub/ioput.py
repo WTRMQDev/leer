@@ -198,22 +198,7 @@ class IOput:
     self.serialized = consumed
     return part3[2+range_proof_len:]
 
-  def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
-    try:
-          privkey = key_manager.priv_by_address(self.address)
-          nonce = self.apc
-          decrypted_message = decrypt(privkey, nonce, self.encrypted_message)
-          raw_blinding_key, self.value = struct.unpack( "> 32s Q", decrypted_message)
-          self.blinding_key=PrivateKey(raw_blinding_key, raw=True)
-          if not self._calc_pedersen_wos()==self.unpc:
-            self.blinding_key, self.value = None,None
-            raise Exception("Incorrect blinding key and value")
-    except Exception as e:
-         #TODO definetely some logic should be added here to notify about missed info
-         pass  
-    return bool(self.value)
-
-  def detect_value_new(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
+  def detect_value(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
     try:
           privkey = inputs_info['priv_by_pub'][self.address.serialized_pubkey]
           nonce = self.apc
