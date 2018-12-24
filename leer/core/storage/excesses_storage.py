@@ -53,14 +53,12 @@ class ExcessesStorage():
       return self.excesses.get_root(rtx=rtx)
 
     def apply_tx_get_merkles_and_rollback(self, tx, wtx):
-      for _o in tx.outputs:
-          self.append_utxo(_o, wtx=wtx)
-      for _e in tx.additional_excesses:
-          self.append_additional_excess(_e, wtx=wtx)
-
+      initial_state = self.get_state(rtx=wtx)
+      initial_root = self.get_root(rtx=wtx)
+      num_of_addede_excesses = self.apply_tx(tx, b"Excess validation temporal state", wtx)
       root = self.get_root(rtx=wtx)
-
-      self.excesses.remove(len(tx.additional_excesses)+len(tx.outputs), wtx=wtx)
+      self.rollback(num_of_addede_excesses, initial_state, wtx)
+      assert initial_root==self.get_root(rtx=wtx), "Database was corrupted during excesses apply_tx_get_merkles_and_rollback"
       return root
 
     #TODO bad naming. It should be apply block, or block_transaction
