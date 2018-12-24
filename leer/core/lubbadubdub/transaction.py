@@ -1,5 +1,5 @@
 from collections import OrderedDict
-import struct
+import struct, os
 
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
 
@@ -26,9 +26,9 @@ class Transaction:
   def __init__(self, txos_storage, raw_tx=None, key_manager=None):
     #serializable data 
     self.inputs = []
+    self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
     self.outputs = []
     self.additional_excesses = []
-    self.combined_excesses = OrderedDict()
     self.mixer_offset = 0
     #inner data
     self._destinations = [] #destinations are unprepared outputs
@@ -71,7 +71,7 @@ class Transaction:
       self.inputs = new_tx.inputs
       self.outputs = new_tx.outputs
       self.additional_excesses = new_tx.additional_excesses
-      self.combined_excesses = new_tx.combined_excesses
+      self.updated_excesses = new_tx.updated_excesses
     self.verify(rtx=rtx)
 
   '''
@@ -161,7 +161,9 @@ class Transaction:
     in_blinding_key_sum = None
     for _input in self.inputs:
       in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
-      in_blinding_key_sum += priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
+      priv_key = priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
+      in_blinding_key_sum += priv_key
+      self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+os.urandom(32))
     output = IOput()
     output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum-offset_pk,
       relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
@@ -226,9 +228,11 @@ class Transaction:
         s_e = _excess.serialize()
         ret += struct.pack("> H", len(s_e))
         ret += s_e
+    for _input in self.inputs:
+        s_ue = self.updated_excesses[_input.serialized_index].serialize()
+        ret += struct.pack("> H", len(s_ue))
+        ret += s_ue
     ret += self.mixer_offset.to_bytes(32, "big")
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
     self.serialized = ret
     return ret
 
@@ -287,6 +291,17 @@ class Transaction:
       e.deserialize_raw(ae_buffer)
       self.additional_excesses.append(e )
 
+    for _ue in range(inputs_len):
+      if len(serialized_tx)<2:
+          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s length"%_ae)
+      ue_len_buffer, serialized_tx =serialized_tx[:2], serialized_tx[2:]
+      (ue_len,) = struct.unpack("> H", ue_len_buffer)
+      if len(serialized_tx)<ue_len:
+          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s"%_ae)
+      ue_buffer, serialized_tx = serialized_tx[:ue_len], serialized_tx[ue_len:]
+      e = Excess()
+      e.deserialize_raw(ue_buffer)
+      self.updated_excesses[self.inputs[_ue].serialized_index]=e
     if len(serialized_tx)<32:
         raise Exception("Serialized transaction doesn't contain enough bytes for mixer_offset")
     self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
@@ -311,8 +326,12 @@ class Transaction:
     assert is_sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize()), "Inputs are not sorted"
     assert is_sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize()), "Outputs are not sorted"
 
+    assert len(self.inputs)==len(self.updated_excesses)
     for _input in self.inputs:
        assert _input.lock_height<block_height, "Timelocked input"
+       s_i = _input.serialized_index
+       assert s_i in self.updated_excesses, "Updated excesses do not contain update for address %s"%_input.address.to_text()
+       assert _input.address.serialized_pubkey == self.updated_excesses[s_i].serialized_pubkey
 
     #Check that there are no duplicated outputs
     #TODO probably authorized????
@@ -342,9 +361,8 @@ class Transaction:
 
     _t = PublicKey()
 
-    # Transaction should contain either outputs (while it may not contain inputs)
-    # or combined excesses (for transactions which only delete excesses)
-    assert len(self.outputs) or len(self.combined_excesses), "Empty outputs"
+    # Transaction should contain outputs (while it may not contain inputs)
+    assert len(self.outputs), "Empty outputs"
 
     if len(self.inputs):
       _t.combine([_input.authorized_pedersen_commitment.to_public_key().public_key for _input in self.inputs])
@@ -404,12 +422,9 @@ class Transaction:
       sum_to_zero = checker.verify_sum(left_side, right_side)
       assert sum_to_zero, "Non-zero Pedersen commitments summ"
 
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
     if self.coinbase:
       info = self.coinbase.info()
       assert info['exp'] == -1, "Non-transparent coinbase"
-      # TODO Ugly ->`self.txos_storage.storage_space.blockchain.current_height`
       assert self.coinbase.lock_height >= block_height + coinbase_maturity,\
              "Wrong coinbase maturity timelock: %d should be %d"%(\
               self.coinbase.lock_height, block_height + coinbase_maturity)
@@ -426,7 +441,8 @@ class Transaction:
      Transaction is valid if:
       0) inputs and outputs are sorted  (non context verification)
       1) all inputs are in utxo set
-      2) no outputs are in utxo 
+      2) no outputs are in utxo
+      3) no updated_excesses duplicate already existed 
       3) all outputs are unique (exactly equal outputs are prohibited) (non context verification)
       3) all outputs are valid (non context verification)
       4) all additional excesses are valid (non context verification)
@@ -457,6 +473,7 @@ class Transaction:
               raise Exception("Spend unknown output")
           else:
               database_inputs.append(self.txos_storage.confirmed.get(index, rtx=rtx))
+          assert not self.excesses_storage.excesses.has_index(self.updated_excesses[index].index), "Duplication of already existed excess during update"
           self.inputs = database_inputs
            
 
@@ -474,6 +491,8 @@ class Transaction:
               #previously unknown output, let's add to database
               self.txos_storage.mempool[_o_index] = _output
 
+    for _ae in self.additional_excesses:
+      assert not self.excesses_storage.excesses.has_index(_ae.index), "New additional excess duplicates old one"
 
     if not GLOBAL_TEST['block_version checking']: 
         # Note, transactions where outputs have different block_versions are valid
@@ -492,6 +511,8 @@ class Transaction:
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses
+    tx.updated_excesses = self.updated_excesses.copy()
+    tx.updated_excesses.update(another_tx.updated_excesses)
     # 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 - order of secp256k1 group
     tx.mixer_offset = (self.mixer_offset + another_tx.mixer_offset) % 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
     if not GLOBAL_TEST['skip combined excesses']:
