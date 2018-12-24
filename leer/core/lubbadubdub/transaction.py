@@ -293,11 +293,11 @@ class Transaction:
 
     for _ue in range(inputs_len):
       if len(serialized_tx)<2:
-          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s length"%_ae)
+          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s length"%_ue)
       ue_len_buffer, serialized_tx =serialized_tx[:2], serialized_tx[2:]
       (ue_len,) = struct.unpack("> H", ue_len_buffer)
       if len(serialized_tx)<ue_len:
-          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s"%_ae)
+          raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s"%_ue)
       ue_buffer, serialized_tx = serialized_tx[:ue_len], serialized_tx[ue_len:]
       e = Excess()
       e.deserialize_raw(ue_buffer)
