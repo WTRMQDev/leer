@@ -36,7 +36,8 @@ class Block():
     serialized += self.header.serialize()
     serialized += self.transaction_skeleton.serialize(rich_format=rich_block_format, max_size=max_size,
         full_tx = build_tx_from_skeleton(self.transaction_skeleton,\
-                                         self.storage_space.txos_storage, self.header.height, rtx=rtx,\
+                                         self.storage_space.txos_storage,
+                                         self.storage_space.excesses_storage, self.header.height, rtx=rtx,\
                                          historical = True) if rich_block_format else None)
     return serialized
 
@@ -66,6 +67,7 @@ class Block():
 
     #currently during building we automatically check that tx can ba applied and tx is valid
     self.tx = build_tx_from_skeleton(self.transaction_skeleton, txos_storage=self.storage_space.txos_storage,
+                                     excesses_storage=self.storage_space.excesses_storage,
                                      block_height=self.header.height, rtx=rtx, non_context = True)
     # stage 3 => should be moved to blockchain
     #commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(tx)
@@ -83,13 +85,13 @@ class Block():
                     , len(self.transaction_skeleton.input_indexes),len(self.transaction_skeleton.output_indexes) )
     
 
-def build_tx_from_skeleton(tx_skeleton, txos_storage, block_height, rtx, historical=False, non_context = False):
+def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_height, rtx, historical=False, non_context = False):
   '''
     By given tx_skeleton and txos_storage return transaction.
     If transaction is invalid or any input/output isn't available exception will be raised.
     Optionally, if `historical` is True we will check output_indexes both in mempool and spent outputs. 
   '''
-  tx=Transaction(txos_storage=txos_storage)
+  tx=Transaction(txos_storage=txos_storage, excesses_storage=excesses_storage)
   for _i in tx_skeleton.input_indexes:
        tx.inputs.append(txos_storage.confirmed.get(_i, rtx=rtx))
   for _o in tx_skeleton.output_indexes:
@@ -120,8 +122,8 @@ def generate_genesis(tx, storage_space, wtx):
     storage = storage_space.txos_storage
     excesses = storage_space.excesses_storage
 
-
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx)]
+    exc_merkle = excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
+    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
     popow = PoPoW([])
     votedata = VoteData()
     target = initial_target
@@ -161,7 +163,9 @@ def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, 
       except:
         pass
 
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx)]
+    exc_merkle = excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
+    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
+
     popow = current_block.header.next_popow()
     #We subtract relay fee, since coinbase value contain relay fees, but it isn't new money, but redistribution
     supply = current_block.header.supply + tx.coinbase.value - tx.calc_new_outputs_fee() - tx.relay_fee 

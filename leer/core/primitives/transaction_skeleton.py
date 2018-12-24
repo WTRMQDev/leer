@@ -157,10 +157,11 @@ class TransactionSkeleton:
     for _o in self.output_indexes:
       output_apcs.append(_o[:33])
     for _e in self.additional_excesses:
-      if not _e.message in output_apcs:
-        return False
-      else:
-        output_apcs.remove(_e.message)
+      pass
+      #if not _e.message in output_apcs:
+      #  return False
+      #else:
+      #  output_apcs.remove(_e.message)
     return True
 
   def calc_new_outputs_fee(self, is_block_transaction):
