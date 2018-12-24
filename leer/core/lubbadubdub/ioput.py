@@ -39,6 +39,8 @@ class IOput:
     self.generator = None
     self.relay_fee = None
     self.authorized_burden = None # This authorization ensures that only agent who created output impose burden on it
+    #context data (we serialize it for storing, but not for sending to network)
+    self.address_excess_num_index = None #5 bytes long bytes-string
     #inner data
     self.unauthorized_pedersen_commitment = None
     self.value = None
@@ -68,6 +70,11 @@ class IOput:
     ret += ser_range_proof
 
     self.serialized = ret
+    return ret
+
+  def serialize_with_context(self):
+    ret = self.serialize()
+    ret + = self.address_excess_num_index
     return ret
 
   @property
@@ -197,6 +204,12 @@ class IOput:
       self.value=info['min_value']
     self.serialized = consumed
     return part3[2+range_proof_len:]
+
+
+  def deserialize_with_context(serialized_output):
+    residue = self.deserialize_raw(serialized_output)
+    self.address_excess_num_index, residue = residue[:5], residue[5:]
+    return residue
 
   def detect_value(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
     try:
