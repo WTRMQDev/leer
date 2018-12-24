@@ -147,20 +147,22 @@ class MMR:
         raise KeyError("Not unique")
       self.append(wtx=wtx, obj_index=obj_index, obj=obj)
 
-  def update_index(self, wtx, num_index, obj_index):
-      old_index = wtx.get( _(num_index), db=self.order_db)
-      wtx.put( _(num_index), bytes(obj_index), db=self.order_db)
-      wtx.delete( bytes(old_index), _(num_index), db=self.reverse_order_db)
-      wtx.put( bytes(obj_index), _(num_index), db=self.reverse_order_db)
-      obj = wtx.pop(bytes(old_index), db=self.leaf_db)
+  def update_by_num_index(self, wtx, num_index_ser, obj_index, obj):
+      old_index = wtx.get( num_index_ser, db=self.order_db)
+      wtx.put( num_index_ser, bytes(obj_index), db=self.order_db)
+      wtx.delete( bytes(old_index), num_index_ser, db=self.reverse_order_db)
+      wtx.put( bytes(obj_index), num_index_ser, db=self.reverse_order_db)
+      old_obj = wtx.pop(bytes(old_index), db=self.leaf_db)
       wtx.put(bytes(obj_index), bytes(obj) , db=self.leaf_db)
-      self._update_path(0, num_index, wtx=wtx)
+      self._update_path(0, int.from_bytes(num_index_ser,"big"), wtx=wtx)
+      return old_index, old_object
 
-  def update_index_unique(self, wtx, num_index, obj_index):
+  def update_by_num_index_unique(self, wtx, num_index_ser, obj_index, obj):
       nindex = wtx.get( bytes(obj_index), db=self.reverse_order_db)
       if nindex:
         raise KeyError("Not unique")
-      self.update_index(wtx, num_index, obj_index)
+      return self.update_index(wtx, num_index_ser, obj_index)
+
       
     
 

@@ -39,9 +39,20 @@ class ExcessesStorage():
     def append_utxo(self, utxo, wtx):
       return self.excesses.append(wtx=wtx, obj_index=utxo.address.index, obj=b"")
 
-
     def append_additional_excess(self, excess, wtx):
       self.excesses.append_unique(wtx=wtx, obj_index=excess.index, obj=excess.serialize())
+
+    def update_spent_address_with_excess(self, num_index, new_excess, wtx):
+       new_excess_index = new_excess.index
+       serialized_excess = new_excess.serialize()
+       return self.update_spent_address_with_serialized_excess(num_index, new_excess_index, serialized_excess, wtx)
+
+    def update_spent_address_with_serialized_excess(self, num_index, new_excess_index, serialized_excess, wtx):
+       old_excess_index, old_excess = self.excesses.update_index_unique(wtx, num_index_ser, new_excess_index, serialized_excess)
+       if not new_excess_index[:33]==old_excess_index[:33]: #First 33 bytes - serialized pubkey
+         raise Exception("Wrong excess update") #Never should get here, since tx is already checked, but this check is cheap
+       return num_index, old_excess_index, old_excess
+      
 
     #def __contains__(self, serialized_index, ):
     #  return bool(self.excesses.get_by_hash(serialized_index))
@@ -55,9 +66,9 @@ class ExcessesStorage():
     def apply_tx_get_merkles_and_rollback(self, tx, wtx):
       initial_state = self.get_state(rtx=wtx)
       initial_root = self.get_root(rtx=wtx)
-      num_of_addede_excesses = self.apply_tx(tx, b"Excess validation temporal state", wtx)
+      num_of_added_excesses, rollback_updates = self.apply_tx(tx, b"Excess validation temporal state", wtx)
       root = self.get_root(rtx=wtx)
-      self.rollback(num_of_addede_excesses, initial_state, wtx)
+      self.rollback(num_of_added_excesses, initial_state, rollback_updates, wtx)
       assert initial_root==self.get_root(rtx=wtx), "Database was corrupted during excesses apply_tx_get_merkles_and_rollback"
       return root
 
@@ -68,12 +79,19 @@ class ExcessesStorage():
           _o.address_excess_num_index = num #storing num_index of stored address excess
       for _e in tx.additional_excesses:
           self.append_additional_excess(_e, wtx=wtx)
+      rollback_updates = []
+      for _i in tx.inputs:
+          ind= _i.serialized_index
+          rb = self.update_spent_address_with_excess(_i.address_excess_num_index, tx.updated_excesses[ind], wtx=wtx)
+          rollback_updates.append(rb)
       self.set_state(new_state, wtx=wtx)
-      return len(tx.additional_excesses)+len(tx.outputs)
+      return len(tx.additional_excesses)+len(tx.outputs), rollback_updates
 
-    def rollback(self, num_of_added_excesses, prev_state, wtx):
+    def rollback(self, num_of_added_excesses, prev_state, rollback_updates, wtx):
       self.excesses.remove(num_of_added_excesses, wtx=wtx)
       self.set_state(prev_state, wtx=wtx)
+      for rb in rollback_updates:
+        self.update_spent_address_with_serialized_excess(rb[0], rb[1], rb[2], wtx=wtx)
 
     def get_state(self, rtx):
       return self.excesses.get_state(rtx=rtx)

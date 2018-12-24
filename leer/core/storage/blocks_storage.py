@@ -80,6 +80,7 @@ class RollBack:
     self.num_of_added_outputs = None
     self.num_of_added_excesses = None
     self.prev_state = None
+    self.updated_excesses = None
 
   def serialize_bytes(self, _bytes):
     return len(_bytes).to_bytes(2,"big")+_bytes
@@ -99,11 +100,23 @@ class RollBack:
       for _i in [_t,_c]:
         num, _index, obj = _i
         serialized_pruned_inputs += num.to_bytes(5,"big") + self.serialize_bytes(_index) + self.serialize_bytes(obj)
+
+    serialized_excess_updates=b""
+    serialized_excess_updates+=len(self.updated_excesses).to_bytes(2,"big")
+    for update in self.updated_excesses:
+      num, _index, obj = update
+      serialized_excess_updates += num + self.serialize_bytes(_index) + self.serialize_bytes(obj)
+
     serialized_nums = self.num_of_added_outputs.to_bytes(2,"big") + self.num_of_added_excesses.to_bytes(2,"big")
     version=b"\x01"
     serialized_state_id = self.serialize_bytes(self.prev_state)
     summary_len = len(serialized_pruned_inputs)+len(serialized_nums)+len(version)+len(serialized_state_id)
-    serialized = summary_len.to_bytes(4,"big")+version+serialized_pruned_inputs+serialized_nums+serialized_state_id
+    serialized = summary_len.to_bytes(4,"big") + \
+                 version + \
+                 serialized_pruned_inputs + \
+                 serialized_nums + \
+                 serialized_excess_updates + \
+                 serialized_state_id
     return serialized
 
   def deserialize_raw(self, serialized):
@@ -130,6 +143,13 @@ class RollBack:
     _no, _ne, data = data[:2], data[2:4], data[4:]
     self.num_of_added_outputs = int.from_bytes(_no,"big")
     self.num_of_added_excesses = int.from_bytes(_ne, "big")
+    _s_updates_num, data = data[:2], data[2:]
+    updates_num = int.from_bytes(_s_updates_num, "big")
+    for i in range(updates_num):
+      _snum, data = data[:5], data[5:]
+      _index, data = self.deserialize_bytes_raw(data)
+      _obj, data = self.deserialize_bytes_raw(data)
+      self.updated_excesses.append(_snum, _index, _obj)
     self.prev_state, data = self.deserialize_bytes_raw(data)
     return residue
 

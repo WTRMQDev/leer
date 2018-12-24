@@ -57,9 +57,10 @@ class Blockchain:
     rb.prev_state = self.current_tip(rtx=wtx)
     # Note excesses_storage.apply_tx modidies transaction, in particular adds
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
-    excesses_num = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
+    excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     rb.pruned_inputs=rollback_inputs
+    rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
     rb.num_of_added_excesses = excesses_num
     self.storage_space.blocks_storage.put_rollback_object(block_hash, rb, wtx=wtx)
@@ -72,7 +73,7 @@ class Blockchain:
     rb = self.storage_space.blocks_storage.pop_rollback_object(self.current_tip(rtx=wtx), wtx=wtx)
     h = self.current_height(rtx=wtx)
     self.storage_space.txos_storage.rollback(pruned_inputs=rb.pruned_inputs, num_of_added_outputs=rb.num_of_added_outputs, prev_state=rb.prev_state, wtx=wtx)
-    self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state, wtx=wtx)
+    self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state, rollback_updates=rb.updated_excesses, wtx=wtx)
     if self.notify_wallet:
       self.notify_wallet("rollback", rb, h)
 
