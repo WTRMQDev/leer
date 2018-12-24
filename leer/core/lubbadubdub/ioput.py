@@ -74,7 +74,7 @@ class IOput:
 
   def serialize_with_context(self):
     ret = self.serialize()
-    ret + = self.address_excess_num_index
+    ret += self.address_excess_num_index
     return ret
 
   @property
@@ -206,7 +206,7 @@ class IOput:
     return part3[2+range_proof_len:]
 
 
-  def deserialize_with_context(serialized_output):
+  def deserialize_with_context(self, serialized_output):
     residue = self.deserialize_raw(serialized_output)
     self.address_excess_num_index, residue = residue[:5], residue[5:]
     return residue
