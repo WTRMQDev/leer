@@ -23,7 +23,7 @@ def is_sorted(lst, key=lambda x: x):
 
 class Transaction:
 
-  def __init__(self, txos_storage, raw_tx=None, key_manager=None):
+  def __init__(self, txos_storage, excesses_storage,  raw_tx=None, key_manager=None):
     #serializable data 
     self.inputs = []
     self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
@@ -37,7 +37,8 @@ class Transaction:
     self.txid = None
     self.serialized = None
 
-    self.txos_storage = txos_storage #we can switch fron global txos_storage to stubs for testing
+    self.txos_storage = txos_storage 
+    self.excesses_storage = excesses_storage 
     self.key_manager = key_manager
     
     if raw_tx:
@@ -61,11 +62,11 @@ class Transaction:
     if not self.coinbase:
       raise Exception("coinbase output is required")
     cb = self.coinbase
-    self.__init__(txos_storage = self.txos_storage) #reset self
+    self.__init__(txos_storage = self.txos_storage, excesses_storage = self.excesses_storage) #reset self
     self.outputs = [cb]
     offset_pk = PrivateKey()
     self.mixer_offset = int.from_bytes(offset_pk.private_key, "big")
-    self.additional_excesses = [excess_from_private_key(cb.blinding_key+offset_pk, cb.serialized_index[:33])]
+    self.additional_excesses = [excess_from_private_key(cb.blinding_key+offset_pk, b"\x01\x00"+cb.serialized_index[:33])]
     if combined_transaction:
       new_tx = self.merge(combined_transaction)
       self.inputs = new_tx.inputs
@@ -352,10 +353,10 @@ class Transaction:
 
     for excess in self.additional_excesses:
         assert excess.verify(), "Nonvalid excess"
-        if not excess.message in output_apcs:
-          return False
-        else:
-          output_apcs.remove(excess.message)
+        #if not excess.message in output_apcs:
+        #  return False
+        #else:
+        #  output_apcs.remove(excess.message)
 
     left_side, right_side = [], []
 
@@ -473,7 +474,7 @@ class Transaction:
               raise Exception("Spend unknown output")
           else:
               database_inputs.append(self.txos_storage.confirmed.get(index, rtx=rtx))
-          assert not self.excesses_storage.excesses.has_index(self.updated_excesses[index].index), "Duplication of already existed excess during update"
+          assert not self.excesses_storage.excesses.has_index(rtx, self.updated_excesses[index].index), "Duplication of already existed excess during update"
           self.inputs = database_inputs
            
 
@@ -492,7 +493,7 @@ class Transaction:
               self.txos_storage.mempool[_o_index] = _output
 
     for _ae in self.additional_excesses:
-      assert not self.excesses_storage.excesses.has_index(_ae.index), "New additional excess duplicates old one"
+      assert not self.excesses_storage.excesses.has_index(rtx, _ae.index), "New additional excess duplicates old one"
 
     if not GLOBAL_TEST['block_version checking']: 
         # Note, transactions where outputs have different block_versions are valid
