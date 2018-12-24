@@ -52,7 +52,7 @@ class ConfirmedTXOStorage:
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
-      utxo.deserialize(res)
+      utxo.deserialize_with_context(res)
       utxo.set_verified_and_correct() #Trust saved outputs
       return utxo
 
@@ -66,7 +66,8 @@ class ConfirmedTXOStorage:
 
     def append(self, utxo, wtx):
       assert utxo.verify() #Should be fast since cached
-      self.txos.append(wtx=wtx, obj_index=sha256(utxo.serialized_index), obj=utxo.serialize())
+      assert utxo.address_excess_num_index
+      self.txos.append(wtx=wtx, obj_index=sha256(utxo.serialized_index), obj=utxo.serialize_with_context())
       self.commitments.append_unique(wtx=wtx, obj_index=utxo.commitment_index, obj=b"")
 
     def spend(self, utxo, wtx, return_revert_obj=False):
@@ -84,7 +85,7 @@ class ConfirmedTXOStorage:
       if not res:
         raise KeyError(hash_and_pc)
       utxo=IOput()
-      utxo.deserialize(res)
+      utxo.deserialize_with_context(res)
       utxo.set_verified_and_correct() #Trust saved outputs
       return utxo
 
@@ -102,7 +103,7 @@ class ConfirmedTXOStorage:
       removed_outputs=[]
       for _ser in ser_removed_outputs:
         utxo=IOput()
-        utxo.deserialize(_ser)
+        utxo.deserialize_with_context(_ser)
         removed_outputs.append(utxo)
       return removed_outputs
 

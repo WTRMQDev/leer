@@ -48,7 +48,6 @@ class Blockchain:
       Also we need to save info for rollback.
       TODO: We definetely should use transactional writing here to avoid db inconsistency.
     '''
-    #TODO transactional writing
     block = self.storage_space.blocks_storage.get(block_hash, rtx=wtx)
     block.non_context_verify(rtx=wtx) #build tx from skeleton
     if not self.context_validation(block, wtx=wtx):
@@ -56,8 +55,10 @@ class Blockchain:
       return self.update(wtx=wtx, reason="Detected corrupted block")    
     rb = RollBack()
     rb.prev_state = self.current_tip(rtx=wtx)
+    # Note excesses_storage.apply_tx modidies transaction, in particular adds
+    # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
+    excesses_num = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
-    excesses_num = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     rb.pruned_inputs=rollback_inputs
     rb.num_of_added_outputs = output_num
     rb.num_of_added_excesses = excesses_num
@@ -109,8 +110,8 @@ class Blockchain:
   def context_validation(self, block, wtx):
     assert block.header.prev == self.current_tip(rtx=wtx)
     block.tx.verify(block_height=self.current_height(rtx=wtx), rtx=wtx, skip_non_context=True)
-    commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
+    commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:
       return False
     if block.header.height>0:

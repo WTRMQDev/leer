@@ -135,7 +135,7 @@ class MMR:
       wtx.put( bytes(obj_index), _(num), db=self.reverse_order_db)
       wtx.put(bytes(obj_index), bytes(obj), db=self.leaf_db)
       self._update_path(0, num, wtx=wtx)
-      return num
+      return _(num)
 
   def has_index(self, rtx, obj_index):
       index = rtx.get( bytes(obj_index), db=self.reverse_order_db)

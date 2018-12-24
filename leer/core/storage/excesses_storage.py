@@ -65,10 +65,9 @@ class ExcessesStorage():
 
     #TODO bad naming. It should be apply block, or block_transaction
     def apply_tx(self, tx, new_state, wtx):
-      nums = []
       for _o in tx.outputs:
           num = self.append_utxo(_o, wtx=wtx)
-          nums.append(num)
+          _o.address_excess_num_index = num #storing num_index of stored address excess
       for _e in tx.additional_excesses:
           self.append_additional_excess(_e, wtx=wtx)
       self.set_state(new_state, wtx=wtx)
