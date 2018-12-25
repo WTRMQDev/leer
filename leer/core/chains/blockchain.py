@@ -130,6 +130,7 @@ class Blockchain:
 
   def current_tip(self, rtx):
     ts,es = self.storage_space.txos_storage.confirmed.get_state(rtx=rtx), self.storage_space.excesses_storage.get_state(rtx=rtx)
+    es=None if es == b"" else es #TODO
     assert ts==es
     if ts==None:
       return b"\x00"*32
