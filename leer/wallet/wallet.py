@@ -47,7 +47,7 @@ def wallet(syncer, config):
       if not 'action' in message:
         continue
       if message['action']=="process new block":
-        tx = Transaction(txos_storage=None)
+        tx = Transaction(txos_storage=None, excesses_storage=None)
         tx.deserialize(message['tx'], rtx=None, skip_verification=True) #skip_verification allows us to not provide rtx
         block_height = message['height']
         for index in tx.inputs:

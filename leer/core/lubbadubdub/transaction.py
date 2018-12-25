@@ -302,7 +302,11 @@ class Transaction:
       ue_buffer, serialized_tx = serialized_tx[:ue_len], serialized_tx[ue_len:]
       e = Excess()
       e.deserialize_raw(ue_buffer)
-      self.updated_excesses[self.inputs[_ue].serialized_index]=e
+      #Depending on skif_verification self.inputs either contains inputs or serialized_indexes only
+      if isinstance(self.inputs[_ue], bytes):
+        self.updated_excesses[self.inputs[_ue]]=e        
+      elif isinstance(self.inputs[_ue], IOput):
+        self.updated_excesses[self.inputs[_ue].serialized_index]=e
     if len(serialized_tx)<32:
         raise Exception("Serialized transaction doesn't contain enough bytes for mixer_offset")
     self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
@@ -508,7 +512,7 @@ class Transaction:
 
   def merge(self, another_tx, rtx):
     self.serialized = None
-    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager) #TODO instead of key_manager, inputs info should be merged here
+    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager, excesses_storage=self.excesses_storage) #TODO instead of key_manager, inputs info should be merged here
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses

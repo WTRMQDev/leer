@@ -39,7 +39,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.transactions = sorted(self.transactions, key = lambda x: len(x.input_indexes), reverse=True)
     tx_to_remove_list = []
     txos_storage = self.storage_space.txos_storage
-    merged_tx = Transaction(txos_storage=txos_storage)
+    excesses_storage = self.storage_space.excesses_storage
+    merged_tx = Transaction(txos_storage=txos_storage, excesses_storage=excesses_storage)
     for tx_skeleton in self.transactions:
       #TODO build_tx_from_skeleton should raise distinctive exceptions
       downloaded = True
@@ -105,7 +106,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height(rtx=wtx) + 1 + coinbase_maturity)
     coinbase.generate()
     self.storage_space.txos_storage.mempool[coinbase.serialized_index]=coinbase
-    tx=Transaction(txos_storage = self.storage_space.txos_storage)
+    tx=Transaction(txos_storage = self.storage_space.txos_storage, excesses_storage=self.storage_space.excesses_storage)
     tx.add_coinbase(coinbase)
     tx.compose_block_transaction(rtx=wtx)
     block = generate_block_template(tx, self.storage_space, wtx=wtx)

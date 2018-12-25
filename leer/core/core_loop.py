@@ -449,7 +449,7 @@ def core_loop(syncer, config):
           logger.error("Problem in tx_template: %s"%str(e))
         try: #Tx generation
           with storage_space.env.begin(write=True) as rtx:
-            tx = Transaction(txos_storage = storage_space.txos_storage)
+            tx = Transaction(txos_storage = storage_space.txos_storage, excesses_storage = storage_space.excesses_storage)
             for utxo_index in tx_template['utxos']:
               utxo = storage_space.txos_storage.confirmed.get(utxo_index, rtx=rtx)
               tx.push_input(utxo)
