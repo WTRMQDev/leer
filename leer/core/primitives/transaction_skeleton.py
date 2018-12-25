@@ -12,6 +12,7 @@ class TransactionSkeleton:
     self.output_indexes = []
     self.output_relay_fees = []
     self.additional_excesses = []
+    self.updated_excesses = {}
     self.combined_excesses = OrderedDict()
     self.mixer_offset = 0
     self.tx = tx
@@ -22,6 +23,7 @@ class TransactionSkeleton:
         self.output_indexes.append(_o.serialized_index)
         self.output_relay_fees.append(_o.relay_fee)
       self.additional_excesses = tx.additional_excesses.copy()
+      self.updated_excesses = tx.updated_excesses.copy()
       self.mixer_offset = tx.mixer_offset
       
     if not GLOBAL_TEST['skip combined excesses']:
@@ -49,6 +51,7 @@ class TransactionSkeleton:
     serialization_array+=(self.output_indexes)
     serialization_array+=[i.to_bytes(4, "big") for i in self.output_relay_fees]
     serialization_array+=([ e.serialize() for e in self.additional_excesses])
+    serialization_array+=([ self.updated_excesses[i].serialize() for i in self.input_indexes])
     serialization_array+=[self.mixer_offset.to_bytes(32,"big")]
     tx_skel_size = sum([len(i) for i in serialization_array])
     if rich_format and tx_skel_size<max_size:
@@ -125,6 +128,10 @@ class TransactionSkeleton:
       e = Excess()
       serialized  = e.deserialize_raw(serialized)
       self.additional_excesses.append(e)
+    for i in range(_len_i):
+      e = Excess()
+      serialized  = e.deserialize_raw(serialized)
+      self.updated_excesses[self.input_indexes[i]]=e
     if len(serialized)<32:
       raise Exception("Not enough bytes for mixer offset")
     self.mixer_offset, serialized = int.from_bytes(serialized[:32], "big"), serialized[32:]
