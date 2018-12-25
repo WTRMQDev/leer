@@ -223,7 +223,10 @@ class TXOsStorage:
     if output_index in self.mempool:
       return self.mempool[output_index].serialize()
     else:
-      return self.confirmed.find_wo_deser(output_index, rtx=rtx)
+      found = self.confirmed.find_wo_deser(output_index, rtx=rtx)
+      if found:
+        found=found[:-5] #We store ioputs with context, which we cut before relaying
+      return found
 
   def find(self, output_index, rtx):
     if output_index in self.mempool:
