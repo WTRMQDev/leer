@@ -47,11 +47,11 @@ class ExcessesStorage():
        serialized_excess = new_excess.serialize()
        return self.update_spent_address_with_serialized_excess(num_index, new_excess_index, serialized_excess, wtx)
 
-    def update_spent_address_with_serialized_excess(self, num_index, new_excess_index, serialized_excess, wtx):
-       old_excess_index, old_excess = self.excesses.update_index_unique(wtx, num_index_ser, new_excess_index, serialized_excess)
+    def update_spent_address_with_serialized_excess(self, num_index_ser, new_excess_index, serialized_excess, wtx):
+       old_excess_index, old_excess = self.excesses.update_index_by_num_unique(wtx, num_index_ser, new_excess_index, serialized_excess)
        if not new_excess_index[:33]==old_excess_index[:33]: #First 33 bytes - serialized pubkey
          raise Exception("Wrong excess update") #Never should get here, since tx is already checked, but this check is cheap
-       return num_index, old_excess_index, old_excess
+       return num_index_ser, old_excess_index, old_excess
       
 
     #def __contains__(self, serialized_index, ):
