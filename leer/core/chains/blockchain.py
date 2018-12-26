@@ -115,6 +115,26 @@ class Blockchain:
     commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:
       return False
+    excesses = tx.additional_excesses + list(tx.updated_excesses.values())
+    excesses_indexes = [e.index for e in excesses]
+    for i in tx.inputs:
+      if txos.storage.burden.has(i, rtx=wtx):
+        required_index = txos.storage.burden.get(i, rtx=wtx)
+        if (not required_index in excesses_indexes) and (not self.storage_space.txos_storage.excesses.has_excess(required_index)):
+          return False
+    for excess in excesses:
+      prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      burden_list = []
+      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx)
+      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx)
+      result = execute(script = excess.message, 
+                       prev_block_props = prev_block_props,
+                       excess_lookup = excess_lookup_partial,
+                       output_lookup = output_lookup_partial,
+                       burden = burden_list)
+      if not result:
+        return False
     if block.header.height>0:
       subsidy = next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx)
       if not self.storage_space.headers_storage.get(block.header.prev, rtx=wtx).supply + \
@@ -123,7 +143,7 @@ class Blockchain:
         return False
       if not block.tx.coinbase.value == subsidy + block.tx.relay_fee: 
         # Note we already check coinbase in non_context_check, but using tx_skeleton info
-        # However information in tx_skeleton may be forged, thus this check is not futile
+        # Since information in tx_skeleton may be forged, this check is not futile
         return False
       
     return True
