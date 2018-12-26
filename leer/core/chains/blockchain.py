@@ -1,4 +1,5 @@
 from time import time
+from functools import partial
 from leer.core.primitives.block import Block, ContextBlock
 from leer.core.primitives.header import Header
 from leer.core.storage.blocks_storage import BlocksStorage, RollBack
@@ -128,7 +129,7 @@ class Blockchain:
       burden_list = []
       excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx)
       output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx)
-      result = execute(script = excess.message, 
+      result = execute(script = excess.message,
                        prev_block_props = prev_block_props,
                        excess_lookup = excess_lookup_partial,
                        output_lookup = output_lookup_partial,
