@@ -10,3 +10,6 @@ class KeyValueStorage:
   def get(self, key, rtx):
     return rtx.get( bytes(key), db=self.main_db)
 
+  def has(self, key, rtx):
+    return not (self.get( bytes(key), db=self.main_db)==None)
+
