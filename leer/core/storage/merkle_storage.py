@@ -72,6 +72,13 @@ class MMR:
   def get_by_hash(self, _hash, rtx):
     return rtx.get(_hash, db=self.leaf_db)
 
+  def fuzzy_search(self, _hash, rtx):
+    cursor = rtx.cursor(db=self.leaf_db)
+    is_set = cursor.set_range(_hash)
+    if not is_set:
+      return None
+    return cursor.item()
+
   def get_pruned_by_hash(self, _hash, rtx):
     if not self.save_pruned:
       raise
