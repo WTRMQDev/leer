@@ -127,8 +127,8 @@ class Blockchain:
       prev_block_props = {'height': self.current_height(rtx=wtx), 
                          'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
       burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx)
-      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx)
+      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
       result = execute(script = excess.message,
                        prev_block_props = prev_block_props,
                        excess_lookup = excess_lookup_partial,
