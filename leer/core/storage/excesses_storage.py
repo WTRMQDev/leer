@@ -1,5 +1,6 @@
 from leer.core.storage.merkle_storage import MMR
 from secp256k1_zkp import PedersenCommitment, PublicKey
+from leer.core.lubbadubdub.address import Excess
 import hashlib
 import os
 from leer.core.utils import sha256
@@ -59,6 +60,14 @@ class ExcessesStorage():
 
     def has_index(self, serialized_index):
       return bool(self.excesses.get_by_hash(serialized_index))
+
+    def get_by_index(self, serialized_index):
+      serialized_excess = self.excesses.get_by_hash(serialized_index)
+      if not serialized_excess:
+        return None
+      e = Excess()
+      e.deserialize_raw(serialized_excess)
+      return e
 
     def remove(self, n, wtx):
       self.excesses.remove(n, wtx=wtx)
