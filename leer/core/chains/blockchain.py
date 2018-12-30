@@ -119,9 +119,9 @@ class Blockchain:
     excesses = tx.additional_excesses + list(tx.updated_excesses.values())
     excesses_indexes = [e.index for e in excesses]
     for i in tx.inputs:
-      if txos.storage.confirmed.burden.has(i.serialized_index, rtx=wtx):
+      if self.storage_space.txos_storage.confirmed.burden.has(i.serialized_index, rtx=wtx):
         required_index = txos.storage.confirmed.burden.get(i.serialized_index, rtx=wtx)
-        if (not required_index in excesses_indexes) and (not self.storage_space.txos_storage.excesses.has_excess(required_index)):
+        if (not required_index in excesses_indexes) and (not self.storage_space.excesses_storage.has_index(required_index)):
           return False
     for excess in excesses:
       prev_block_props = {'height': self.current_height(rtx=wtx), 

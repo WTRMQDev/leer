@@ -57,6 +57,9 @@ class ExcessesStorage():
     #def __contains__(self, serialized_index, ):
     #  return bool(self.excesses.get_by_hash(serialized_index))
 
+    def has_index(self, serialized_index):
+      return bool(self.excesses.get_by_hash(serialized_index))
+
     def remove(self, n, wtx):
       self.excesses.remove(n, wtx=wtx)
 
