@@ -47,7 +47,6 @@ class Blockchain:
       To add block we need to apply tx both to txos storage and excesses.
       After that we need to set new state.
       Also we need to save info for rollback.
-      TODO: We definetely should use transactional writing here to avoid db inconsistency.
     '''
     block = self.storage_space.blocks_storage.get(block_hash, rtx=wtx)
     block.non_context_verify(rtx=wtx) #build tx from skeleton
@@ -60,6 +59,27 @@ class Blockchain:
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
     excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
+    excesses = tx.additional_excesses + list(tx.updated_excesses.values())
+    all_evaluations_are_good = True
+    burdens = []
+    for excess in excesses:
+      prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      burden_list = []
+      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
+      result = execute(script = excess.message,
+                       prev_block_props = prev_block_props,
+                       excess_lookup = excess_lookup_partial,
+                       output_lookup = output_lookup_partial,
+                       burden = burden_list)
+      if not result:
+        all_evaluations_are_good = False
+        break
+      burdens.append(burden_list)
+    if not all_evaluations_are_good:
+      self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad script"%(block.hash, block.header.height))
+      return self.update(wtx=wtx, reason="Detected corrupted block")          
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
