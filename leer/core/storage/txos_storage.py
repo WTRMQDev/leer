@@ -44,7 +44,7 @@ class ConfirmedTXOStorage:
     def __init__(self, path, env, wtx):
       self.commitments = CommitmentMMR("commitments", path, clear_only=False, env=env, wtx=wtx)
       self.txos = TXOMMR("txos", path, discard_only=True, env=env, wtx=wtx)
-      self.burden = KeyValueStorage(name="burden", env=env, wtx=wtx)
+      self.burden = KeyValueStorage(name="burden", env=env, wtx=wtx, dupsort=True)
 
     def get(self, hash_and_pc, rtx):
       res = self.txos.get_by_hash(sha256(hash_and_pc), rtx=rtx)
