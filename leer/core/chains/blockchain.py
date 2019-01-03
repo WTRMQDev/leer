@@ -101,9 +101,10 @@ class Blockchain:
       if not result:
         all_evaluations_are_good = False
         break
-      for commitment,pubkey in burden_list:
+      for commitment,_pubkey in burden_list:
         commitment_pc = commitment.to_pedersen_commitment()
         ser = commitment_pc.serialize()
+        pubkey = _pubkey.to_pubkey()
         output = None
         for o in block.tx.outputs:
           if ser == o.serialized_apc:
@@ -115,12 +116,14 @@ class Blockchain:
         if (not output.authorized_burden) or (not output.authorized_burden==excess.burden_hash):
           burdens_authorized = False
           break
+        burdens.append( (output.serialized_index,pubkey) )
       if not burdens_authorized:
         break
     if not (all_evaluations_are_good and burdens_authorized):
       self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
       return self.update(wtx=wtx, reason="Detected corrupted block")        
-
+    for burden in burdens:
+      self.storage_space.txos_storage.burden.put(burden[0], burden[1])
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num

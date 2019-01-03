@@ -4,8 +4,8 @@ class KeyValueStorage:
     self.env = env
     self.main_db = self.env.open_db(self.name + b'_main_db', txn=wtx, dupsort=dupsort)
 
-  def put(self, key, value, wtx):
-      return wtx.put( bytes(key), bytes(value), db=self.main_db)
+  def put(self, key, value, wtx, dupdata=False):
+      return wtx.put( bytes(key), bytes(value), db=self.main_db, dupdata=dupdata)
 
   def get(self, key, rtx):
     return rtx.get( bytes(key), db=self.main_db)
