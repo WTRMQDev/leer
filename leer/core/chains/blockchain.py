@@ -61,8 +61,10 @@ class Blockchain:
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     excesses = tx.additional_excesses + list(tx.updated_excesses.values())
     all_evaluations_are_good = True
+    updated_excesses_are_burden_free = True
     burdens = []
-    for excess in excesses:
+    #Additional excesses can not create burdens
+    for excess in tx.updated_excesses.values():
       prev_block_props = {'height': self.current_height(rtx=wtx), 
                          'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
       burden_list = []
@@ -76,10 +78,45 @@ class Blockchain:
       if not result:
         all_evaluations_are_good = False
         break
-      burdens.append(burden_list)
-    if not all_evaluations_are_good:
+      if not len(burden_list)==0:
+        updated_excesses_are_burden_free = False
+        break
+    if not (all_evaluations_are_good and updated_excesses_are_burden_free):
       self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad script"%(block.hash, block.header.height))
-      return self.update(wtx=wtx, reason="Detected corrupted block")          
+      return self.update(wtx=wtx, reason="Detected corrupted block")        
+
+    burdens_authorized = True
+    #Additionally check that all burdens are authorized  
+    for excess in tx.additional_excesses:
+      prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      burden_list = []
+      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
+      result = execute(script = excess.message,
+                       prev_block_props = prev_block_props,
+                       excess_lookup = excess_lookup_partial,
+                       output_lookup = output_lookup_partial,
+                       burden = burden_list)
+      if not result:
+        all_evaluations_are_good = False
+        break
+      for commitment,pubkey in burden_list:
+        commitment_pc = commitment.to_pedersen_commitment()
+        ser = commitment_pc.serialize()
+        output = None
+        for o in block.tx.outputs:
+          if ser == o.serialized_apc:
+            output = o
+            break
+        if not output:
+          burdens_authorized = False
+          break
+        if (not output.authorized_burden) or (not output.authorized_burden==excess.burden_hash):
+          burdens_authorized = False
+          break
+      if not burdens_authorized:
+        break
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
