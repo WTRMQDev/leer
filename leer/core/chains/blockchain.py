@@ -57,8 +57,6 @@ class Blockchain:
     rb.prev_state = self.current_tip(rtx=wtx)
     # Note excesses_storage.apply_tx modidies transaction, in particular adds
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
-    excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
-    rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     excesses = tx.additional_excesses + list(tx.updated_excesses.values())
     all_evaluations_are_good = True
     updated_excesses_are_burden_free = True
@@ -122,8 +120,12 @@ class Blockchain:
     if not (all_evaluations_are_good and burdens_authorized):
       self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
       return self.update(wtx=wtx, reason="Detected corrupted block")        
+    #Write to db
     for burden in burdens:
       self.storage_space.txos_storage.burden.put(burden[0], burden[1])
+    excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
+    rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
+    # Rollback creation
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
