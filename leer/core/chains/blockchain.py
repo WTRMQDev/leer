@@ -117,6 +117,10 @@ class Blockchain:
           break
       if not burdens_authorized:
         break
+    if not (all_evaluations_are_good and burdens_authorized):
+      self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
+      return self.update(wtx=wtx, reason="Detected corrupted block")        
+
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
