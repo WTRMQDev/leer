@@ -81,6 +81,7 @@ class RollBack:
     self.num_of_added_excesses = None
     self.prev_state = None
     self.updated_excesses = None
+    self.burdens = []
 
   def serialize_bytes(self, _bytes):
     return len(_bytes).to_bytes(2,"big")+_bytes
@@ -108,14 +109,17 @@ class RollBack:
       serialized_excess_updates += num + self.serialize_bytes(_index) + self.serialize_bytes(obj)
 
     serialized_nums = self.num_of_added_outputs.to_bytes(2,"big") + self.num_of_added_excesses.to_bytes(2,"big")
+    serialized_burdens_len = len(self.burdens).to_bytes(2,"big")
+    serialized_burdens = serialized_burdens_len + b"".join([i[0] for i in self.burdens])
     version=b"\x01"
     serialized_state_id = self.serialize_bytes(self.prev_state)
-    summary_len = len(serialized_pruned_inputs)+len(serialized_nums)+len(version)+len(serialized_state_id)
+    summary_len = len(serialized_pruned_inputs)+len(serialized_nums) + len(serialized_burdens)+len(version)+len(serialized_state_id)
     serialized = summary_len.to_bytes(4,"big") + \
                  version + \
                  serialized_pruned_inputs + \
                  serialized_nums + \
                  serialized_excess_updates + \
+                 serialized_burdens + \
                  serialized_state_id
     return serialized
 
@@ -150,6 +154,11 @@ class RollBack:
       _index, data = self.deserialize_bytes_raw(data)
       _obj, data = self.deserialize_bytes_raw(data)
       self.updated_excesses.append(_snum, _index, _obj)
+    _s_burdens_num, data = data[:2], data[2:]
+    burdens_num = int.from_bytes(_s_burdens_num, "big")
+    for i in range(burdens_num):
+      next_burden, data= data[:65], data[65:]
+      self.burdens.append((next_burden, None))
     self.prev_state, data = self.deserialize_bytes_raw(data)
     return residue
 
