@@ -419,7 +419,7 @@ class DiscWallet:
   def restore_all_outputs_spent_in_block(self, block_height, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        return self.restore_all_outputs_spent_in_block(block_height, output_index, w_txn)
+        return self.restore_all_outputs_spent_in_block(block_height, w_txn)
     else:     
       cursor = w_txn.cursor(db=self.block_index)
       if not cursor.set_key(_(block_height)):
