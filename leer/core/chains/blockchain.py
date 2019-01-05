@@ -8,6 +8,8 @@ from leer.core.storage.headers_storage import HeadersStorage
 from leer.core.storage.excesses_storage import ExcessesStorage
 from leer.core.parameters.dynamic import next_reward
 from leer.core.utils import DOSException
+from leer.core.storage.lookup_utils import excess_lookup, output_lookup
+from leer_vm import execute
 
 class Blockchain:
   def __init__(self, storage_space, notify_wallet=None):
@@ -57,17 +59,19 @@ class Blockchain:
     rb.prev_state = self.current_tip(rtx=wtx)
     # Note excesses_storage.apply_tx modidies transaction, in particular adds
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
-    excesses = tx.additional_excesses + list(tx.updated_excesses.values())
     all_evaluations_are_good = True
     updated_excesses_are_burden_free = True
     burdens = []
     #Additional excesses can not create burdens
-    for excess in tx.updated_excesses.values():
-      prev_block_props = {'height': self.current_height(rtx=wtx), 
-                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+    for excess in block.tx.updated_excesses.values():
+      if  self.current_height(rtx=wtx)>0:
+        prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_storage.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      else:
+        prev_block_props = {'height':0, 'timestamp':0}
       burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
-      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
+      excess_lookup_partial = partial(excess_lookup, rtx=wtx, tx=block.tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=wtx, tx=block.tx, txos_storage = self.storage_space.txos_storage)
       result = execute(script = excess.message,
                        prev_block_props = prev_block_props,
                        excess_lookup = excess_lookup_partial,
@@ -85,12 +89,15 @@ class Blockchain:
 
     burdens_authorized = True
     #Additionally check that all burdens are authorized  
-    for excess in tx.additional_excesses:
-      prev_block_props = {'height': self.current_height(rtx=wtx), 
-                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+    for excess in block.tx.additional_excesses:
+      if  self.current_height(rtx=wtx)>0:
+        prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_storage.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      else:
+        prev_block_props = {'height':0, 'timestamp':0}
       burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
-      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
+      excess_lookup_partial = partial(excess_lookup, rtx=wtx, tx=block.tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=wtx, tx=block.tx, txos_storage = self.storage_space.txos_storage)
       result = execute(script = excess.message,
                        prev_block_props = prev_block_props,
                        excess_lookup = excess_lookup_partial,
@@ -123,7 +130,7 @@ class Blockchain:
     #Write to db
     burden_for_rollback = []
     for burden in burdens:
-      if not self.storage_space.txos_storage.burden.get(burden[0], rtx=wtx)
+      if not self.storage_space.txos_storage.burden.get(burden[0], rtx=wtx):
         self.storage_space.txos_storage.burden.put(burden[0], burden[1], wtx=wtx)
         burden_for_rollback.append((burden[0], burden[1]))
     excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
@@ -188,19 +195,22 @@ class Blockchain:
     commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:
       return False
-    excesses = tx.additional_excesses + list(tx.updated_excesses.values())
+    excesses = block.tx.additional_excesses + list(block.tx.updated_excesses.values())
     excesses_indexes = [e.index for e in excesses]
-    for i in tx.inputs:
+    for i in block.tx.inputs:
       if self.storage_space.txos_storage.confirmed.burden.has(i.serialized_index, rtx=wtx):
         required_index = txos.storage.confirmed.burden.get(i.serialized_index, rtx=wtx)
         if (not required_index in excesses_indexes) and (not self.storage_space.excesses_storage.has_index(required_index)):
           return False
     for excess in excesses:
-      prev_block_props = {'height': self.current_height(rtx=wtx), 
-                         'timestamp': self.storage_space.headers_manager.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      if  self.current_height(rtx=wtx)>0:
+        prev_block_props = {'height': self.current_height(rtx=wtx), 
+                         'timestamp': self.storage_space.headers_storage.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
+      else:
+        prev_block_props = {'height':0, 'timestamp':0}
       burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=tx, excesses_storage = self.storage_space.excesses_storage)
-      output_lookup_partial = partial(output_lookup, rtx=rtx, tx=tx, txos_storage = self.storage_space.txos_storage)
+      excess_lookup_partial = partial(excess_lookup, rtx=wtx, tx=block.tx, excesses_storage = self.storage_space.excesses_storage)
+      output_lookup_partial = partial(output_lookup, rtx=wtx, tx=block.tx, txos_storage = self.storage_space.txos_storage)
       result = execute(script = excess.message,
                        prev_block_props = prev_block_props,
                        excess_lookup = excess_lookup_partial,
