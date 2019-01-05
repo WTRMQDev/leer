@@ -121,8 +121,11 @@ class Blockchain:
       self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
       return self.update(wtx=wtx, reason="Detected corrupted block")        
     #Write to db
+    burden_for_rollback = []
     for burden in burdens:
-      self.storage_space.txos_storage.burden.put(burden[0], burden[1])
+      if not self.storage_space.txos_storage.burden.get(burden[0], rtx=wtx)
+        self.storage_space.txos_storage.burden.put(burden[0], burden[1], wtx=wtx)
+        burden_for_rollback.append((burden[0], burden[1]))
     excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     # Rollback creation
@@ -130,6 +133,7 @@ class Blockchain:
     rb.updated_excesses = rollback_updates
     rb.num_of_added_outputs = output_num
     rb.num_of_added_excesses = excesses_num
+    rb.burdens = burden_for_rollback
     self.storage_space.blocks_storage.put_rollback_object(block_hash, rb, wtx=wtx)
     self.storage_space.mempool_tx.update(rtx=wtx, reason="new block")
     if self.notify_wallet:
@@ -141,6 +145,8 @@ class Blockchain:
     h = self.current_height(rtx=wtx)
     self.storage_space.txos_storage.rollback(pruned_inputs=rb.pruned_inputs, num_of_added_outputs=rb.num_of_added_outputs, prev_state=rb.prev_state, wtx=wtx)
     self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state, rollback_updates=rb.updated_excesses, wtx=wtx)
+    for burden in rb.burdens:
+      self.storage_space.txos_storage.burden.remove(burden[0], wtx=wtx)
     if self.notify_wallet:
       self.notify_wallet("rollback", rb, h)
 
