@@ -1,5 +1,4 @@
 from time import time
-from functools import partial
 from leer.core.primitives.block import Block, ContextBlock
 from leer.core.primitives.header import Header
 from leer.core.storage.blocks_storage import BlocksStorage, RollBack
@@ -8,8 +7,6 @@ from leer.core.storage.headers_storage import HeadersStorage
 from leer.core.storage.excesses_storage import ExcessesStorage
 from leer.core.parameters.dynamic import next_reward
 from leer.core.utils import DOSException
-from leer.core.storage.lookup_utils import excess_lookup, output_lookup
-from leer_vm import execute
 
 class Blockchain:
   def __init__(self, storage_space, notify_wallet=None):
@@ -59,7 +56,10 @@ class Blockchain:
     rb.prev_state = self.current_tip(rtx=wtx)
     # Note excesses_storage.apply_tx modidies transaction, in particular adds
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
-    all_evaluations_are_good = True
+    excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
+    rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
+
+    '''all_evaluations_are_good = True
     updated_excesses_are_burden_free = True
     burdens = []
     #Additional excesses can not create burdens
@@ -127,14 +127,13 @@ class Blockchain:
     if not (all_evaluations_are_good and burdens_authorized):
       self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
       return self.update(wtx=wtx, reason="Detected corrupted block")        
+    '''
     #Write to db
     burden_for_rollback = []
-    for burden in burdens:
+    for burden in block.tx.burdens:
       if not self.storage_space.txos_storage.burden.get(burden[0], rtx=wtx):
         self.storage_space.txos_storage.burden.put(burden[0], burden[1], wtx=wtx)
         burden_for_rollback.append((burden[0], burden[1]))
-    excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
-    rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
     # Rollback creation
     rb.pruned_inputs=rollback_inputs
     rb.updated_excesses = rollback_updates
@@ -195,11 +194,12 @@ class Blockchain:
     commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:
       return False
-    excesses = block.tx.additional_excesses + list(block.tx.updated_excesses.values())
+    '''excesses = block.tx.additional_excesses + list(block.tx.updated_excesses.values())
     excesses_indexes = [e.index for e in excesses]
     for i in block.tx.inputs:
       if self.storage_space.txos_storage.confirmed.burden.has(i.serialized_index, rtx=wtx):
-        required_index = txos.storage.confirmed.burden.get(i.serialized_index, rtx=wtx)
+        required_commitment = txos.storage.confirmed.burden.get(i.serialized_index, rtx=wtx)
+        required_index =
         if (not required_index in excesses_indexes) and (not self.storage_space.excesses_storage.has_index(required_index)):
           return False
     for excess in excesses:
@@ -218,6 +218,7 @@ class Blockchain:
                        burden = burden_list)
       if not result:
         return False
+    '''
     if block.header.height>0:
       subsidy = next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx)
       if not self.storage_space.headers_storage.get(block.header.prev, rtx=wtx).supply + \

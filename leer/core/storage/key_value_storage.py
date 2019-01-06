@@ -14,5 +14,5 @@ class KeyValueStorage:
     return wtx.remove( bytes(key), value= value, db=self.main_db)
 
   def has(self, key, rtx):
-    return not (self.get( bytes(key), db=self.main_db)==None)
+    return not (self.get( bytes(key), rtx=rtx)==None)
 

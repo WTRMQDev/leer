@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from functools import partial
 import struct, os
 
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
@@ -12,6 +13,8 @@ from leer.core.storage.txos_storage import TXOsStorage
 from leer.core.parameters.constants import coinbase_maturity, output_creation_fee
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from leer.core.storage.verification_cache import verification_cache
+from leer.core.lubbadubdub.script import evaluate_scripts, check_burdens
+from leer.core.storage.lookup_utils import excess_lookup
 
 def is_sorted(lst, key=lambda x: x):
     for i, el in enumerate(lst[1:]):
@@ -160,11 +163,15 @@ class Transaction:
     # privkey for the last one output isn't arbitrary
     address, value = self._destinations[-1]
     in_blinding_key_sum = None
+    burdens_to_be_covered = []
     for _input in self.inputs:
       in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
       priv_key = priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
       in_blinding_key_sum += priv_key
-      self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+os.urandom(32))
+      if self.txos_storage.burden.has(_input.serialized_index):        
+        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+_input.serialized_index[:33])
+      else:
+        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+os.urandom(33))
     output = IOput()
     output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum-offset_pk,
       relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
@@ -439,8 +446,6 @@ class Transaction:
     verification_cache[(self.serialize, block_height)] = True
     return True
 
-    
-
   def verify(self, rtx, block_height = None, skip_non_context=False):
     """
      Transaction is valid if:
@@ -480,8 +485,6 @@ class Transaction:
               database_inputs.append(self.txos_storage.confirmed.get(index, rtx=rtx))
           assert not self.excesses_storage.excesses.has_index(rtx, self.updated_excesses[index].index), "Duplication of already existed excess during update"
           self.inputs = database_inputs
-           
-
     
     if not GLOBAL_TEST['spend from mempool']:
         raise NotImplemented #XXX Check that all inputs are in UTXOSet
@@ -504,6 +507,14 @@ class Transaction:
         # by consensus rules. However, they cannot be included into any block.
         raise NotImplemented
 
+    if block_height > 0:
+      prev_block_props = {'height': self.txos_storage.storage_space.blockchain.current_height(rtx=rtx), 
+                        'timestamp': self.txos_storage.storage_space.headers_storage.get(self.txos_storage.storage_space.blockchain.current_tip(rtx=rtx), rtx=rtx).timestamp}
+    else:
+      prev_block_props = {'height':0, 'timestamp':0}
+    excess_lookup_partial = partial(excess_lookup, rtx=rtx, tx=self, excesses_storage = self.excesses_storage)
+    assert evaluate_scripts(self, prev_block_props, excess_lookup_partial), "Bad script"
+    assert check_burdens(self, self.txos_storage.confirmed.burden, self.excesses_storage, rtx=rtx), "Burden is not satisfied"
 
     return True
     #[inputs_pedersen_commitment_sum, outputs_excesses_sum, additional_excesses_sum], [outputs_pedersen_commitment_sum, fee_pc])
