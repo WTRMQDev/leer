@@ -14,7 +14,7 @@ def excess_lookup_by_index(index, tx=None, rtx=None, excesses_storage=None):
   excesses_indexes = {e.index:e for e in excesses}
   if index in excesses_indexes:
     return excesses_indexes[index].message
-  e = excesses_storage.get_by_index(index)
+  e = excesses_storage.get_by_index(index, rtx=rtx)
   if e:
     return e.message
   return False

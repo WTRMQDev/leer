@@ -131,8 +131,8 @@ class Blockchain:
     #Write to db
     burden_for_rollback = []
     for burden in block.tx.burdens:
-      if not self.storage_space.txos_storage.burden.get(burden[0], rtx=wtx):
-        self.storage_space.txos_storage.burden.put(burden[0], burden[1], wtx=wtx)
+      if not self.storage_space.txos_storage.confirmed.burden.get(burden[0], rtx=wtx):
+        self.storage_space.txos_storage.confirmed.burden.put(burden[0], burden[1], wtx=wtx)
         burden_for_rollback.append((burden[0], burden[1]))
     # Rollback creation
     rb.pruned_inputs=rollback_inputs
@@ -152,7 +152,7 @@ class Blockchain:
     self.storage_space.txos_storage.rollback(pruned_inputs=rb.pruned_inputs, num_of_added_outputs=rb.num_of_added_outputs, prev_state=rb.prev_state, wtx=wtx)
     self.storage_space.excesses_storage.rollback(num_of_added_excesses=rb.num_of_added_excesses, prev_state=rb.prev_state, rollback_updates=rb.updated_excesses, wtx=wtx)
     for burden in rb.burdens:
-      self.storage_space.txos_storage.burden.remove(burden[0], wtx=wtx)
+      self.storage_space.txos_storage.confirmed.burden.remove(burden[0], wtx=wtx)
     if self.notify_wallet:
       self.notify_wallet("rollback", rb, h)
 
