@@ -58,11 +58,11 @@ class ExcessesStorage():
     #def __contains__(self, serialized_index, ):
     #  return bool(self.excesses.get_by_hash(serialized_index))
 
-    def has_index(self, serialized_index):
-      return bool(self.excesses.get_by_hash(serialized_index))
+    def has_index(self, serialized_index, rtx):
+      return bool(self.excesses.get_by_hash(serialized_index, rtx=rtx))
 
-    def get_by_index(self, serialized_index):
-      serialized_excess = self.excesses.get_by_hash(serialized_index)
+    def get_by_index(self, serialized_index, rtx):
+      serialized_excess = self.excesses.get_by_hash(serialized_index, rtx=rtx)
       if not serialized_excess:
         return None
       e = Excess()
