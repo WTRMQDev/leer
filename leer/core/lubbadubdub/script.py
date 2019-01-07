@@ -1,5 +1,6 @@
 from leer.core.utils import sha256
-from leer.core.storage.lookup_utils import excess_lookup
+from leer.core.storage.lookup_utils import excess_lookup, excess_lookup_by_index
+from secp256k1_zkp import Point
 from leer_vm import execute
 
 def evaluate_scripts(tx, prev_block_props, excess_lookup):
@@ -34,7 +35,7 @@ def evaluate_scripts(tx, prev_block_props, excess_lookup):
         pk = pubkey.to_pubkey()
         if not pk.serialize() == output.address.serialized_pubkey:
           return False
-        excess_index = sha256(b"\x01\x00"+output.serialized_apc)
+        excess_index = pk.serialize() + sha256(b"\x01\x00"+output.serialized_apc)
         burdens.append((output.serialized_index, excess_index))
   tx.burdens = burdens
   return True
@@ -44,7 +45,18 @@ def check_burdens(tx, burden_storage, excesses_storage, rtx):
   eis = [e.index for e in excesses]
   for i in tx.inputs:
     if burden_storage.has(i.serialized_index, rtx=rtx): 
-      required_excess = burden_storage.get(i.serialized_index, rtx=rtx)
+      required_index = burden_storage.get(i.serialized_index, rtx=rtx)
       if not bool(excess_lookup_by_index(required_index, tx=tx, rtx=rtx, excesses_storage =excesses_storage)):
         return False
   return True
+
+def generate_proof_script(output):
+  script = b""
+  OP_PUSHPOINT = (0x03).to_bytes(1, "big")
+  OP_OUTPUTORHASH = (0x27).to_bytes(1, "big")
+  OP_TRUE = (0x01).to_bytes(1, "big")
+  pubkey_point = Point(output.address.pubkey)
+  commitment_point = Point(output.authorized_pedersen_commitment)
+  script = OP_PUSHPOINT + pubkey_point.serialize() + OP_PUSHPOINT + commitment_point.serialize() + OP_OUTPUTORHASH + OP_TRUE
+  return script
+  
