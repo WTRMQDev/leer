@@ -172,7 +172,8 @@ function basic_request(method, params, callback) {
               }
           //stubs
           else { 
-                set_node_off();
+                if (xhr.readyState == 4 && xhr.status == 0)
+                  {set_node_off();}
           }
         
         }
