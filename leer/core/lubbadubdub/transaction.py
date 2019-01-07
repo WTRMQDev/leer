@@ -13,7 +13,7 @@ from leer.core.storage.txos_storage import TXOsStorage
 from leer.core.parameters.constants import coinbase_maturity, output_creation_fee
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from leer.core.storage.verification_cache import verification_cache
-from leer.core.lubbadubdub.script import evaluate_scripts, check_burdens
+from leer.core.lubbadubdub.script import evaluate_scripts, check_burdens, generate_proof_script
 from leer.core.storage.lookup_utils import excess_lookup
 
 def is_sorted(lst, key=lambda x: x):
@@ -51,6 +51,11 @@ class Transaction:
     self.inputs.append(_input)
 
   def add_destination(self, destination):
+    '''
+      Destination is address, value, [optional] need_proof
+    '''
+    if len(destination)==2:
+      destination = (destination[0], destination[1], True)
     self._destinations.append(destination)
 
 
@@ -149,34 +154,51 @@ class Transaction:
       raise Exception("Not enough money in inputs to cover outputs")
     # TODO We need logic here to cover too low remainders (less than new output fee)
     change_address =  change_address if change_address else priv_data['change address']
-    self._destinations.append((change_address, remainder))
+    self._destinations.append((change_address, remainder, True))
     privkey_sum=0
     out_blinding_key_sum = None
+    need_proofs = []
+    excesses_key_sum = None
     for out_index in range(len(self._destinations)-1):
-      address, value = self._destinations[out_index]
+      address, value, need_proof = self._destinations[out_index]
       output = IOput()
       output.fill(address, value, generator = default_generator_ser)
       self.outputs.append( output )
       out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+      if need_proof:
+        need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     offset_pk = PrivateKey()
     self.mixer_offset = int.from_bytes(offset_pk.private_key, "big")
     # privkey for the last one output isn't arbitrary
-    address, value = self._destinations[-1]
+    address, value, need_proof = self._destinations[-1]
+    if need_proof:
+      need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     in_blinding_key_sum = None
     burdens_to_be_covered = []
     for _input in self.inputs:
       in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
       priv_key = priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
       in_blinding_key_sum += priv_key
-      if self.txos_storage.burden.has(_input.serialized_index):        
-        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+_input.serialized_index[:33])
+      if self.txos_storage.confirmed.burden.has(_input.serialized_index, rtx=rtx):
+        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+_input.serialized_apc)
       else:
         self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+os.urandom(33))
+    if len(need_proofs):
+      excesses_key_sum = need_proofs[0][1]
+      for i in need_proofs[1:]:
+        excesses_key_sum+=i[1]
     output = IOput()
-    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum-offset_pk,
+    last_blinding_key = in_blinding_key_sum-out_blinding_key_sum-offset_pk
+    if excesses_key_sum:
+      last_blinding_key += excesses_key_sum
+    output.fill(address, value, blinding_key = last_blinding_key,
       relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
     self.outputs.append(output)
     [output.generate() for output in self.outputs]
+    for ae in need_proofs:
+      script = generate_proof_script(ae[0])
+      e = excess_from_private_key(ae[1], script)
+      self.additional_excesses.append(e)
     self.sort_ioputs()
     self.verify(rtx=rtx)
     
