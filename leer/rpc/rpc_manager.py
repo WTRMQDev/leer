@@ -219,6 +219,14 @@ class RPCManager():
     core_workload_answer = await self.requests[_id]
     self.requests.pop(_id)
     
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'last wallet update','sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    last_wallet_update_answer = await self.requests[_id]
+    self.requests.pop(_id)
+    last_wallet_update = 0
+    if not last_wallet_update_answer['result']=='error':
+      last_wallet_update = last_wallet_update_answer['result']['value']
+ 
     response = {}
 
     if ('error' in [blockchain_height_answer['result'], best_header_answer['result'], best_advertised_answer['result']]) or \
@@ -237,6 +245,7 @@ class RPCManager():
                   'best_advertised_header': best_advertised_answer['result']['value'],
                   'core_workload': core_workload_answer['result']['value']
                  }
+    response['last_wallet_update'] = last_wallet_update;
     return response
 
 
