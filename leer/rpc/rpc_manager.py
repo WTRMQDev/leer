@@ -12,6 +12,12 @@ from secp256k1_zkp import PrivateKey
 from os.path import split as path_split, join
 from time import time
 
+from jsonrpcserver.dispatcher import request_logger, response_logger
+from aiohttp.web import access_logger
+request_logger.setLevel(logging.ERROR)
+response_logger.setLevel(logging.ERROR)
+access_logger.setLevel(logging.ERROR)
+
 class RPCManager():
   #Should be singleton?
   def __init__(self, loop, syncer, config):
