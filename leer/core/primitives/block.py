@@ -6,6 +6,7 @@ from leer.core.storage.headers_storage import HeadersStorage
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.lubbadubdub.ioput import IOput
+from leer.core.lubbadubdub.offset_utils import sum_offset
 from time import time
 from leer.core.parameters.dynamic import next_reward, next_target
 from leer.core.parameters.constants import initial_target
@@ -172,7 +173,7 @@ def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, 
     height = current_block.header.height+1
     votedata = VoteData()
     target = next_target(current_block.hash, storage_space.headers_storage, rtx=wtx)    
-    full_offset = (current_block.header.full_offset+tx.mixer_offset)%0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #TODO sum_offset to utils
+    full_offset = sum_offset(current_block.header.full_offset,tx.mixer_offset)
     if not timestamp:
       timestamp = max(int(time()), storage_space.headers_storage.get(storage_space.blockchain.current_tip(rtx=wtx), rtx=wtx).timestamp+1)
     header=Header(height = height, supply=supply, full_offset=full_offset, merkles=merkles, popow=popow, votedata=votedata, timestamp=timestamp, target=target, version=int(1), nonce=b"\x00"*16)

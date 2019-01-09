@@ -1,3 +1,4 @@
+from leer.core.lubbadubdub.offset_utils import subtract_offset
 from chacha20poly1305 import ChaCha20Poly1305
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, default_blinding_generator
 from leer.core.lubbadubdub.constants import default_generator
@@ -58,7 +59,7 @@ def compare_supply_and_merkle_roots(total_supply, commitment_root, excesses_root
   excesses_summ = PublicKey(pubkey= excesses_root[:33], raw=True).to_pedersen_commitment()
   # Instead of generating separately supply_pc (which is actually public key v*H) and
   # full_offset_pc (which is actually public key fo*G) lets generate sum
-  minus_fo = (0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141-full_offset)%0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+  minus_fo = subtract_offset(0, full_offset)
   supply_and_offset_pc = PedersenCommitment(value_generator = default_generator, blinding_generator = default_blinding_generator)
   supply_and_offset_pc.create(total_supply, minus_fo.to_bytes(32,"big"))
   checker = PedersenCommitment()

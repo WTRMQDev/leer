@@ -4,6 +4,7 @@ import struct, os
 
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
 
+from leer.core.lubbadubdub.offset_utils import sum_offset
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
 from leer.core.lubbadubdub.address import Address, Excess, excess_from_private_key
 from leer.core.lubbadubdub.ioput import IOput
@@ -551,8 +552,7 @@ class Transaction:
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses
     tx.updated_excesses = self.updated_excesses.copy()
     tx.updated_excesses.update(another_tx.updated_excesses)
-    # 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 - order of secp256k1 group
-    tx.mixer_offset = (self.mixer_offset + another_tx.mixer_offset) % 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+    tx.mixer_offset = sum_offset(self.mixer_offset, another_tx.mixer_offset)
     if not GLOBAL_TEST['skip combined excesses']:
       raise NotImplemented
       #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
