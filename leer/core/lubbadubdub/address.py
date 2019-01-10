@@ -106,8 +106,18 @@ class Excess:
         Thus index contains public key and hash of serialized excess.
       """
       m=hashlib.sha256()
-      m.update(self.serialize())
+      m.update(self.message)
       return self.pubkey.serialize() + m.digest()
+
+    @property
+    def burden_hash(self):
+      '''
+        When script in excess creates burden for some output, this output should authorize burden
+        by signing burden_hash.
+      '''
+      m=hashlib.sha256()
+      m.update(self.index)
+      return m.digest()
 
 class Address(Excess):
 

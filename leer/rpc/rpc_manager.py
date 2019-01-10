@@ -1,4 +1,5 @@
 from aiohttp import web
+from aiohttp_remotes import BasicAuth, setup
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
 from asyncio.base_futures import InvalidStateError
@@ -10,6 +11,12 @@ import base64
 from secp256k1_zkp import PrivateKey
 from os.path import split as path_split, join
 from time import time
+
+from jsonrpcserver.dispatcher import request_logger, response_logger
+from aiohttp.web import access_logger
+request_logger.setLevel(logging.ERROR)
+response_logger.setLevel(logging.ERROR)
+access_logger.setLevel(logging.ERROR)
 
 class RPCManager():
   #Should be singleton?
@@ -27,6 +34,7 @@ class RPCManager():
     rpc_manager_location = __file__
     web_wallet_dir = join(path_split(rpc_manager_location)[0], "web_wallet")
     self.app = web.Application(loop=self.loop)
+    self.loop.run_until_complete(setup(self.app, BasicAuth(config['rpc']['login'],config['rpc']['password'],"realm")))
     
     self.app.router.add_static('/',web_wallet_dir)
     self.app.router.add_route('*', '/rpc', self.handle)
@@ -47,6 +55,7 @@ class RPCManager():
     methods.add(self.dumpprivkey)
     methods.add(self.importprivkey)
     methods.add(self.getsyncstatus)
+    methods.add(self.getblock)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -167,7 +176,7 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
-  async def dumpprivkey(self, address):
+  async def dumpprivkey(self, address): #TODO DOESN'T WORK
     _id = str(uuid4())
     self.syncer.queues['Blockchain'].put({'action':'give private key', 'id':_id,
                                           'address':address, 'sender': "RPCManager"})
@@ -176,10 +185,19 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
-  async def importprivkey(self, privkey):
+  async def importprivkey(self, privkey): #TODO DOESN'T WORK
     _id = str(uuid4())
     self.syncer.queues['Blockchain'].put({'action':'take private key', 'id':_id,
                                           'privkey':privkey, 'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return answer['result']
+
+  async def getblock(self, block_num):
+    _id = str(uuid4())
+    self.syncer.queues['Blockchain'].put({'action':'give block info', 'id':_id,
+                                          'block_num':block_num, 'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
@@ -207,6 +225,14 @@ class RPCManager():
     core_workload_answer = await self.requests[_id]
     self.requests.pop(_id)
     
+    self.syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'last wallet update','sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    last_wallet_update_answer = await self.requests[_id]
+    self.requests.pop(_id)
+    last_wallet_update = 0
+    if not last_wallet_update_answer['result']=='error':
+      last_wallet_update = last_wallet_update_answer['result']['value']
+ 
     response = {}
 
     if ('error' in [blockchain_height_answer['result'], best_header_answer['result'], best_advertised_answer['result']]) or \
@@ -225,6 +251,7 @@ class RPCManager():
                   'best_advertised_header': best_advertised_answer['result']['value'],
                   'core_workload': core_workload_answer['result']['value']
                  }
+    response['last_wallet_update'] = last_wallet_update;
     return response
 
 

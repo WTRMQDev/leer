@@ -1,7 +1,7 @@
 import struct
 import hashlib
 
-from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof
+from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof, BulletProof
 
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
 from leer.core.lubbadubdub.address import Address
@@ -29,7 +29,7 @@ class IOput:
         serialized output.
     """
     #serializable data
-    self.version = 1
+    self.version = 2
     self.block_version = 1
     self.lock_height = 0
     self.authorized_pedersen_commitment = None
@@ -38,6 +38,9 @@ class IOput:
     self.encrypted_message = None
     self.generator = None
     self.relay_fee = None
+    self.authorized_burden = None # This authorization ensures that only agent who created output impose burden on it
+    #context data (we serialize it for storing, but not for sending to network)
+    self.address_excess_num_index = None #5 bytes long bytes-string
     #inner data
     self.unauthorized_pedersen_commitment = None
     self.value = None
@@ -67,6 +70,11 @@ class IOput:
     ret += ser_range_proof
 
     self.serialized = ret
+    return ret
+
+  def serialize_with_context(self):
+    ret = self.serialize()
+    ret += self.address_excess_num_index
     return ret
 
   @property
@@ -149,7 +157,7 @@ class IOput:
     consumed+=part1
 
     if self.generator in generators:
-      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, blinded_generator = generators[self.generator])
+      self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, value_generator = generators[self.generator])
     else:
       raise NotImplemented
 
@@ -158,6 +166,12 @@ class IOput:
     _part2 = self.address.deserialize_raw(part2)
     consumed += part2[:len(part2)-len(_part2)]
     part2 = _part2
+
+    has_burden, part2 = part2[:1], part2[1:]
+    consumed += has_burden
+    if has_burden == b"\01":
+      self.authorized_burden, part2 = part2[:32], part2[32:] 
+      consumed += self.authorized_burden
     
     if len(part2)<2:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message length")
@@ -167,15 +181,21 @@ class IOput:
     self.encrypted_message = part2[2:2+encrypted_message_len]
     consumed += part2[:2+encrypted_message_len]
 
+
     part3=part2[2+encrypted_message_len:]
     (range_proof_len,) = struct.unpack("> H", part3[:2])
     if len(part3)<2+range_proof_len: 
         raise Exception("Serialized output doesn't contain enough bytes for rangeproof")
 
-    self._calc_unauthorized_pedersen()    
-    self.rangeproof = RangeProof(proof=part3[2:2+range_proof_len], 
-        pedersen_commitment=self.unauthorized_pedersen_commitment, 
-        additional_data = self.signed_part())
+    self._calc_unauthorized_pedersen()  
+    if self.version in [0,1]:
+      self.rangeproof = RangeProof(proof=part3[2:2+range_proof_len], 
+          pedersen_commitment=self.unauthorized_pedersen_commitment, 
+          additional_data = self.signed_part())
+    elif self.version == 2:
+      self.rangeproof = BulletProof(proof=part3[2:2+range_proof_len], 
+          pedersen_commitment=self.unauthorized_pedersen_commitment, 
+          additional_data = self.signed_part())      
 
     consumed += part3[:2+range_proof_len]
 
@@ -185,22 +205,13 @@ class IOput:
     self.serialized = consumed
     return part3[2+range_proof_len:]
 
-  def detect_value(self, key_manager): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {'address':priv}}
-    try:
-          privkey = key_manager.priv_by_address(self.address)
-          nonce = self.apc
-          decrypted_message = decrypt(privkey, nonce, self.encrypted_message)
-          raw_blinding_key, self.value = struct.unpack( "> 32s Q", decrypted_message)
-          self.blinding_key=PrivateKey(raw_blinding_key, raw=True)
-          if not self._calc_pedersen_wos()==self.unpc:
-            self.blinding_key, self.value = None,None
-            raise Exception("Incorrect blinding key and value")
-    except Exception as e:
-         #TODO definetely some logic should be added here to notify about missed info
-         pass  
-    return bool(self.value)
 
-  def detect_value_new(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
+  def deserialize_with_context(self, serialized_output):
+    residue = self.deserialize_raw(serialized_output)
+    self.address_excess_num_index, residue = residue[:5], residue[5:]
+    return residue
+
+  def detect_value(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
     try:
           privkey = inputs_info['priv_by_pub'][self.address.serialized_pubkey]
           nonce = self.apc
@@ -231,13 +242,16 @@ class IOput:
       self.generator, self.relay_fee,
       self.serialized_apc)
     ret += self.address.serialize()
+    ret += {True:b"\x01",False:b"\x00"}[bool(self.authorized_burden)]
+    if self.authorized_burden:
+      ret += self.authorized_burden
     ret += struct.pack("> H", len(self.encrypted_message))
     ret += self.encrypted_message
     return ret
 
 
   #Wallet functionality
-  def fill(self, address, value, relay_fee = 0, blinding_key=None, generator=default_generator_ser, coinbase=False, lock_height = 0):
+  def fill(self, address, value, relay_fee = 0, blinding_key=None, generator=default_generator_ser, burden_hash = None, coinbase=False, lock_height = 0):
     """
     Fill basic params of ouput.
 
@@ -267,6 +281,7 @@ class IOput:
     self.address = address
     self.generator = generator
     self.value = value
+    self.authorized_burden = burden_hash
     if blinding_key is None:
       blinding_key = PrivateKey() #we do not store this key in the wallet
     self.blinding_key = blinding_key
@@ -285,7 +300,7 @@ class IOput:
     """
     assert(self.generator and self.address and self.blinding_key and isinstance(self.value, int)) #self.value can be 0
     if self.generator in generators:
-      unpc = PedersenCommitment(blinded_generator = generators[self.generator])
+      unpc = PedersenCommitment(value_generator = generators[self.generator])
     else:
       raise NotImplemented #TODO
     unpc.create(self.value, self.blinding_key.private_key)
@@ -305,7 +320,7 @@ class IOput:
     self._serialized_apc = None
     self.authorized_pedersen_commitment = \
       (self.unauthorized_pedersen_commitment.to_public_key() + self.address.pubkey).to_pedersen_commitment(
-      blinded_generator = generators[self.generator])
+      value_generator = generators[self.generator])
 
   def _calc_unauthorized_pedersen(self):
     """
@@ -317,7 +332,7 @@ class IOput:
       raise NotImplemented
     self.unauthorized_pedersen_commitment = \
       (self.authorized_pedersen_commitment.to_public_key() - self.address.pubkey).to_pedersen_commitment(
-      blinded_generator = generators[self.generator])
+      value_generator = generators[self.generator])
 
   #TODO default exp should be more wise
   def generate(self, min_value=0, nonce=None, exp=0, concealed_bits=64):
@@ -327,11 +342,11 @@ class IOput:
     Calc all necessery params like APC, rangeproofs and so on. After generation
     ouput is ready for serialization. Params listed below control what should be
     concealed by proof.
+    Note, if version = 2 is set, bullerproofs with min_value equal to 0, 
+    concealed_bits = 64 are used. All optional params are neglected
 
     Parameters
     ----------
-    address : Address
-        Address of output
     [optional] min_value : int
         Default: 0. Constructs a proof where the verifer can tell the minimum
                    value is at least the specified amount.
@@ -362,13 +377,20 @@ class IOput:
     self.encrypted_message = encrypt(self.address.pubkey, apc, plaintext);
 
     additional_data = self.signed_part()
-    self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, additional_data = additional_data)
     if self.version==0:
+      self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
       res = self.rangeproof._sign(exp=-1, concealed_bits=0,
                                   nonce=nonce)
     elif self.version==1:
+      self.rangeproof = RangeProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
       self.rangeproof._sign(min_value=min_value, nonce=nonce,
                         exp=exp, concealed_bits=concealed_bits)
+    elif self.version==2:
+      self.rangeproof = BulletProof(pedersen_commitment=self.unauthorized_pedersen_commitment, 
+                                   additional_data = additional_data)
+      self.rangeproof._sign(concealed_bits=64)
     
   def set_verified_and_correct(self):
     verification_cache[self.serialize] = True
@@ -390,17 +412,25 @@ class IOput:
       pass
     result = True
 
-    if self.version==1 or self.version==0:
-      try:
-        assert self.address.verify(), "Bad address"
-        assert self.generator in generators, "Bad generator"
-        assert self.rangeproof.verify(), "Bad rangeproof"
-      except AssertionError as e:
-        result = False
-    else:
+    try:
+      assert self.address.verify(), "Bad address"
+      assert self.generator in generators, "Bad generator"
+    except AssertionError as e:
       result = False
-    if result:  
-      result = self.address.verify()
+
+    if result:
+      if self.version==1 or self.version==0:
+        try:
+          assert self.rangeproof.verify(), "Bad rangeproof"
+        except AssertionError as e:
+          result = False    
+      elif self.version==2:
+        try:
+          assert self.rangeproof.verify(concealed_bits = 64), "Bad bulletproof"
+        except AssertionError as e:
+          result = False  
+      else:
+        result = False
 
     verification_cache[self.serialize] = result
     return result
@@ -411,8 +441,14 @@ class IOput:
       'exp', 'mantissa' (the same as concealed bits), 
       'min_value', 'max_value'
     """
-    a,b,c,d =  self.rangeproof.info()
-    return {'exp':a, 'mantissa':b, 'min_value':c, 'max_value':d}
+    if self.version in [0,1]:
+      #Rangeproof
+      a,b,c,d =  self.rangeproof.info()
+      return {'exp':a, 'mantissa':b, 'min_value':c, 'max_value':d}
+    if self.version == 2:
+      #Bulletproof, no info here
+      assert self.verify() 
+      return {'exp':0, 'mantissa':0, 'min_value':0, 'max_value': 18446744073709551615} # 18446744073709551615==2**64-1
 
   def __str__(self):
     s=""

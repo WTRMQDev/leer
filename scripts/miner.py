@@ -18,7 +18,7 @@ def basic_request(method, params=[]):
                "jsonrpc": "2.0",
                "id": 0,
              }
-   response = requests.post( url, data=json.dumps(payload), headers=headers)
+   response = requests.post( url, data=json.dumps(payload), headers=headers, auth = (INSERT_LOGIN_HERE, INSERT_PASSWORD_HERE))
    result = json.loads(response.text)
    if 'error' in result:
      raise Exception(result['error'])

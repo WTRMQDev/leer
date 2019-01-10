@@ -62,6 +62,8 @@ config = {
            'rpc':{
                     'host':'0.0.0.0', 
                     'port': 9238,
+                    'login': INSERT_LOGIN_HERE,
+                    'password': INSERT_PASSWORD_HERE
                  },
            'location': {
                          'basedir': join(expanduser("~"), ".leertest2") ,

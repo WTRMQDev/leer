@@ -172,7 +172,8 @@ function basic_request(method, params, callback) {
               }
           //stubs
           else { 
-                set_node_off();
+                if (xhr.readyState == 4 && xhr.status == 0)
+                  {set_node_off();}
           }
         
         }
@@ -183,30 +184,6 @@ function basic_request(method, params, callback) {
         xhr.send(JSON.stringify(request)); 
         return false;
 }
-
-function update_sync_status() {
-  var set_sync_status = function(sync_status) {
-      var syncstatus_text = document.getElementById("syncstatus");
-      var syncstatus_bar = document.getElementById("actualprogressDiv");
-      var coreStatus = document.getElementById("coreStatus");
-      var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
-      var bkh = sync_status['best_known_header'];
-      var bah = sync_status['best_advertised_header'];
-      if ('core_workload' in sync_status) { var workload = sync_status['core_workload'];}
-      else {var workload = false;}
-      if(bah==null)
-        bah=-1;
-      syncstatus_text.innerHTML = "Synchronisation: "+height.toString() + "/"+bkh.toString() + "/"+bah.toString();
-      if(bkh>0)
-        syncstatus_bar.style.width = (100*height/bkh).toString()+"%"
-      else
-        syncstatus_bar.style.width = "100%"
-      if(workload)
-        coreStatus.innerHTML = "Core loop status: "+workload
-    } 
-  basic_request("getsyncstatus",[],set_sync_status);
-}
-
 function update_balance() {
   var set_balance_stats = function(balance_stats) {
       var known = document.getElementById("balance");
@@ -238,6 +215,40 @@ function update_addresses() {
     } 
   basic_request("getbalancelist",[],set_updated_addresses );
 }
+
+last_wallet_update = 0;
+
+
+function update_sync_status() {
+  var set_sync_status = function(sync_status) {
+      var syncstatus_text = document.getElementById("syncstatus");
+      var syncstatus_bar = document.getElementById("actualprogressDiv");
+      var coreStatus = document.getElementById("coreStatus");
+      var height = sync_status['height'];//'height': 15, 'best_known_header': 0, 'best_advertised_height': 15
+      var bkh = sync_status['best_known_header'];
+      var bah = sync_status['best_advertised_header'];
+      var lwu = sync_status['last_wallet_update'];
+      if ('core_workload' in sync_status) { var workload = sync_status['core_workload'];}
+      else {var workload = false;}
+      if(bah==null)
+        bah=-1;
+      syncstatus_text.innerHTML = "Synchronisation: "+height.toString() + "/"+bkh.toString() + "/"+bah.toString();
+      if(bkh>0)
+        syncstatus_bar.style.width = (100*height/bkh).toString()+"%"
+      else
+        syncstatus_bar.style.width = "100%"
+      if(workload)
+        coreStatus.innerHTML = "Core loop status: "+workload
+      if(lwu>last_wallet_update)
+         {
+           last_wallet_update=lwu;
+           update_balance();
+           update_addresses();
+         }
+    } 
+  basic_request("getsyncstatus",[],set_sync_status);
+}
+
 
 function get_new_address() {
   var set_new_address = function(address) {
@@ -277,9 +288,9 @@ function load_wallet() {
   update_sync_status();
   update_balance();
   update_addresses();
-  setInterval(update_sync_status, 5000);
-  setInterval(update_balance, 25000);
-  setInterval(update_addresses, 50000);
+  setInterval(update_sync_status, 500);
+  update_balance();
+  update_addresses();
   setInterval(update_connection_num, 5000);
 }
 

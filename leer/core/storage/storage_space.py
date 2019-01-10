@@ -1,3 +1,5 @@
+import os, lmdb
+
 class StorageSpace:
   '''
     Storage space is a set of objects representing blockchain.
@@ -6,8 +8,12 @@ class StorageSpace:
     In the future it will be literally a combination of all storages in one physical storage,
     thus truly atomic updates will be possible
   '''
-  def __init__(self):
-    pass
+  def __init__(self, path):
+    self.path = path
+    if not os.path.exists(path): 
+        os.makedirs(self.path) #TODO catch
+    _25GB = int(25 * 1e9)
+    self.env = lmdb.open(self.path, map_size = _25GB, max_dbs=70)        
 
   def register_txos_storage(self, txos):
     self.txos_storage = txos

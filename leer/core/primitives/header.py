@@ -116,10 +116,11 @@ class VoteData:
 
 
 class Header:
-  def __init__(self, height=None, supply=None, merkles=None, popow=None, votedata=None, timestamp=None, target=None, version=None, nonce=None):
+  def __init__(self, height=None, supply=None, full_offset = None, merkles=None, popow=None, votedata=None, timestamp=None, target=None, version=None, nonce=None):
     self.height = height
     self.version = version
     self.supply = supply #since miners can vote for changing reward supply is not predetermined function of height
+    self.full_offset = full_offset # sum of offsets of all transactions
     self.merkles = merkles
     self.popow = popow
     self.votedata = votedata
@@ -158,6 +159,7 @@ class Header:
            self.votedata.serialize() + \
            self.serialized_merkles + \
            self.supply.to_bytes(8,"big") + \
+           self.full_offset.to_bytes(32,"big") + \
            int(self.timestamp).to_bytes(5, "big") +\
            self.encoded_target +\
            self.version.to_bytes(1, "big") +\
@@ -183,6 +185,9 @@ class Header:
     if len(serialized)<8:
       raise Exception("Not enough bytes for supply deserialization")
     self.supply, serialized = int.from_bytes(serialized[:8], "big"), serialized[8:]
+    if len(serialized)<32:
+      raise Exception("Not enough bytes for full_offset deserialization")
+    self.full_offset, serialized = int.from_bytes(serialized[:32], "big"), serialized[32:]
     if len(serialized)<5:
       raise Exception("Not enough bytes for timestamp deserialization")
     self.timestamp, serialized = int.from_bytes(serialized[:5], "big"), serialized[5:]
@@ -244,9 +249,16 @@ class Header:
 class ContextHeader(Header):
   def __init__(self, header=None):
     if header:
-      Header.__init__(self, header.height, header.supply, header.merkles, header.popow, 
-                          header.votedata, header.timestamp, header.target, 
-                          header.version, header.nonce)
+      Header.__init__(self, height = header.height,
+                            supply = header.supply,
+                            full_offset = header.full_offset,
+                            merkles = header.merkles,
+                            popow = header.popow,
+                            votedata = header.votedata,
+                            timestamp = header.timestamp,
+                            target = header.target,
+                            version = header.version,
+                            nonce = header.nonce)
     else:
       Header.__init__(self)
     self.descendants = set()

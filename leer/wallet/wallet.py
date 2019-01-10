@@ -36,9 +36,27 @@ def wallet(syncer, config):
       for message in put_back:
         message_queue.put(message)
 
+  notification_cache = {}
+  def notify(key, value, timestamp=None):
+    if (key in notification_cache) and (notification_cache[key]['value'] == value) and (time()-notification_cache[key]['timestamp'])<5:
+      return #Do not spam notifications with the same values
+    message = {}
+    message['id'] = uuid4()
+    message['sender'] = "Wallet"
+    if not timestamp:
+      timestamp = time()
+    message['time'] = timestamp
+    message['action']="set"
+    message['key']=key
+    message['value']=value
+    syncer.queues["Notifications"].put(message)
+    notification_cache[key] = {'value':value, 'timestamp':timestamp}
+
+
   message_queue = syncer.queues['Wallet']
   _path = config['location']['wallet']
   km = KeyManagerClass(path=_path)
+  notify('last wallet update', time())
   while True:
     sleep(0.01)
     while not message_queue.empty():
@@ -47,19 +65,26 @@ def wallet(syncer, config):
       if not 'action' in message:
         continue
       if message['action']=="process new block":
-        tx = Transaction(txos_storage=None)
-        tx.deserialize(message['tx'],skip_verification=True)
+        tx = Transaction(txos_storage=None, excesses_storage=None)
+        tx.deserialize(message['tx'], rtx=None, skip_verification=True) #skip_verification allows us to not provide rtx
         block_height = message['height']
+        last_time_updated = None
         for index in tx.inputs:
           if km.is_unspent(index): #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
             km.spend_output(index, block_height)
+            last_time_updated = time()
         for _o in tx.outputs:
           if km.is_owned_pubkey(_o.address.pubkey.serialize()):
             km.add_output(_o, block_height)
+            last_time_updated = time()
+        if last_time_updated:
+          notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
         block_height = message['block_height']
         km.rollback(block_height)
+        last_time_updated = time()
+        notify('last wallet update', last_time_updated)
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
       if message['action']=="give new taddress":
