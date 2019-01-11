@@ -807,9 +807,12 @@ def send_find_common_root(from_header, node, send):
 UNKNOWN, INFORK, MAINCHAIN, ISOLATED = 0, 1, 2, 3
 
 def process_find_common_root(message, send_message, rtx):
-  serialized_header = message["serialized_header"]
-  header = Header()
-  header.deserialize_raw(serialized_header)
+  try:
+    serialized_header = message["serialized_header"]
+    header = Header()
+    header.deserialize_raw(serialized_header)
+  except:
+    raise DOSException()
   result = []
   for pointer in [header.hash]+header.popow.pointers:
     if not storage_space.headers_storage.has(pointer, rtx=rtx):
