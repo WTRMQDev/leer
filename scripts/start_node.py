@@ -66,8 +66,8 @@ config = {
                     'password': INSERT_PASSWORD_HERE
                  },
            'location': {
-                         'basedir': join(expanduser("~"), ".leertest2") ,
-                         'wallet': join(expanduser("~"), ".leertestwallet2")
+                         'basedir': join(expanduser("~"), ".leertest3") ,
+                         'wallet': join(expanduser("~"), ".leertestwallet3")
                        },
            'bootstrap_nodes': [
                                 {
