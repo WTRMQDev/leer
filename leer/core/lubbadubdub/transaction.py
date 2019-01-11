@@ -354,7 +354,7 @@ class Transaction:
   def non_context_verify(self, block_height):
     #Actually we partially use context via block_height. Consider renaming.
     try:
-      return verification_cache[(self.serialize, block_height)]
+      return verification_cache[(self.serialize(), block_height)]
     except KeyError:
       pass
 
@@ -466,7 +466,7 @@ class Transaction:
 
     tx_skel = TransactionSkeleton(tx=self)
     assert len(tx_skel.serialize(rich_format=False))<50000, "Too big tx_skeleton"
-    verification_cache[(self.serialize, block_height)] = True
+    verification_cache[(self.serialize(), block_height)] = True
     return True
 
   def verify(self, rtx, block_height = None, skip_non_context=False):
