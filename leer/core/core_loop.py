@@ -577,7 +577,7 @@ def look_forward(nodes, send_to_nm, rtx):
   if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height(rtx=rtx)+100:
     for node_index in nodes:
       node = nodes[node_index]
-      if node['height']>storage_space.headers_manager.best_header_height:
+      if ('height' in node) and (node['height']>storage_space.headers_manager.best_header_height):
         our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
         send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_nm)
         break
