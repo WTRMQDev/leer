@@ -354,7 +354,13 @@ class Transaction:
   def non_context_verify(self, block_height):
     #Actually we partially use context via block_height. Consider renaming.
     try:
-      return verification_cache[(self.serialize(), block_height)]
+      if verification_cache[(self.serialize(), block_height)]:
+        #We set coinbase during verification, thus if we scip verification
+        #we need to set it manually. TODO (verification should be free from initialisation stuff)
+        for output in self.outputs:
+          if output.version==0:
+            self.coinbase = output
+        return verification_cache[(self.serialize(), block_height)]
     except KeyError:
       pass
 
