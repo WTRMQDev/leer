@@ -3,6 +3,7 @@ from leer.core.hash.mining_canary import mining_canary_hash
 import requests
 import json
 import base64
+from random import randint
 from time import time, sleep
 
 
@@ -30,11 +31,15 @@ def check_solution(partial_template, int_nonce, target):
     return True
   return False 
 
+def get_height():
+  return basic_request('getheight')
 
 def start_mining():
   while True:
     print("Start mining new block")
     initial_time = time()
+    height_check_time = initial_time
+    basic_nonce = randint(0, int(256**10))
     block_template = basic_request('getblocktemplate')
     block_template = base64.b64decode(block_template.encode())
     header = Header()
@@ -44,12 +49,22 @@ def start_mining():
     partial_template = block_template[:-16]
     nonce = 0
     next_level=4096
-    while not check_solution(partial_template, nonce, header.target):
+    update_block = False
+    while not check_solution(partial_template, nonce+basic_nonce, header.target):
       nonce+=1
+      if time()-height_check_time>5:
+        height_check_time = time()
+        if header.height<=get_height():
+          print("New block on network")
+          update_block = True
+          break
       if not nonce%next_level:
         next_level*=2
         print("Nonce reached %d"%nonce)
     final_time = time()
+    if update_block:
+      print("Hashrate %d H/s"%(int(nonce/(final_time-initial_time))))
+      continue
     print("Get solution. Nonce = %d. Hashrate %d H/s"%(nonce, int(nonce/(final_time-initial_time))))
     solution =partial_template +nonce.to_bytes(16,'big')
     encoded_solution = base64.b64encode(solution).decode()
