@@ -66,10 +66,15 @@ def start_mining():
       print("Hashrate %d H/s"%(int(nonce/(final_time-initial_time))))
       continue
     print("Get solution. Nonce = %d. Hashrate %d H/s"%(nonce, int(nonce/(final_time-initial_time))))
-    solution =partial_template +nonce.to_bytes(16,'big')
+    solution =partial_template +(nonce+basic_nonce).to_bytes(16,'big')
     encoded_solution = base64.b64encode(solution).decode()
     res = basic_request('validatesolution', [encoded_solution])
     print("Submitted block. Result %s"%res)
 
 if __name__ == '__main__':
-  start_mining()
+  while True:
+    try:
+      start_mining()
+    except Exception as e:
+      print("Error occured %s"%(str(e)))
+  
