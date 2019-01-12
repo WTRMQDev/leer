@@ -393,7 +393,7 @@ class IOput:
       self.rangeproof._sign(concealed_bits=64)
     
   def set_verified_and_correct(self):
-    verification_cache[self.serialize] = True
+    verification_cache[self.serialize()] = True
 
   #rename to validate?
   def verify(self):
@@ -407,7 +407,7 @@ class IOput:
      3) range_proof is valid and signs (version, address, asset_type, encrypted_message, relay_fee)
     """
     try:
-      return verification_cache[self.serialize]
+      return verification_cache[self.serialize()]
     except KeyError:
       pass
     result = True
@@ -432,7 +432,7 @@ class IOput:
       else:
         result = False
 
-    verification_cache[self.serialize] = result
+    verification_cache[self.serialize()] = result
     return result
 
   def info(self):

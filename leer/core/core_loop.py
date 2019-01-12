@@ -577,7 +577,7 @@ def look_forward(nodes, send_to_nm, rtx):
   if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height(rtx=rtx)+100:
     for node_index in nodes:
       node = nodes[node_index]
-      if node['height']>storage_space.headers_manager.best_header_height:
+      if ('height' in node) and (node['height']>storage_space.headers_manager.best_header_height):
         our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
         send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_nm)
         break
@@ -807,9 +807,12 @@ def send_find_common_root(from_header, node, send):
 UNKNOWN, INFORK, MAINCHAIN, ISOLATED = 0, 1, 2, 3
 
 def process_find_common_root(message, send_message, rtx):
-  serialized_header = message["serialized_header"]
-  header = Header()
-  header.deserialize_raw(serialized_header)
+  try:
+    serialized_header = message["serialized_header"]
+    header = Header()
+    header.deserialize_raw(serialized_header)
+  except:
+    raise DOSException()
   result = []
   for pointer in [header.hash]+header.popow.pointers:
     if not storage_space.headers_storage.has(pointer, rtx=rtx):

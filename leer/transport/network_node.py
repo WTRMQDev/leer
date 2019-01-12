@@ -90,7 +90,7 @@ class NetworkNode:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
+      self.logger.info("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
       asyncio.ensure_future(self._on_closed_connection(error=e))
     
 
@@ -107,7 +107,7 @@ class NetworkNode:
       await self.do_handshake()
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      self.logger.error("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
+      self.logger.info("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
       asyncio.ensure_future(self._on_closed_connection(error=e))
 
   async def do_handshake(self):
