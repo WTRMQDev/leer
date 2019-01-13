@@ -601,7 +601,7 @@ def process_new_headers(message, wtx, notify=None):
         notify(storage_space.headers_manager.best_header_height)
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
-    raise e
+    raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, notify=None):
   try:
@@ -619,7 +619,7 @@ def process_new_blocks(message, wtx, notify=None):
           prev_not = time()
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
   except Exception as e:
-    raise e #XXX "DoS messages should be returned"
+    raise DOSException() #TODO add info
 
 def process_new_txos(message, wtx):
   try:
@@ -635,7 +635,7 @@ def process_new_txos(message, wtx):
       storage_space.txos_storage.mempool[utxo.serialized_index]=utxo
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new txos")
   except Exception as e:
-    raise e #XXX "DoS messages should be returned"
+    raise DOSException() #TODO add info
 
 def process_blocks_request(message, send_message, rtx):
   num = message["num"]
