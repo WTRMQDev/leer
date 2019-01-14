@@ -33,6 +33,7 @@ def wallet(syncer, config):
           put_back.append(message)
           continue
         result = message['result']
+        break
       for message in put_back:
         message_queue.put(message)
       if result:
@@ -40,9 +41,9 @@ def wallet(syncer, config):
       sleep(0.01)
       if time()-start_time>timeout:
         raise KeyError
-    if message['result']=='error':
+    if result=='error':
       raise KeyError
-    return message['result']['value']
+    return result['value']
 
   notification_cache = {}
   def notify(key, value, timestamp=None):

@@ -186,9 +186,11 @@ def core_loop(syncer, config):
   requests = {}
   message_queue.put({"action":"give nodes list reminder"})
 
-  def get_new_address(): #blocking
+  def get_new_address(timeout=2.5): #blocking
     _id = str(uuid4())
     syncer.queues['Wallet'].put({'action':'give new address', 'id':_id, 'sender': "Blockchain"})
+    result = None
+    start_time=time()
     while True:
       put_back = [] #We wait for specific message, all others will wait for being processed
       while not message_queue.empty():
@@ -196,16 +198,21 @@ def core_loop(syncer, config):
         if (not 'id' in message)  or (not message['id']==_id):
           put_back.append(message)
           continue
-        if message['result']=='error':
-          raise KeyError
-        address = Address()
-        logger.info("Receiving address %s (len %d)"%( message["result"], len(message["result"])))
-
-        address.deserialize_raw(message['result'])
-        return address
-      sleep(0.01)
+        result = message['result']
+        break
       for message in put_back:
         message_queue.put(message)
+      if result:
+        break
+      sleep(0.01)
+      if time()-start_time>timeout:
+        raise KeyError      
+    if result=='error':
+      raise KeyError
+    address = Address()
+    logger.info("Receiving address %s (len %d)"%( result, len(result)))
+    address.deserialize_raw(result)
+    return address
 
   def send_message(destination, message):
     if not 'id' in message:
