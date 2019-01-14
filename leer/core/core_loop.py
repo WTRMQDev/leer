@@ -206,9 +206,9 @@ def core_loop(syncer, config):
         break
       sleep(0.01)
       if time()-start_time>timeout:
-        raise KeyError      
+        raise Exception("get_new_address timeout: probably wallet has collapsed or not running")      
     if result=='error':
-      raise KeyError
+      raise Exception("Can not get_new_address: error on wallet side")      
     address = Address()
     logger.info("Receiving address %s (len %d)"%( result, len(result)))
     address.deserialize_raw(result)
@@ -342,11 +342,15 @@ def core_loop(syncer, config):
 
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
-        address = get_new_address()
-        with storage_space.env.begin(write=True) as wtx:
-          block = storage_space.mempool_tx.give_block_template(address, wtx=wtx)
-        ser_head = block.header.serialize()
-        send_message(message["sender"], {"id": message["id"], "result":ser_head})
+        try:
+          address = get_new_address()
+          with storage_space.env.begin(write=True) as wtx:
+            block = storage_space.mempool_tx.give_block_template(address, wtx=wtx)
+          ser_head = block.header.serialize()
+          send_message(message["sender"], {"id": message["id"], "result":ser_head})
+        except Exception as e:
+          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
+          self.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
