@@ -19,22 +19,30 @@ def wallet(syncer, config):
     owned outputs. It provides information for transactions and block templates
     generation.
   '''
-  def get_height():
+  def get_height(timeout=2.5):
     _id = str(uuid4())
     syncer.queues['Notifications'].put({'action':'get', 'id':_id, 'key': 'blockchain height','sender': "Wallet"})
     message_queue = syncer.queues['Wallet']
+    start_time = time()
+    result = None
     while True:
       put_back = [] #We wait for specific message, all others will wait for being processed
       while not message_queue.empty():
         message = message_queue.get()
         if (not 'id' in message)  or (not message['id']==_id):
           put_back.append(message)
-        if message['result']=='error':
-          raise KeyError
-        return message['result']['value']
-      sleep(0.01)
+          continue
+        result = message['result']
       for message in put_back:
         message_queue.put(message)
+      if result:
+        break
+      sleep(0.01)
+      if time()-start_time>timeout:
+        raise KeyError
+    if message['result']=='error':
+      raise KeyError
+    return message['result']['value']
 
   notification_cache = {}
   def notify(key, value, timestamp=None):
@@ -103,6 +111,8 @@ def wallet(syncer, config):
           response["result"] = stats
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
+        except Exception as e:
+          response["result"] = "error: " +str(e)
         syncer.queues[message['sender']].put(response)
       if message['action']=="get confirmed balance list":
         response = {"id": message["id"]}
@@ -112,6 +122,8 @@ def wallet(syncer, config):
           response["result"] = stats
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
+        except Exception as e:
+          response["result"] = "error: " +str(e)
         syncer.queues[message['sender']].put(response)
       if message['action']=="give private key":
         pass
@@ -128,6 +140,11 @@ def wallet(syncer, config):
         except KeyError:
            response["result"] = "error"
            response["error"] = "core_loop didn't set height yet"
+           syncer.queues[message['sender']].put(response)
+           continue
+        except Exception as e:
+           response["result"] = "error"
+           response["error"] = str(e)
            syncer.queues[message['sender']].put(response)
            continue
         _list = km.get_confirmed_balance_list(current_height)
