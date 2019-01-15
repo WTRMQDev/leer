@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="leer",
-    version="0.0.8",
+    version="0.0.9",
     author="Evil Morty, Crez Khansick, Sark Czenchi",
     author_email="TetsuwanAtomu@tuta.io", 
     description="Leer cryptocurrency (alpha testing)",
