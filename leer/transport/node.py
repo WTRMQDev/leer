@@ -12,6 +12,7 @@ class Node(NetworkNode):
     NetworkNode.__init__(self, our_node, params, loop, serialized_params=serialized_params);
     self.message_handler = message_handler
     self.ping_loop_task = None
+    self.peer_exchange_loop_task = None
 
   async def on_established_connection(self):
     self.logger.info("Connection is established")
@@ -20,11 +21,14 @@ class Node(NetworkNode):
     await asyncio.sleep(0.2)
     await self.send(inv_message_id["give nodes"])
     self.ping_loop_task = asyncio.ensure_future(self.ping_loop())
+    self.peer_exchange_loop_task = asyncio.ensure_future(self.peer_exchange_loop())
 
   async def on_closed_connection(self):
     await self.message_handler(self,'close', b'\x00')
     if self.ping_loop_task:
       self.ping_loop_task.cancel()
+    if self.peer_exchange_loop_task:
+      self.peer_exchange_loop_task.cancel()
 
   async def ping_loop(self):
     try:
@@ -32,6 +36,16 @@ class Node(NetworkNode):
         await self.send(inv_message_id["ping"])
         await asyncio.sleep(random.randint(5, 10)) #TODO should check pong here?
         asyncio.ensure_future(self.ping_loop())
+    except CancelledError:
+      pass
+
+
+  async def peer_exchange_loop(self):
+    try:
+      if self.connected:
+        await self.send(inv_message_id["give nodes"])
+        await asyncio.sleep(30) #TODO should check pong here?
+        asyncio.ensure_future(self.peer_exchange_loop())
     except CancelledError:
       pass
 
