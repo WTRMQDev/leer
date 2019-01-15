@@ -57,6 +57,7 @@ class RPCManager():
     methods.add(self.getsyncstatus)
     methods.add(self.getblock)
     methods.add(self.getnodes)
+    methods.add(self.connecttonode)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -285,15 +286,18 @@ class RPCManager():
       res.append({'host':str(host), 'port':str(port), 'static_key':static_key})
     return res
 
-  '''async def addnode(self, request=None):
-    print("1"*100,request)
+  async def connecttonode(self, node_str):
     _id = str(uuid4())
-    self.syncer.queues['NetworkManager'].put({'action':'get connections num', 'id':_id, 'request_source': "RPCManager"})
+    (hp,sk)=node_str.split("@")
+    host, port = hp.split(":")
+    pub = base64.b64decode(sk.encode())
+    self.syncer.queues['NetworkManager'].put({'action':'open connection', 'host':host,
+         'port':port, 'static_key':pub, 'id':_id, 'request_source': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
     return answer['result']
-  '''
+
  
   async def check_queue(self):
     while self.up:

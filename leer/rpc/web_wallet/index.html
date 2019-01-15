@@ -276,17 +276,25 @@ function update_network_info() {
       var mynode = document.getElementById("mynode");
       mynode.innerHTML = "My node "+nodes[0]["host"]+":"+nodes[0]["port"]+"@"+nodes[0]["static_key"]
       var nodestable = document.getElementById("nodes-table");
-      while(nodestable.rows.length>2) {nodestable.deleteRow(1);}      
-      for(var node in nodes.slice(1))
+      while(nodestable.rows.length>1) {nodestable.deleteRow(1);}   
+      other_nodes = nodes.slice(1)
+      for(var node in other_nodes)
         { 
           var row = nodestable.insertRow(-1);
           node_cell = row.insertCell(0);
-          nodestable.innerHTML = nodes[node+1]["host"]+":"+nodes[node+1]["port"]+"@"+nodes[node+1]["static_key"];
+          node_cell.innerHTML = other_nodes[node]["host"]+":"+other_nodes[node]["port"]+"@"+other_nodes[node]["static_key"];
         }
     } 
   basic_request("getnodes",[],set_updated_nodes );
 }
 
+function connect_to_node() {
+  var cb = function(nodes) {
+      alert("Request is sent");
+    } 
+  value = document.getElementById("new_node_params").value;
+  basic_request("connecttonode",[value],cb );
+}
 
 function send_money() {
   address = document.getElementById("address-to-send").value;
@@ -374,15 +382,15 @@ window.onload = load_wallet;
     <div id="mynode"></div>
     <table id="nodes-table">
       <tr>
-       <th>Active nods</th>
+       <th>Active nodes</th>
       </tr>
     </table>
     </br>
     <button onclick="update_network_info();">Update info</button>
     </br>
-    <input type="text" value=""  id="Node params">
+    <input type="text" value=""  id="new_node_params">
     </br>
-    <input type="submit" value="Connect to node" onclick="">   
+    <input type="submit" value="Connect to node" onclick="connect_to_node()">   
     </br>
    </center>
   </div>
