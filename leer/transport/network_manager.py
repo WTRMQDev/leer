@@ -293,6 +293,12 @@ class NetworkManager:
               request_source = message['sender'] 
               self.syncer.queues[request_source].put({'id':_id, 'result':len(self.nodes)})
 
+          if action == "give intrinsic nodes list": #Not list anymore, considr renaming TODO
+              _id = message['id']
+              request_source = message['sender'] 
+              nodes_info = list(self.nodes.keys())
+              self.syncer.queues[request_source].put({'id':_id, 'result':nodes_info})
+
           if action == "give nodes list": #Not list anymore, considr renaming TODO
               _id = message['id']
               request_source = message['sender'] 

@@ -562,7 +562,7 @@ def core_loop(syncer, config):
 
       if message["action"] == "give nodes list reminder":
         _id = str(uuid4())
-        send_to_nm({"action":"give nodes list", "sender":"Blockchain", "id":_id})
+        send_to_nm({"action":"give intrinsic nodes list", "sender":"Blockchain", "id":_id})
         requests[_id] = "give nodes list"
         put_back_messages.append({"action": "give nodes list reminder", "time":int(time())+3} )
 
