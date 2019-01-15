@@ -91,7 +91,7 @@ footer {
   width: 100%;
   height: 40px;
   background-color: #f1f1f1;
-  position: absolute;
+  position: fixed;
   bottom: 0;
 }
 
@@ -131,6 +131,18 @@ footer {
 #syncstatus {
     display: block;
     width:400px;
+}
+
+#nodes-table {
+    border: 1px solid;
+    padding: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+#mynode {
+   margin-top: 25px;
+   margin-bottom: 10px;
+   font-size: large;
 }
 </style>
 <script>
@@ -257,6 +269,25 @@ function get_new_address() {
   basic_request("getnewaddress",[], set_new_address );
 }
 
+function update_network_info() {
+  var set_updated_nodes = function(nodes) {
+      // Note balance_list is hash {address1:{output1:value, output2:value, ...}, address2:{}, ...}
+      console.log(nodes)
+      var mynode = document.getElementById("mynode");
+      mynode.innerHTML = "My node "+nodes[0]["host"]+":"+nodes[0]["port"]+"@"+nodes[0]["static_key"]
+      var nodestable = document.getElementById("nodes-table");
+      while(nodestable.rows.length>2) {nodestable.deleteRow(1);}      
+      for(var node in nodes.slice(1))
+        { 
+          var row = nodestable.insertRow(-1);
+          node_cell = row.insertCell(0);
+          nodestable.innerHTML = nodes[node+1]["host"]+":"+nodes[node+1]["port"]+"@"+nodes[node+1]["static_key"];
+        }
+    } 
+  basic_request("getnodes",[],set_updated_nodes );
+}
+
+
 function send_money() {
   address = document.getElementById("address-to-send").value;
   value = parseFloat(document.getElementById("value-to-send").value)*1e8;
@@ -307,6 +338,7 @@ window.onload = load_wallet;
       <button class="tablinks" onclick="openTab(event, 'send')">Send</button>
       <button class="tablinks" onclick="openTab(event, 'receive')">Receive</button>
       <button class="tablinks" onclick="openTab(event, 'addresses')">Addresses</button>
+      <button class="tablinks" onclick="openTab(event, 'network')">Network</button>
       <button class="tablinks disabled" onclick="">Transactions</button>
     </div>
     <div class="header-right">
@@ -335,6 +367,24 @@ window.onload = load_wallet;
       </tr>
 
     </table>
+  </div>
+
+  <div class="tabcontent" id="network"> 
+   <center>
+    <div id="mynode"></div>
+    <table id="nodes-table">
+      <tr>
+       <th>Active nods</th>
+      </tr>
+    </table>
+    </br>
+    <button onclick="update_network_info();">Update info</button>
+    </br>
+    <input type="text" value=""  id="Node params">
+    </br>
+    <input type="submit" value="Connect to node" onclick="">   
+    </br>
+   </center>
   </div>
 
   <footer>

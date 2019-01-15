@@ -873,14 +873,14 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
     return
   logger.info(node_info)
   if not root_found:
-    h1,h2 = storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx).height, storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
+    h1,h2 = storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx).height,\
+            storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
     if h1==h2+1:
       root_found = True
       node_info["common_root"]["root"] = node_info["common_root"]["best_mutual"]
     else:
       send_find_common_root(storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx), message['node'],\
                           send = partial(send_message, "NetworkManager") )
-  logger.info(node_info)
   height, total_difficulty = node_info['height'],node_info['total_difficulty']
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:

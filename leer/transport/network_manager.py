@@ -287,10 +287,17 @@ class NetworkManager:
               request_source = message['sender'] 
               self.syncer.queues[request_source].put({'id':_id, 'result':len(self.nodes)})
 
-          if action == "give nodes list":
+          if action == "give nodes list": #Not list anymore, considr renaming TODO
               _id = message['id']
               request_source = message['sender'] 
-              self.syncer.queues[request_source].put({'id':_id, 'result':list(self.nodes.keys())})
+              nodes_info = {(self.nodes[node].advertised_host, self.nodes[node].advertised_port):self.nodes[node].static_key.serialize() for node in self.nodes}
+              self.syncer.queues[request_source].put({'id':_id, 'result':nodes_info})
+
+          if action == "give my node":
+              _id = message['id']
+              request_source = message['sender'] 
+              nodes_info = {(self.our_node.advertised_host, self.our_node.advertised_port): self.our_node.static_key.serialize()}
+              self.syncer.queues[request_source].put({'id':_id, 'result':nodes_info})
 
           if action == "take the headers":
             num, headers, node_params = message["num"], message["headers"], message["node"]

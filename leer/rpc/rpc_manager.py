@@ -56,6 +56,7 @@ class RPCManager():
     methods.add(self.importprivkey)
     methods.add(self.getsyncstatus)
     methods.add(self.getblock)
+    methods.add(self.getnodes)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -254,6 +255,35 @@ class RPCManager():
     response['last_wallet_update'] = last_wallet_update;
     return response
 
+
+  async def getnodes(self):
+    _id = str(uuid4())
+    self.syncer.queues['NetworkManager'].put({'action':'give my node', 'id':_id,
+                                          'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    res = []
+    if 'error' in answer['result']:
+      return answer['result']
+    for hp in answer['result']:
+      host, port = hp
+      static_key = base64.b64encode(answer['result'][hp]).decode()
+      res.append({'host':str(host), 'port':port, 'static_key':static_key})
+
+    _id = str(uuid4())
+    self.syncer.queues['NetworkManager'].put({'action':'give nodes list', 'id':_id,
+                                          'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    if 'error' in answer['result']:
+      return answer['result']
+    for hp in answer['result']:
+      host, port = hp
+      static_key = base64.b64encode(answer['result'][hp]).decode()
+      res.append({'host':str(host), 'port':str(port), 'static_key':static_key})
+    return res
 
   '''async def addnode(self, request=None):
     print("1"*100,request)
