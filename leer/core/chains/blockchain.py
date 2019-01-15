@@ -250,7 +250,8 @@ class Blockchain:
 
   def update(self, wtx, reason=None):
     current_tip = self.current_tip(rtx=wtx)
-    actions = self.storage_space.headers_manager.next_actions(current_tip, rtx=wtx)
+    max_steps = 2048
+    actions = self.storage_space.headers_manager.next_actions(current_tip, rtx=wtx, n = max_steps)
     # before doing anything we should check that we have enough info (downloaded blocks)
     # to move to a better state (state with higher height)
     current_height = self.current_height(rtx=wtx)
@@ -270,7 +271,8 @@ class Blockchain:
           if (not self.storage_space.blocks_storage.is_block_downloaded(step[1], rtx=wtx)):
             break
           else:
-            if self.storage_space.blocks_storage.get(step[1], rtx=wtx).header.height>current_height:
+            if self.storage_space.blocks_storage.get(step[1], rtx=wtx).header.height>current_height or \
+               self.storage_space.blocks_storage.get(step[1], rtx=wtx).header.height-current_height>=max_steps:
               good_path=path
               break
     if not good_path:
