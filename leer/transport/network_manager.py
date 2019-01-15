@@ -433,12 +433,11 @@ class NetworkManager:
     
   async def reconnect_loop(self):
     def try_num_to_delay(try_num):
-      return 2#TODO for tests
       if try_num==0:
         return 0
-      delay = 300*(2**try_num)
-      if delay > 6*3600:
-        delay = 6*3600
+      delay = 30*(2**try_num)
+      if delay > 1*3600:
+        delay = 1*3600
       return delay
     while self.up:
       for node_params in self.reconnect_list:
