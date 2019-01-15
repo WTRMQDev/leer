@@ -270,7 +270,7 @@ def core_loop(syncer, config):
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
           with storage_space.env.begin(write=True) as wtx:
-            process_new_headers(message, notify=partial(notify, "best header"), wtx=wtx)
+            process_new_headers(message, nodes[message["node"]], send_message, wtx, notify=partial(notify, "best header"))
           notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
           notify("core workload", "processing new blocks")
@@ -596,22 +596,40 @@ def look_forward(nodes, send_to_nm, rtx):
 
 
 
-def process_new_headers(message, wtx, notify=None):
+def process_new_headers(message, node_info, send_message, wtx, notify=None):
   dupplication_header_dos = False #TODO grammatical typo?
   try:
     serialized_headers = message["headers"]
     num = message["num"]
+    header = None
     for i in range(num):
       header = Header()
       serialized_headers = header.deserialize_raw(serialized_headers)
-      if storage_space.headers_storage.has(header.hash, rtx=wtx):
-        dupplication_header_dos=True
-        continue
-      storage_space.headers_manager.add_header(header, wtx=wtx)
-      if notify and not i%20:
-        notify(storage_space.headers_manager.best_header_height)
+      if not storage_space.headers_storage.has(header.hash, rtx=wtx):
+        storage_space.headers_manager.add_header(header, wtx=wtx)
+        if notify and not i%20:
+          notify(storage_space.headers_manager.best_header_height)
+      else:
+        dupplication_header_dos = True
+      if ("common_root" in node_info) and ("long_reorganization" in node_info["common_root"]):
+        logger.info("node_info ")
+        logger.info(node_info)
+        logger.info(header)
+        logger.info(header.height)
+        if ("common_root" in node_info) and ("long_reorganization" in node_info["common_root"]) and \
+           node_info["common_root"]["long_reorganization"]==header.height:
+           request_num = min(256, node_info["height"]-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
+           logger.info(request_num)
+           send_next_headers_request(header.hash, 
+                                request_num,
+                                message["node"], send = partial(send_message, "NetworkManager") )
+           if node_info["height"]-header.height>request_num:
+             node_info["common_root"]["long_reorganization"] = header.height+request_num
+           else:
+             node_info["common_root"].pop("long_reorganization", None) 
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
+    raise e
     raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, notify=None):
@@ -845,6 +863,7 @@ def process_find_common_root(message, send_message, rtx):
       "id":message['id'], "node": message["node"] })
 
 def process_find_common_root_reponse(message, node_info, send_message, rtx):
+  logger.info("Processing of fcrr")
   header_hash = message["header_hash"]
   result = [int(i) for i in message["known_headers"]]
   try:
@@ -862,12 +881,11 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
         break
     else:
       node_info["common_root"]["worst_nonmutual"]=pointer
-  logger.info("Processing of fcrr")
-  logger.info(node_info)
   if (not "worst_nonmutual" in node_info["common_root"]):
     #we are behind
     node_info["common_root"]["root"] = header_hash
     root_found = True
+    node_info["common_root"].pop("try_num", None)
   if (not "best_mutual" in node_info["common_root"]):
     # genesis should always be mutual
     return
@@ -877,17 +895,26 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
             storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
     if h1==h2+1:
       root_found = True
+      node_info["common_root"].pop("try_num", None)
       node_info["common_root"]["root"] = node_info["common_root"]["best_mutual"]
     else:
+      if not "try_num" in node_info["common_root"]:
+        node_info["common_root"]["try_num"]=0
+      node_info["common_root"]["try_num"]+=1
       send_find_common_root(storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx), message['node'],\
                           send = partial(send_message, "NetworkManager") )
+      if node_info["common_root"]["try_num"]>5:
+        pass #TODO we shoould try common root not from worst_nonmutual but at the middle between worst_nonmutual and best_mutual (binary search)
   height, total_difficulty = node_info['height'],node_info['total_difficulty']
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
     if (height > storage_space.headers_manager.best_header_height) and (total_difficulty > storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)):
+      request_num = min(256, height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height)
       send_next_headers_request(node_info["common_root"]["root"], 
-                                min(256, height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height),
+                                request_num,
                                 message["node"], send = partial(send_message, "NetworkManager") )
+      if height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height>request_num:
+        node_info["common_root"]["long_reorganization"]= storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height+request_num
 
 
 
