@@ -908,13 +908,16 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
   height, total_difficulty = node_info['height'],node_info['total_difficulty']
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
+    common_root_height = storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height
     if (height > storage_space.headers_manager.best_header_height) and (total_difficulty > storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)):
-      request_num = min(256, height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height)
+      request_num = min(256, height-common_root_height)
       send_next_headers_request(node_info["common_root"]["root"], 
                                 request_num,
                                 message["node"], send = partial(send_message, "NetworkManager") )
-      if height-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height>request_num:
-        node_info["common_root"]["long_reorganization"]= storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height+request_num
+      if height-common_root_height>request_num:
+        our_tip = storage_space.headers_storage.get(storage_space.blockchain.current_tip(rtx=rtx), rtx=rtx)
+        if our_tip.hash != node_info["common_root"]["root"]: #It's indeed reorg
+            node_info["common_root"]["long_reorganization"]= storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height+request_num
 
 
 
