@@ -637,15 +637,15 @@ def process_new_headers(message, node_info, send_message, wtx, notify=None):
           notify(storage_space.headers_manager.best_header_height)
       else:
         dupplication_header_dos = True
-      if ("common_root" in node_info) and ("long_reorganization" in node_info["common_root"]):
-        logger.info("node_info ")
-        logger.info(node_info)
-        logger.info(header)
-        logger.info(header.height)
-        if ("common_root" in node_info) and ("long_reorganization" in node_info["common_root"]) and \
-           node_info["common_root"]["long_reorganization"]==header.height:
+    if ("common_root" in node_info) and ("long_reorganization" in node_info["common_root"]):
+        if storage_space.headers_manager.get_best_tip()[0] == header.hash:
+          #not reorg anymore
+          node_info["common_root"].pop("long_reorganization", None)          
+          our_tip_hash = storage_space.blockchain.current_tip(rtx=wtx)
+          storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
+          send_tip_info(node_info=node_info, send = partial(send_message, "NetworkManager"), our_tip_hash=our_tip_hash, rtx=wtx)
+        elif node_info["common_root"]["long_reorganization"]==header.height:
            request_num = min(256, node_info["height"]-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
-           logger.info(request_num)
            send_next_headers_request(header.hash, 
                                 request_num,
                                 message["node"], send = partial(send_message, "NetworkManager") )
