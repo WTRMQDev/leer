@@ -777,7 +777,9 @@ def process_txos_request(message, send_message, rtx):
       serialized_txo = storage_space.txos_storage.find_serialized(_hash, rtx=rtx)
     except KeyError:
       continue
-    if len(serialized_txos)+len(serialized_txo)<60000:
+    len_txos_hashes = 65*txos_num
+    len_txos_lens = 2*txos_num
+    if len(serialized_txos)+len(serialized_txo)+len_txos_hashes+len_txos_lens<64000:
       serialized_txos+=serialized_txo
       txos_num +=1
       txos_hashes += _hash
