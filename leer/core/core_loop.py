@@ -125,12 +125,12 @@ def init_storage_space(config):
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)
   
-requests_cache = {}
+requests_cache = {"blocks":[], "txouts":[]}
 def set_ask_for_blocks_hook(blockchain, message_queue):
   def f(block_hashes):
     if not isinstance(block_hashes, list):
       block_hashes=[block_hashes] #There is only one block
-    requests_cache["blocks"].append(block_hashes)
+    requests_cache["blocks"]+=block_hashes
     #new_message = {"action": "check blocks download status", "block_hashes":block_hashes,
     #                     "already_asked_nodes": [], "id": str(uuid4()),
     #                     "time": -1 }
@@ -140,7 +140,7 @@ def set_ask_for_blocks_hook(blockchain, message_queue):
 
 def set_ask_for_txouts_hook(block_storage, message_queue):
   def f(txouts):
-    requests_cache["txouts"].append(txouts)
+    requests_cache["txouts"]+=txouts
     #new_message = {"action": "check txouts download status", "txos_hashes": txouts,
     #                     "already_asked_nodes": [], "id": str(uuid4()),
     #                     "time": -1 }
@@ -584,13 +584,13 @@ def core_loop(syncer, config):
           if not len(requests_cache[k]):
             continue
           if k=="blocks":
-            new_message = {"action": "check blocks download status", "block_hashes":list(set(block_hashes)),
+            new_message = {"action": "check blocks download status", "block_hashes":list(set(requests_cache[k])),
                           "already_asked_nodes": [], "id": str(uuid4()),
                           "time": -1 }
             message_queue.put(new_message)
             requests_cache[k] = []
           if k=="txouts":
-            new_message = {"action": "check txouts download status", "txos_hashes": list(set(txouts)),
+            new_message = {"action": "check txouts download status", "txos_hashes": list(set(requests_cache[k])),
                            "already_asked_nodes": [], "id": str(uuid4()),
                            "time": -1 }
             message_queue.put(new_message)
