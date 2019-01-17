@@ -125,24 +125,26 @@ def init_storage_space(config):
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)
   
-
+requests_cache = {}
 def set_ask_for_blocks_hook(blockchain, message_queue):
   def f(block_hashes):
     if not isinstance(block_hashes, list):
       block_hashes=[block_hashes] #There is only one block
-    new_message = {"action": "check blocks download status", "block_hashes":block_hashes,
-                         "already_asked_nodes": [], "id": str(uuid4()),
-                         "time": -1 }
-    message_queue.put(new_message)
+    requests_cache["blocks"].append(block_hashes)
+    #new_message = {"action": "check blocks download status", "block_hashes":block_hashes,
+    #                     "already_asked_nodes": [], "id": str(uuid4()),
+    #                     "time": -1 }
+    #message_queue.put(new_message)
   
   blockchain.ask_for_blocks_hook = f
 
 def set_ask_for_txouts_hook(block_storage, message_queue):
   def f(txouts):
-    new_message = {"action": "check txouts download status", "txos_hashes": txouts,
-                         "already_asked_nodes": [], "id": str(uuid4()),
-                         "time": -1 }
-    message_queue.put(new_message)
+    requests_cache["txouts"].append(txouts)
+    #new_message = {"action": "check txouts download status", "txos_hashes": txouts,
+    #                     "already_asked_nodes": [], "id": str(uuid4()),
+    #                     "time": -1 }
+    #message_queue.put(new_message)
   
   block_storage.ask_for_txouts_hook = f
 
@@ -185,6 +187,7 @@ def core_loop(syncer, config):
     set_notify_wallet_hook(storage_space.blockchain, syncer.queues['Wallet'])
   requests = {}
   message_queue.put({"action":"give nodes list reminder"})
+  message_queue.put({"action":"check requests cache"})
 
   def get_new_address(timeout=2.5): #blocking
     _id = str(uuid4())
@@ -253,6 +256,7 @@ def core_loop(syncer, config):
       if (('result' in message) and message['result']=="processed") or \
          (('result' in message) and message['result']=="set") or \
          (('action' in message) and message['action']=="give nodes list reminder") or \
+         (('action' in message) and message['action']=="check requests cache") or \
          (('action' in message) and message['action']=="take nodes list") or \
          (('result' in message) and is_ip_port_array(message['result'])):
         logger.debug("Processing message %s"%message)
@@ -524,8 +528,9 @@ def core_loop(syncer, config):
             if not block_hash in storage_space.blockchain.awaited_blocks:
               continue #For some reason we don't need this block anymore
             to_be_downloaded.append(block_hash)
-            if storage_space.headers_storage.get(block_hash, rtx=rtx).height<lowest_height:
-              lowest_height = storage_space.headers_storage.get(block_hash, rtx=rtx).height
+            block_height = storage_space.headers_storage.get(block_hash, rtx=rtx).height
+            if block_height<lowest_height:
+              lowest_height = block_height
         already_asked_nodes = message["already_asked_nodes"]
         asked = False
         for node_params in nodes:
@@ -569,6 +574,24 @@ def core_loop(syncer, config):
       if message["action"] == "stop":
         logger.info("Core loop stops")
         return
+
+      if message["action"] == "check requests cache":
+        put_back_messages.append({"action": "check requests cache", "time":int(time())+5} )
+        for k in requests_cache:
+          if not len(requests_cache[k]):
+            continue
+          if k=="blocks":
+            new_message = {"action": "check blocks download status", "block_hashes":list(set(block_hashes)),
+                          "already_asked_nodes": [], "id": str(uuid4()),
+                          "time": -1 }
+            message_queue.put(new_message)
+            requests_cache[k] = []
+          if k=="txouts":
+            new_message = {"action": "check txouts download status", "txos_hashes": list(set(txouts)),
+                           "already_asked_nodes": [], "id": str(uuid4()),
+                           "time": -1 }
+            message_queue.put(new_message)
+            requests_cache[k] = []
 
     for _message in put_back_messages:
       message_queue.put(_message)
