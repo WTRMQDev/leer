@@ -790,7 +790,9 @@ def process_txos_request(message, send_message, rtx):
                                             "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
                                             "id":message['id'], 'node': message["node"] })
       serialized_txos=serialized_txo
-      txos_num =1
+      txos_num = 1
+      txos_hashes = _hash
+      txos_lengths = len(serialized_txo).to_bytes(2,"big")
   if txos_num:
     send_message(message['sender'], {"action":"take the txos", 
                                             "num":txos_num, "txos":serialized_txos, 
