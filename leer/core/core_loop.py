@@ -938,6 +938,8 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
   height, total_difficulty = node_info['height'],node_info['total_difficulty']
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
+    node_info["common_root"].pop("worst_nonmutual", None)
+    node_info["common_root"].pop("best_mutual", None)
     common_root_height = storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height
     if (height > storage_space.headers_manager.best_header_height) and (total_difficulty > storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)):
       request_num = min(256, height-common_root_height)
