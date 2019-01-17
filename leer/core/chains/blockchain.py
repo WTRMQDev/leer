@@ -259,7 +259,7 @@ class Blockchain:
     for path in actions:
       if good_path:
         break
-      for step in path:
+      for ind, step in enumerate(path):
         if step[0]=="ADDBLOCK":
           if not  self.storage_space.blocks_storage.has(step[1], rtx=wtx):
             #Try to download as much blocks as possible and break
@@ -269,6 +269,10 @@ class Blockchain:
             self._download_queued_blocks()
             break
           if (not self.storage_space.blocks_storage.is_block_downloaded(step[1], rtx=wtx)):
+            #lets look forward and ask more txos to be downloaded
+            for action, block_hash in path[ind+1:]:
+               if self.storage_space.blocks_storage.has(block_hash, rtx=wtx):
+                 self.storage_space.blocks_storage.is_block_downloaded(block_hash, rtx=wtx)
             break
           else:
             if self.storage_space.blocks_storage.get(step[1], rtx=wtx).header.height>current_height or \
@@ -294,10 +298,11 @@ class Blockchain:
           self._rollback(wtx=wtx)
           #TODO Add some checks here to prevent rolling back to genesis in case of any mistakes
       if action=="ADDBLOCK":
-        if (not self.storage_space.blocks_storage.has(block_hash, rtx=wtx)) or (not self.storage_space.blocks_storage.is_block_downloaded(block_hash, rtx=wtx)):
-          break
+        if (not self.storage_space.blocks_storage.has(block_hash, rtx=wtx)) or \
+           (not self.storage_space.blocks_storage.is_block_downloaded(block_hash, rtx=wtx)):
           # We decide that path is good if we have enough downloaded blocks to get to current_height+1. Still, the path
           # may contain more steps and for some of those steps we may not have downloaded blocks. So stop now.
+          break
         try:
           self._add_block_to_chain(step[1], wtx=wtx)
           progress = True #at least one block was added
