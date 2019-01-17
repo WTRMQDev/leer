@@ -149,7 +149,11 @@ class NetworkNode:
                   if message in [inv_message_id["ping"], inv_message_id["pong"]]:
                     self.logger.debug("Got message %s"%(str(message)))
                   else:
-                    self.logger.info("Got message %s"%(str(message)))
+                    if len(message)<24:
+                      self.logger.info("Got message %s"%(str(message)))
+                    else:
+                      self.logger.info("Got message with len %d"%(len(message)))
+                      self.logger.debug("Message content %s"%(str(message)))
                   result = await self.handle_message(message)
             except PartialData:
               self.partial_data=data
