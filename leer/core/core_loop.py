@@ -261,7 +261,10 @@ def core_loop(syncer, config):
          (('result' in message) and is_ip_port_array(message['result'])):
         logger.debug("Processing message %s"%message)
       else:
-        logger.info("Processing message %s"%message)
+        if 'action' in message:
+          logger.info("Processing message `%s`"%message['action'])
+        else:
+          logger.info("Processing message %s"%message)  
       if not 'action' in message: #it is response
         if message['id'] in requests: # response is awaited
           if requests[message['id']]=="give nodes list":
