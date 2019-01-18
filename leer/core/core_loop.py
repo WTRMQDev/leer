@@ -6,7 +6,6 @@ from leer.core.storage.blocks_storage import BlocksStorage
 from leer.core.storage.excesses_storage import ExcessesStorage
 from leer.core.storage.utxo_index_storage import UTXOIndex
 from leer.core.storage.mempool_tx import MempoolTx
-#from leer.core.storage.key_manager import KeyManagerClass
 from leer.core.primitives.block import Block
 from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
@@ -19,7 +18,6 @@ from time import sleep, time
 from uuid import uuid4
 
 from leer.core.storage.storage_space import StorageSpace
-from leer.core.storage.default_paths import base_dir as default_base_dir, calc_paths
 
 from leer.syncer import Syncer
 from leer.core.parameters.constants import serialized_genesis_block
@@ -96,21 +94,6 @@ def init_storage_space(config):
   global storage_space
   _path = config["location"]["basedir"]
   storage_space=StorageSpace(_path)
-  '''_paths = {}
-  _paths["txo_storage_path"], _paths[ "txo_storage_path"], _paths[ "excesses_storage_path"],\
-  _paths[ "headers_storage_path"], _paths[ "blocks_storage_path"], _paths[ "wallet_path"],\
-  _paths[ "key_manager_path"], _paths[ "utxo_index_path"] = calc_paths(default_base_dir)
-  if "location" in config:
-    if "basedir" in config["location"]:
-      basedir = config["location"]["basedir"]
-      _paths["txo_storage_path"], _paths[ "txo_storage_path"],\
-      _paths[ "excesses_storage_path"], _paths[ "headers_storage_path"],\
-      _paths[ "blocks_storage_path"], _paths[ "wallet_path"],\
-      _paths[ "key_manager_path"], _paths[ "utxo_index_path"] = calc_paths(basedir)
-    for _path in _paths:
-      if _path in config["location"]:
-        _paths[_path] = config["location"][_path]
-  ''' 
   with storage_space.env.begin(write=True) as wtx:
     hs = HeadersStorage(storage_space, wtx=wtx)
     hm = HeadersManager(storage_space)
@@ -120,8 +103,6 @@ def init_storage_space(config):
     bc = Blockchain(storage_space)
     mptx = MempoolTx(storage_space)
     utxoi = UTXOIndex(storage_space, wtx=wtx)
-    #km = KeyManagerClass(path = _paths["key_manager_path"]) #TODO km should be initialised in wallet process
-    #mptx.set_key_manager(km)
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)
   
@@ -131,21 +112,13 @@ def set_ask_for_blocks_hook(blockchain, message_queue):
     if not isinstance(block_hashes, list):
       block_hashes=[block_hashes] #There is only one block
     requests_cache["blocks"]+=block_hashes
-    #new_message = {"action": "check blocks download status", "block_hashes":block_hashes,
-    #                     "already_asked_nodes": [], "id": str(uuid4()),
-    #                     "time": -1 }
-    #message_queue.put(new_message)
-  
+
   blockchain.ask_for_blocks_hook = f
 
 def set_ask_for_txouts_hook(block_storage, message_queue):
   def f(txouts):
     requests_cache["txouts"]+=txouts
-    #new_message = {"action": "check txouts download status", "txos_hashes": txouts,
-    #                     "already_asked_nodes": [], "id": str(uuid4()),
-    #                     "time": -1 }
-    #message_queue.put(new_message)
-  
+
   block_storage.ask_for_txouts_hook = f
 
 def is_ip_port_array(x):
@@ -381,56 +354,6 @@ def core_loop(syncer, config):
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
-
-      '''if message["action"] == "get confirmed balance stats": #TODO Move to wallet
-        notify("core workload", "retrieving balance")
-        if storage_space.mempool_tx.key_manager:
-          stats = storage_space.mempool_tx.key_manager.get_confirmed_balance_stats( 
-                     storage_space.utxo_index,
-                     storage_space.txos_storage,
-                     storage_space.blockchain.current_height)
-          send_message(message["sender"], {"id": message["id"], "result":stats})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
-
-      if message["action"] == "get confirmed balance list": #TODO Move to wallet
-        notify("core workload", "retrieving balance")
-        if storage_space.mempool_tx.key_manager:
-          _list = storage_space.mempool_tx.key_manager.get_confirmed_balance_list( 
-                     storage_space.utxo_index,
-                     storage_space.txos_storage,
-                     storage_space.blockchain.current_height)
-          send_message(message["sender"], {"id": message["id"], "result":_list})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
-
-      if message["action"] == "give new address": #TODO Move to wallet
-        notify("core workload", "retrieving new address")
-        if storage_space.mempool_tx.key_manager:
-          texted_address = storage_space.mempool_tx.key_manager.new_address().to_text()
-          send_message(message["sender"], {"id": message["id"], "result": texted_address})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
-
-      if message["action"] == "give private key": #TODO Move to wallet
-        if storage_space.mempool_tx.key_manager:
-          km = storage_space.mempool_tx.key_manager
-          a=Address()
-          a.from_text(message["address"])
-          serialized_pk = km.priv_by_address(a).serialize()
-          send_message(message["sender"], {"id": message["id"], "result": serialized_pk})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})
-
-      if message["action"] == "take private key": #TODO Move to wallet
-        if storage_space.mempool_tx.key_manager:
-          km = storage_space.mempool_tx.key_manager
-          pk=PrivateKey()
-          pk.deserialize(message['privkey'])
-          km.add_privkey(pk)
-          send_message(message["sender"], {"id": message["id"], "result": "imported"})
-        else:
-          send_message(message["sender"], {"id": message["id"], "error": "No registered key manager"})'''
 
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
