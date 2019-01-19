@@ -153,7 +153,7 @@ class RollBack:
       _snum, data = data[:5], data[5:]
       _index, data = self.deserialize_bytes_raw(data)
       _obj, data = self.deserialize_bytes_raw(data)
-      self.updated_excesses.append(_snum, _index, _obj)
+      self.updated_excesses.append((_snum, _index, _obj))
     _s_burdens_num, data = data[:2], data[2:]
     burdens_num = int.from_bytes(_s_burdens_num, "big")
     for i in range(burdens_num):
