@@ -734,12 +734,13 @@ def send_tip_info(node_info, send, rtx, our_tip_hash=None ):
 
 def process_tip_info(message, node_info, send, rtx):
   # another node (referenced as counter-Node below) asks us for our best tip and also provides us information about his
+  if ('common_root' in node_info) and ('worst_nonmutual' in node_info['common_root']):
+    return #Ignore new tips while detect common_root
   node = message["node"]
   height = message["height"]
   tip_hash = message["tip"]
   prev_hash = message["prev_hash"]
   total_difficulty = message["total_difficulty"]
-
   our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
 
   if (not "sent_tip" in node_info) or \
