@@ -41,7 +41,7 @@ class TransactionSkeleton:
     if rich_format and not full_tx:
       raise Exception("Full_tx is required for serialization in rich format")
     serialization_array = []
-    version = 1
+    version = 0
     version_byte = ((version<<1)+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
     serialization_array.append(version_byte)
     serialization_array.append(len(self.input_indexes).to_bytes(2, "big"))
@@ -92,7 +92,7 @@ class TransactionSkeleton:
     serialized, ser_version = serialized[1:], serialized[0]
     rich_format = ser_version & 1
     version = ser_version >> 1
-    if not version in [0,1]:
+    if not version in [0]:
       raise Exception("Unknown tx_sceleton version")
     if len(serialized)<2:
       raise Exception("Not enough bytes for tx skeleton inputs len")
@@ -117,8 +117,7 @@ class TransactionSkeleton:
       _output_index, serialized  = serialized[:serialized_index_len], serialized[serialized_index_len:]
       self.output_indexes.append(_output_index)
 
-    if version>=1:
-      for i in range(_len_o):
+    for i in range(_len_o):
         if len(serialized)<4:
           raise Exception("Not enough bytes for tx skeleton' output relay fee %d len"%i)
         ser_relay_fee, serialized  = serialized[:4], serialized[4:]
