@@ -67,7 +67,7 @@ class ObliviousDictionary:
     n=0
     for tm, key in self.trigger_time_list:
       if tm<now:
-        self.inner_dict.pop(key)
+        self.inner_dict.pop(key, None)
         n+=1
       else:
          break #trigger_time_list is sorted

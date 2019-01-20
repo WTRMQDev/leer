@@ -169,6 +169,7 @@ class TransactionSkeleton:
       #  return False
       #else:
       #  output_apcs.remove(_e.message)
+    #TODO pedersen_sum_check
     return True
 
   def calc_new_outputs_fee(self, is_block_transaction):
