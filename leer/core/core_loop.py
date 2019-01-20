@@ -829,7 +829,7 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
     node_info["common_root"]={}
 
   for index, pointer in enumerate([header.hash]+header.popow.pointers):
-    if result[index] in [MAINCHAIN, INFORK]:
+    if result[index] in [MAINCHAIN]:
         node_info["common_root"]["best_mutual"]=pointer
         best_mutual_height = storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
         break
