@@ -38,7 +38,6 @@ class IOput:
     self.encrypted_message = None
     self.generator = None
     self.relay_fee = None
-    self.authorized_burden = None # This authorization ensures that only agent who created output impose burden on it
     #context data (we serialize it for storing, but not for sending to network)
     self.address_excess_num_index = None #5 bytes long bytes-string
     #inner data
@@ -166,12 +165,6 @@ class IOput:
     _part2 = self.address.deserialize_raw(part2)
     consumed += part2[:len(part2)-len(_part2)]
     part2 = _part2
-
-    has_burden, part2 = part2[:1], part2[1:]
-    consumed += has_burden
-    if has_burden == b"\01":
-      self.authorized_burden, part2 = part2[:32], part2[32:] 
-      consumed += self.authorized_burden
     
     if len(part2)<2:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message length")
@@ -242,16 +235,13 @@ class IOput:
       self.generator, self.relay_fee,
       self.serialized_apc)
     ret += self.address.serialize()
-    ret += {True:b"\x01",False:b"\x00"}[bool(self.authorized_burden)]
-    if self.authorized_burden:
-      ret += self.authorized_burden
     ret += struct.pack("> H", len(self.encrypted_message))
     ret += self.encrypted_message
     return ret
 
 
   #Wallet functionality
-  def fill(self, address, value, relay_fee = 0, blinding_key=None, generator=default_generator_ser, burden_hash = None, coinbase=False, lock_height = 0):
+  def fill(self, address, value, relay_fee = 0, blinding_key=None, generator=default_generator_ser, coinbase=False, lock_height = 0):
     """
     Fill basic params of ouput.
 
@@ -281,7 +271,6 @@ class IOput:
     self.address = address
     self.generator = generator
     self.value = value
-    self.authorized_burden = burden_hash
     if blinding_key is None:
       blinding_key = PrivateKey() #we do not store this key in the wallet
     self.blinding_key = blinding_key
