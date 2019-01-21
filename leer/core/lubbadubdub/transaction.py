@@ -32,7 +32,7 @@ class Transaction:
     self.inputs = []
     self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
     self.outputs = []
-    self.additional_excesses = []
+    self.additional_excesses = [] #TODO should be sorted too
     self.mixer_offset = 0
     #inner data
     self._destinations = [] #destinations are unprepared outputs
@@ -472,7 +472,7 @@ class Transaction:
     
 
   def merge(self, another_tx, rtx):
-    self.serialized = None
+    #self.serialized = None
     tx=Transaction(txos_storage = self.txos_storage, excesses_storage=self.excesses_storage)
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
