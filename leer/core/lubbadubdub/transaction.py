@@ -271,7 +271,7 @@ class Transaction:
             if (not self.txos_storage.confirmed.has(input_index_buffer, rtx=rtx)):
               raise Exception("Unknown input index")
             self.inputs.append(self.txos_storage.confirmed.get(input_index_buffer, rtx=rtx))
-          else:
+        else:
             self.inputs.append(input_index_buffer)
 
     if len(serialized_tx)<2:
