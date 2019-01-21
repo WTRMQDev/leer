@@ -27,7 +27,7 @@ def is_sorted(lst, key=lambda x: x):
 
 class Transaction:
 
-  def __init__(self, txos_storage, excesses_storage,  raw_tx=None, key_manager=None):
+  def __init__(self, txos_storage, excesses_storage,  raw_tx=None):
     #serializable data 
     self.inputs = []
     self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
@@ -42,8 +42,7 @@ class Transaction:
     self.serialized = None
 
     self.txos_storage = txos_storage 
-    self.excesses_storage = excesses_storage 
-    self.key_manager = key_manager
+    self.excesses_storage = excesses_storage
     
     if raw_tx:
       self.deserialize(raw_tx)
@@ -84,57 +83,8 @@ class Transaction:
       self.updated_excesses = new_tx.updated_excesses
     self.verify(rtx=rtx)
 
-  '''
   # should be moved to wallet???
-  def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
-    self.serialized = None
-    if self.coinbase:
-      raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
-    if not len(self.inputs):
-      raise Exception("Tx should have at least one input")
-    if not len(self._destinations):
-      raise Exception("Tx should have at least one destination")
-    for ioput in self.inputs:
-      if not self.key_manager:
-        raise Exception("Trying to generate tx which spends unknown input (KeyManager is None)")
-      if not ioput.detect_value(self.key_manager):
-        raise Exception("Trying to generate tx which spends unknown input")
-    in_value = sum([ioput.value for ioput in self.inputs]) 
-    out_value = sum([destination[1] for destination in self._destinations])
-    relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
-    # +1 for destination is for change address
-    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
-    remainder = in_value - out_value - self.fee
-    if remainder<0:
-      raise Exception("Not enough money in inputs to cover outputs")
-    # TODO We need logic here to cover too low remainders (less than new output fee)
-    change_address =  change_address if change_address else self.key_manager.new_address() # TODO Check: for first glance, we cannot get here if key_manager is None.
-    self._destinations.append((change_address, remainder))
-    privkey_sum=0
-    out_blinding_key_sum = None
-    for out_index in range(len(self._destinations)-1):
-      address, value = self._destinations[out_index]
-      output = IOput()
-      output.fill(address, value, generator = default_generator_ser)
-      self.outputs.append( output )
-      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
-    # privkey for the last one output isn't arbitrary
-    address, value = self._destinations[-1]
-    in_blinding_key_sum = None
-    for _input in self.inputs:
-      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
-      in_blinding_key_sum += self.key_manager.priv_by_pub(_input.address.pubkey) # we can't get here if key_manager is None
-    output = IOput()
-    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
-      relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
-    self.outputs.append(output)
-    [output.generate() for output in self.outputs]
-    self.sort_ioputs()
-    self.verify()
-  '''
-
-  # should be moved to wallet???
-  def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+  def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0):
     self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
@@ -523,7 +473,7 @@ class Transaction:
 
   def merge(self, another_tx, rtx):
     self.serialized = None
-    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager, excesses_storage=self.excesses_storage) #TODO instead of key_manager, inputs info should be merged here
+    tx=Transaction(txos_storage = self.txos_storage, excesses_storage=self.excesses_storage)
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses

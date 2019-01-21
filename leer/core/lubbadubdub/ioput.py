@@ -204,7 +204,7 @@ class IOput:
     self.address_excess_num_index, residue = residue[:5], residue[5:]
     return residue
 
-  def detect_value(self, inputs_info): #TODO key_manager should be substituted with inputs_info = {..., 'priv_by_address': {serialized_pubkey:priv}}
+  def detect_value(self, inputs_info):
     try:
           privkey = inputs_info['priv_by_pub'][self.address.serialized_pubkey]
           nonce = self.apc

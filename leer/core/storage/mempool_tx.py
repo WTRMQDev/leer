@@ -24,7 +24,6 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.storage_space = storage_space
     self.storage_space.register_mempool_tx(self)
     self.block_templates = ObliviousDictionary(sink_delay=6000)
-    self.key_manager = None
     self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
 
   def update_current_set(self, rtx):
@@ -95,9 +94,6 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     else:
       raise
     self.update(rtx=rtx, reason="Tx addition")
-
-  def set_key_manager(self, key_manager): #TODO remove
-    self.key_manager = key_manager
 
   def give_block_template(self, coinbase_address, wtx):
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
