@@ -267,10 +267,7 @@ class Transaction:
           raise Exception("Serialized transaction doesn't contain enough bytes for input %s"%_input_index)
         input_index_buffer, serialized_tx = serialized_tx[:input_len], serialized_tx[input_len:]
 
-        if not GLOBAL_TEST['spend from mempool']:
-            raise NotImplemented
-        else:
-          if not skip_verification:
+        if not skip_verification:
             if (not self.txos_storage.confirmed.has(input_index_buffer, rtx=rtx)):
               raise Exception("Unknown input index")
             self.inputs.append(self.txos_storage.confirmed.get(input_index_buffer, rtx=rtx))
@@ -486,12 +483,9 @@ class Transaction:
     if not skip_non_context: # skip_non_context is used when non context verification for that tx was made earlier
       assert self.non_context_verify(block_height)
 
-    if not GLOBAL_TEST['spend from mempool']:
-        raise NotImplemented #XXX Check that all inputs in UTXO
-    else:
-        database_inputs = []
-        assert len(set([_input.serialized_index for _input in self.inputs]))==len(self.inputs)
-        for _input in self.inputs:
+    database_inputs = []
+    assert len(set([_input.serialized_index for _input in self.inputs]))==len(self.inputs)
+    for _input in self.inputs:
           index=_input.serialized_index
           if not self.txos_storage.confirmed.has(index, rtx=rtx):
               raise Exception("Spend unknown output")
@@ -500,10 +494,7 @@ class Transaction:
           assert not self.excesses_storage.excesses.has_index(rtx, self.updated_excesses[index].index), "Duplication of already existed excess during update"
           self.inputs = database_inputs
     
-    if not GLOBAL_TEST['spend from mempool']:
-        raise NotImplemented #XXX Check that all inputs are in UTXOSet
-    else:
-        for _output in self.outputs:
+    for _output in self.outputs:
           _o_index = _output.serialized_index
           if self.txos_storage.confirmed.has(_o_index, rtx=rtx):
               raise Exception("Create duplicate output")
@@ -548,10 +539,9 @@ class Transaction:
       raise NotImplemented
       #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
     tx.sort_ioputs()
-    if not GLOBAL_TEST['spend from mempool']: 
-      # If we merge transactions where the second spends outputs from the first, result is invalid
-      # since we don't delete identical ioputs 
-      raise NotImplemented
+    #TODO
+    # If we merge transactions where the second spends outputs from the first, result is invalid
+    # since we don't delete identical ioputs 
     assert tx.verify(rtx=rtx)
     return tx
 
