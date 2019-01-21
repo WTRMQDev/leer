@@ -223,21 +223,6 @@ class Transaction:
       self.inputs = sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize())
       self.outputs = sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize())
 
-  #XXX: obsolete, to be deleted
-  def calc_txid(self):
-    if not len(self.inputs) or not len(self.outputs):
-      raise Exception("Tx is not ready for id formation")
-    self.sort_ioputs()
-    to_hash = b''
-    for _list in [self.inputs, self.outputs]:
-        for ioput in _list:
-            to_hash += ioput.pedersen_commitment.serialize()
-    if not GLOBAL_TEST:
-        raise NotImplemented 
-    h = hashlib.new('sha256')
-    h.update(to_hash)
-    self.txid = h.digest()
-
   def serialize(self):
     if self.serialized:
       return self.serialized
