@@ -112,7 +112,7 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_he
   if historical or non_context:
     assert tx.non_context_verify(block_height=block_height)
   else:
-    assert tx.verify(block_height=block_height, rtx=rtx)
+    assert tx.verify(block_height=block_height, block_version = self.header.version, rtx=rtx)
   return tx
 
 #To setup utils

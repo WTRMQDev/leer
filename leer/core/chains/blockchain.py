@@ -119,7 +119,7 @@ class Blockchain:
 
   def context_validation(self, block, wtx):
     assert block.header.prev == self.current_tip(rtx=wtx)
-    block.tx.verify(block_height=self.current_height(rtx=wtx), rtx=wtx, skip_non_context=True)
+    block.tx.verify(block_height=self.current_height(rtx=wtx), block_version = block.header.version, rtx=wtx, skip_non_context=True)
     excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:

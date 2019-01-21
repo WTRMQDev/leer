@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
+from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Excess
 from leer.core.parameters.constants import output_creation_fee
@@ -25,9 +25,6 @@ class TransactionSkeleton:
       self.additional_excesses = tx.additional_excesses.copy()
       self.updated_excesses = tx.updated_excesses.copy()
       self.mixer_offset = tx.mixer_offset
-      
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
 
   def serialize(self, rich_format=False, max_size =40000, full_tx = None):
     #TODO we messed up a lot here with storage-space-free skeletons
@@ -149,9 +146,6 @@ class TransactionSkeleton:
           raise Exception("Unknown output in rich txskel data") 
         storage_space.txos_storage.mempool[output.serialized_index]=output
 
-
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
     return serialized
 
   def verify(self):

@@ -455,7 +455,7 @@ class Transaction:
     verification_cache[(self.serialize(), block_height)] = True
     return True
 
-  def verify(self, rtx, block_height = None, skip_non_context=False):
+  def verify(self, rtx, block_height = None, block_version = 1, skip_non_context=False):
     """
      Transaction is valid if:
       0) inputs and outputs are sorted  (non context verification)
@@ -501,14 +501,11 @@ class Transaction:
           else:
               #previously unknown output, let's add to database
               self.txos_storage.mempool[_o_index] = _output
+          if not _output.block_version == block_version:
+              raise Exception("Incompatible block version")
 
     for _ae in self.additional_excesses:
       assert not self.excesses_storage.excesses.has_index(rtx, _ae.index), "New additional excess duplicates old one"
-
-    if not GLOBAL_TEST['block_version checking']: 
-        # Note, transactions where outputs have different block_versions are valid
-        # by consensus rules. However, they cannot be included into any block.
-        raise NotImplemented
 
     if block_height > 0:
       prev_block_props = {'height': self.txos_storage.storage_space.blockchain.current_height(rtx=rtx), 
