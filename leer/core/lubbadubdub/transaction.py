@@ -324,8 +324,6 @@ class Transaction:
     self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
     if not skip_verification:
       self.verify(rtx=rtx)
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
 
   def to_json(self):
     pass #TODO
@@ -535,9 +533,6 @@ class Transaction:
     tx.updated_excesses = self.updated_excesses.copy()
     tx.updated_excesses.update(another_tx.updated_excesses)
     tx.mixer_offset = sum_offset(self.mixer_offset, another_tx.mixer_offset)
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
-      #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
     tx.sort_ioputs()
     #TODO
     # If we merge transactions where the second spends outputs from the first, result is invalid

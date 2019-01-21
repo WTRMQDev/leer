@@ -19,4 +19,4 @@ generators = { default_generator_ser: default_generator}
 GLOBAL_TEST = {'utxo set': True, 
 'key manager': True,
 'lock_height checking':True, 'block_version checking': True, 'inputs index': True,
-'skip combined excesses':True, 'skip additional excesses':False}
+'skip additional excesses':False}
