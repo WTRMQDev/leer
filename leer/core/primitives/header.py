@@ -154,7 +154,8 @@ class Header:
     '''
       Serialized header without nonce. Templates are used during mining, when we search for acceptable nonce
     '''
-    return self.height.to_bytes(4,"big") +\
+    return self.version.to_bytes(1, "big") +\
+           self.height.to_bytes(4,"big") +\
            self.popow.serialize() +\
            self.votedata.serialize() + \
            self.serialized_merkles + \
@@ -162,7 +163,6 @@ class Header:
            self.full_offset.to_bytes(32,"big") + \
            int(self.timestamp).to_bytes(5, "big") +\
            self.encoded_target +\
-           self.version.to_bytes(1, "big") +\
            self.extension_bytes
 
   def serialize(self):
@@ -172,6 +172,9 @@ class Header:
     self.deserialize_raw(serialized)
 
   def deserialize_raw(self, serialized):
+    if len(serialized)<1:
+      raise Exception("Not enough bytes for version deserialization")
+    self.version, serialized = serialized[0], serialized[1:]
     if len(serialized)<4:
       raise Exception("Not enough bytes for height deserialization")
     self.height, serialized = int.from_bytes(serialized[:4], "big"), serialized[4:]
@@ -194,9 +197,6 @@ class Header:
     if len(serialized)<5:
       raise Exception("Not enough bytes for target deserialization")
     self.target, serialized = decode_target(serialized[0],serialized[1]), serialized[2:]
-    if len(serialized)<1:
-      raise Exception("Not enough bytes for version deserialization")
-    self.version, serialized = serialized[0], serialized[1:]
     if len(serialized)<4:
       raise Exception("Not enough bytes for extension bytes deserialization")
     self.extension_bytes, serialized = serialized[:4], serialized[4:]
