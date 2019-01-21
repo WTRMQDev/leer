@@ -5,7 +5,7 @@ import struct, os
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
 
 from leer.core.lubbadubdub.offset_utils import sum_offset
-from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
+from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
 from leer.core.lubbadubdub.address import Address, Excess, excess_from_private_key
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.storage.txos_storage import TXOsStorage

@@ -15,8 +15,3 @@ default_generator = generator_from_string_seed(seed)
 default_generator_ser=default_generator.serialize()
 
 generators = { default_generator_ser: default_generator}
-
-GLOBAL_TEST = {'utxo set': True, 
-'key manager': True,
-'lock_height checking':True, 'block_version checking': True, 'inputs index': True,
-'skip additional excesses':False}

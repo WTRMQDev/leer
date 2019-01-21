@@ -1,5 +1,4 @@
 from secp256k1_zkp import PublicKey, ALL_FLAGS
-from leer.core.lubbadubdub.constants import GLOBAL_TEST
 import hashlib, base64
 
 class Excess:

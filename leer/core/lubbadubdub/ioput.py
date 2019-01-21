@@ -3,7 +3,7 @@ import hashlib
 
 from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof, BulletProof
 
-from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
+from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.utils import encrypt, decrypt
 from leer.core.storage.verification_cache import verification_cache
