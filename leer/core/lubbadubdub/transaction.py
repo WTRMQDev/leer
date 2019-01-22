@@ -32,7 +32,7 @@ class Transaction:
     self.inputs = []
     self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
     self.outputs = []
-    self.additional_excesses = [] #TODO should be sorted too
+    self.additional_excesses = []
     self.mixer_offset = 0
     #inner data
     self._destinations = [] #destinations are unprepared outputs
@@ -150,7 +150,7 @@ class Transaction:
       script = generate_proof_script(ae[0])
       e = excess_from_private_key(ae[1], script)
       self.additional_excesses.append(e)
-    self.sort_ioputs()
+    self.sort_lists()
     self.verify(rtx=rtx)
     
 
@@ -169,9 +169,10 @@ class Transaction:
              (inputs_num if inputs_num else len(self.inputs)) - 
              (1 if self.coinbase else 0))*output_creation_fee
 
-  def sort_ioputs(self):
+  def sort_lists(self):
       self.inputs = sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize())
       self.outputs = sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize())
+      self.additional_excesses = sorted(self.additional_excesses, key = lambda e: e.index)
 
   def serialize(self):
     if self.serialized:
@@ -296,6 +297,7 @@ class Transaction:
 
     assert is_sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize()), "Inputs are not sorted"
     assert is_sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize()), "Outputs are not sorted"
+    assert is_sorted(self.additional_excesses, key= lambda e: e.index), "Additional excesses are not sorted"
 
     assert len(self.inputs)==len(self.updated_excesses)
     for _input in self.inputs:
@@ -480,7 +482,7 @@ class Transaction:
     tx.updated_excesses = self.updated_excesses.copy()
     tx.updated_excesses.update(another_tx.updated_excesses)
     tx.mixer_offset = sum_offset(self.mixer_offset, another_tx.mixer_offset)
-    tx.sort_ioputs()
+    tx.sort_lists()
     #TODO
     # If we merge transactions where the second spends outputs from the first, result is invalid
     # since we don't delete identical ioputs 
