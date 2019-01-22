@@ -37,8 +37,9 @@ class Block():
     serialized += self.header.serialize()
     serialized += self.transaction_skeleton.serialize(rich_format=rich_block_format, max_size=max_size,
         full_tx = build_tx_from_skeleton(self.transaction_skeleton,\
-                                         self.storage_space.txos_storage,
-                                         self.storage_space.excesses_storage, self.header.height, rtx=rtx,\
+                                         self.storage_space.txos_storage,\
+                                         self.storage_space.excesses_storage,\
+                                         self.header.height, self.header.version, rtx=rtx,\
                                          historical = True) if rich_block_format else None)
     return serialized
 
@@ -69,7 +70,7 @@ class Block():
     #currently during building we automatically check that tx can ba applied and tx is valid
     self.tx = build_tx_from_skeleton(self.transaction_skeleton, txos_storage=self.storage_space.txos_storage,
                                      excesses_storage=self.storage_space.excesses_storage,
-                                     block_height=self.header.height, rtx=rtx, non_context = True)
+                                     block_height=self.header.height, block_version = self.header.version, rtx=rtx, non_context = True)
     # stage 3 => should be moved to blockchain
     #commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(tx)
     #excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(tx)
@@ -86,7 +87,7 @@ class Block():
                     , len(self.transaction_skeleton.input_indexes),len(self.transaction_skeleton.output_indexes) )
     
 
-def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_height, rtx, historical=False, non_context = False):
+def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_height, block_version, rtx, historical=False, non_context = False):
   '''
     By given tx_skeleton and txos_storage return transaction.
     If transaction is invalid or any input/output isn't available exception will be raised.
@@ -112,7 +113,7 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_he
   if historical or non_context:
     assert tx.non_context_verify(block_height=block_height)
   else:
-    assert tx.verify(block_height=block_height, block_version = self.header.version, rtx=rtx)
+    assert tx.verify(block_height=block_height, block_version = block_version, rtx=rtx)
   return tx
 
 #To setup utils

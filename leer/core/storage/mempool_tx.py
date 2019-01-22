@@ -58,7 +58,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
           if tx_skeleton.tx:
             full_tx = tx_skeleton.tx
           else:
-            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage,  self.storage_space.excesses_storage, self.storage_space.blockchain.current_height(rtx=rtx) +1, rtx=rtx)
+            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage,  self.storage_space.excesses_storage, self.storage_space.blockchain.current_height(rtx=rtx) +1, block_version = 1, rtx=rtx)
             tx_skeleton.tx=full_tx
           self.built_tx[tx_skeleton.serialize()]=full_tx
       except Exception as e:
