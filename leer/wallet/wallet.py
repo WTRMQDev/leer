@@ -70,7 +70,11 @@ def wallet(syncer, config):
     sleep(0.01)
     while not message_queue.empty():
       message = message_queue.get()
-      logger.info("Process message %s"% message)
+      if 'action' in message:
+        logger.info("Process message `%s`"% message['action'])
+        logger.debug("Process message %s"%message)
+      else:
+        logger.info("Process message %s"%message)
       if not 'action' in message:
         continue
       if message['action']=="process new block":
