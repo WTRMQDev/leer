@@ -200,12 +200,13 @@ def repack_ser_spent_output_to_unspent(ser_spent_output):
 
 class DiscWallet:
   '''
-    It is generally key-value db with four types of records:
+    It is generally key-value db:
      1) private keys:  key is serialized pubkey; value - serialized privkey.
      2) unspent parsed outputs: key is output_index; value - tuple (lock_height, value)
      3) spent outputs: key is output_index; value - tuple (spend_height, value)
      4) block-outputs map: key is block_number; value - tuple (spent/created, output_index)
      5) pubkey-outputs map 
+     6) num_index -> output: list of touched (created/spent) outputs
     There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
     instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
     from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
@@ -225,6 +226,7 @@ class DiscWallet:
       self.block_index = self.env.open_db(b'block_index', txn=txn, dupsort=True, dupfixed=True)
       self.pubkey_index = self.env.open_db(b'pubkey_index', txn=txn, dupsort=True, dupfixed=True)
       self.pubkey_index_reversed = self.env.open_db(b'pubkey_index_reversed', txn=txn, dupsort=True, dupfixed=True)
+      self.actions_list = self.env.open_db(b'actions_list', txn=txn)
       #if not txn.get(b'pool_size', db=self.pool):
       #  txn.put( b'pool_size', 0, db=self.pool) 
 
