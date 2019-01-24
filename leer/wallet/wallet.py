@@ -134,6 +134,12 @@ def wallet(syncer, config):
         pass
       if message['action']=="take private key":
         pass
+      if message['action']=="give last transactions info":
+        response = {"id": message["id"]}
+        num = int(message["num"])
+        response["result"] = km.give_transactions(num)
+        syncer.queues[message['sender']].put(response) 
+        continue
       if message['action']=="generate tx template":
         response = {"id": message["id"]}
         value  = int(message["value"])
@@ -180,6 +186,3 @@ def wallet(syncer, config):
         syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
         return
-
-    
-

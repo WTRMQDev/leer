@@ -486,7 +486,7 @@ class DiscWallet:
   def last_action_num(self, r_txn=None):
     if not r_txn:
       with self.env.begin(write=False) as r_txn:
-        return self.last_action_num()
+        return self.last_action_num(r_txn=r_txn)
     lan = r_txn.get(b'last num', db = self.actions_list)
     if not lan:
       lan = 0
@@ -509,8 +509,9 @@ class DiscWallet:
     with self.env.begin(write=False) as r_txn:
       txdict = {} #Each element is dict {block_num: {'output':{params}}}
       current_action = self.last_action_num(r_txn=r_txn) - 1
-      while current_action>=0 and len(txlist)<n:
+      while current_action>=0 and len(txdict)<n:
         output_index = r_txn.get(_(current_action), db = self.actions_list)
+        soi = base64.b64encode(output_index).decode()
         current_action-=1
         output_params = None
         try:
@@ -527,12 +528,12 @@ class DiscWallet:
           spend_height, created_height, lock_height, value, taddress = output_params
           if not spend_height in txdict:
             txdict[spend_height] = {}
-          txdict[spend_height][output_index] = {'lock_height':lock_height, 'value':value, 'address':taddress}
+          txdict[spend_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode()}
         else:
           created_height, lock_height, value, taddress = output_params
-          if not spend_height in txdict:
-            txdict[spend_height] = {}
-          txdict[created_height][output_index] = {'lock_height':lock_height, 'value':value, 'address':taddress}
+          if not created_height in txdict:
+            txdict[created_height] = {}
+          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode()}
       return txdict  
         
             
