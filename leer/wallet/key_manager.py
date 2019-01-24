@@ -133,6 +133,9 @@ class KeyManagerClass:
             ret[taddress][texted_index]='unknown'      
     return ret
 
+  def give_transactions(self, n):
+    return self.wallet.generate_transaction_dict(n=n)
+
     
 
 def _(x):
@@ -331,6 +334,18 @@ class DiscWallet:
       ser_output = repack_ser_spent_output_to_unspent(ser_spent_output)
       p1=w_txn.put( bytes(output_index), ser_output, db=self.output) # TODO self.put_output?
 
+  def get_spent_output(self, output_index, txn=None):
+    if not txn:
+      with self.env.begin(write=False) as txn:
+        return self.get_output(output_index, txn=txn)
+    else:     
+      output_params = txn.get( bytes(output_index), db=self.spent)    
+      if not output_params:
+         raise KeyError
+      else:
+        return deserialize_spent_output_params( output_params)
+
+
   def get_privkey_from_pool(self):
     '''
       Privkey will be immideately removed from the pool.
@@ -485,3 +500,35 @@ class DiscWallet:
       w_txn.delete(_(i), db = self.actions_list)
     self.bump_action_num(w_txn=w_txn, n = lan-n)
         
+
+  def generate_transaction_dict(self, n):
+    with self.env.begin(write=False) as r_txn:
+      txdict = {} #Each element is dict {block_num: {'output':{params}}}
+      current_action = self.last_action_num(r_txn=r_txn) - 1
+      while current_action>=0 and len(txlist)<n:
+        output_index = r_txn.get(_(current_action), db = self.actions_list)
+        current_action-=1
+        output_params = None
+        try:
+          output_params = self.get_output(output_index, txn=r_txn)
+        except KeyError:
+          try:
+            output_params = self.get_spent_output(output_index, txn=r_txn)
+          except KeyError:
+            pass #TODO warning
+        if not output_params:
+          continue
+        spent = len(output_params)==5
+        if spent:
+          spend_height, created_height, lock_height, value, taddress = output_params
+          if not spend_height in txdict:
+            txdict[spend_height] = {}
+          txdict[spend_height][output_index] = {'lock_height':lock_height, 'value':value, 'address':taddress}
+        else:
+          created_height, lock_height, value, taddress = output_params
+          if not spend_height in txdict:
+            txdict[spend_height] = {}
+          txdict[created_height][output_index] = {'lock_height':lock_height, 'value':value, 'address':taddress}
+      return txdict  
+        
+            
