@@ -5,6 +5,10 @@ from leer.core.lubbadubdub.address import address_from_private_key
 import base64
 
 class KeyManagerClass:
+  '''
+    KeyManager holds information about private keys, spent and unspent outputs.
+    TODO: separate key storage and transaction info handling
+  '''
   def __init__(self, path, password=None):
     #self.privkey = None
     #if password:
