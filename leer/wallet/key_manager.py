@@ -186,7 +186,7 @@ def deserialize_spent_output_params(p):
   spend_height, p = _d(p[:4]), p[4:]
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
-  value = _d(p[:7]), p[7:]
+  value, p = _d(p[:7]), p[7:]
   taddress = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
@@ -496,7 +496,7 @@ class DiscWallet:
 
   def bump_action_num(self, w_txn, n=None):
     lan = self.last_action_num(r_txn=w_txn) if not n else n
-    w_txn.put(b'last num', _(lan), db = self.actions_list)
+    w_txn.put(b'last num', _(lan+1), db = self.actions_list)
 
   def remove_last_actions(self, n, w_txn):
     lan = self.last_action_num(r_txn=w_txn)
@@ -528,12 +528,12 @@ class DiscWallet:
           spend_height, created_height, lock_height, value, taddress = output_params
           if not spend_height in txdict:
             txdict[spend_height] = {}
-          txdict[spend_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode()}
+          txdict[spend_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'spent'}
         else:
           created_height, lock_height, value, taddress = output_params
           if not created_height in txdict:
             txdict[created_height] = {}
-          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode()}
+          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'received'}
       return txdict  
         
             
