@@ -330,7 +330,7 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "result":ser_head})
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
-          self.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+          logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
