@@ -58,6 +58,7 @@ class RPCManager():
     methods.add(self.getblock)
     methods.add(self.getnodes)
     methods.add(self.connecttonode)
+    methods.add(self.gettransactions)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -293,6 +294,15 @@ class RPCManager():
     pub = base64.b64decode(sk.encode())
     self.syncer.queues['NetworkManager'].put({'action':'open connection', 'host':host,
          'port':port, 'static_key':pub, 'id':_id, 'request_source': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return answer['result']
+
+  async def gettransactions(self, num):
+    _id = str(uuid4())
+    self.syncer.queues['Wallet'].put({'action':'give last transactions info', 'id':_id,
+                                      'sender': "RPCManager", 'num':int(num)})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
