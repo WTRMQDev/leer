@@ -331,6 +331,16 @@ def core_loop(syncer, config):
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
           logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+      if message["action"] == "give mining work":
+        notify("core workload", "generating block template")
+        try:
+          address = get_new_address()
+          with storage_space.env.begin(write=True) as wtx:
+            partial_header_hash, target = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
+          send_message(message["sender"], {"id": message["id"], "result":{'partial_hash':partial_header_hash.hex(), 'target':target.hex()}})
+        except Exception as e:
+          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
+          logger.error("Can not generate work `%s`"%(str(e)), exc_info=True)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
