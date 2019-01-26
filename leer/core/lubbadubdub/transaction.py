@@ -84,7 +84,7 @@ class Transaction:
     self.verify(rtx=rtx)
 
   # should be moved to wallet???
-  def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0):
+  def generate(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0):
     self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")

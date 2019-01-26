@@ -430,7 +430,7 @@ def core_loop(syncer, config):
               utxo = storage_space.txos_storage.confirmed.get(utxo_index, rtx=rtx)
               tx.push_input(utxo)
             tx.add_destination( (tx_template["address"], tx_template["value"]) )
-            tx.generate_new(priv_data=tx_template, rtx=rtx,
+            tx.generate(priv_data=tx_template, rtx=rtx,
                         change_address = tx_template['change address'],
                         relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
             tx.verify(rtx=rtx)
