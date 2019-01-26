@@ -364,7 +364,32 @@ def core_loop(syncer, config):
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e)})
-
+      if message["action"] == "take mining work":
+        notify("core workload", "processing mining work")
+        try:
+          nonce, partial_work = message['nonce'], message['partial_hash']
+          mp = storage_space.mempool_tx
+          block_template =  mp.work_block_assoc
+          block_template.nonce = nonce
+          solved_block = block_template 
+          header = solved_block.header
+          with storage_space.env.begin(write=True) as wtx:
+            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
+            storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
+            solved_block.non_context_verify(rtx=wtx)
+            storage_space.blockchain.add_block(solved_block, wtx=wtx)
+            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            our_height = storage_space.blockchain.current_height(rtx=wtx)
+            best_known_header = storage_space.headers_manager.best_header_height
+            if not after_tip==initial_tip:
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx)
+          send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
+          notify("best header", best_known_header)
+          notify("blockchain height", our_height)
+        except Exception as e:
+          logger.error("Wrong submitted work %s"%str(e))
+          send_message(message["sender"], {"id": message["id"], "error": str(e)})
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
           our_height = storage_space.blockchain.current_height(rtx=rtx)
