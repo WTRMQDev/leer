@@ -116,11 +116,15 @@ class RPCManager():
 
   async def getwork(self):
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'give block mining work', 'id':_id, 'sender': "RPCManager"})
+    self.syncer.queues['Blockchain'].put({'action':'give mining work', 'id':_id, 'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
-    return base64.b64encode(answer['result']).decode()
+    if not answer["result"]=="error":
+      res = ["0x"+answer["result"]["partial_hash"],"0x"+"00"*32, "0x"+answer["result"]["target"]]
+      return res
+    else:
+      return answer["error"]
 
   async def validatesolution(self, solution):
     _id = str(uuid4())
