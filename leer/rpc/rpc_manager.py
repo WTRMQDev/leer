@@ -126,6 +126,18 @@ class RPCManager():
     else:
       return answer["error"]
 
+  async def submitwork(self, hex_nonce, partial_hash, comparibility_field):
+    _id = str(uuid4())
+    if "0x"==hex_nonce[:2]:
+     hex_nonce = hex_nonce[2:]
+    nonce = int(hex_nonce, "big")
+    self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager"
+                                          'nonce':nonce, 'partial_hash':partial_hash})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return answer["error"]
+
   async def validatesolution(self, solution):
     _id = str(uuid4())
     self.syncer.queues['Blockchain'].put({'action':'take solved block template', 'id':_id,
