@@ -23,7 +23,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction = {}
     self.storage_space = storage_space
     self.storage_space.register_mempool_tx(self)
-    self.block_templates = ObliviousDictionary(sink_delay=6000)
+    self.block_templates = ObliviousDictionary(sink_delay=600)
+    self.work_block_assoc = ObliviousDictionary(sink_delay=600)
     self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
 
   def update_current_set(self, rtx):
@@ -108,6 +109,13 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     block = generate_block_template(tx, self.storage_space, wtx=wtx)
     self.add_block_template(block)
     return block
+  
+  def give_mining_work(self, coinbase_address, wtx):
+    block_template = self.give_block_template(coinbase_address, wtx)
+    partial_hash = block_template.header.partial_hash
+    target = block_template.header.target.to_bytes(32, "big")
+    self.work_block_assoc[partial_hash] = block_template
+    return partial_hash, target
   
   def add_block_template(self, block):
     self.block_templates[block.header.template] = block
