@@ -46,6 +46,7 @@ class RPCManager():
     methods.add(self.getconnectioncount)
     methods.add(self.getheight)
     methods.add(self.getblocktemplate)
+    methods.add(self.getwork)
     methods.add(self.validatesolution)
     methods.add(self.getbalancestats)
     methods.add(self.getbalancelist)
@@ -113,6 +114,13 @@ class RPCManager():
     self.requests.pop(_id)
     return base64.b64encode(answer['result']).decode()
 
+  async def getwork(self):
+    _id = str(uuid4())
+    self.syncer.queues['Blockchain'].put({'action':'give block mining work', 'id':_id, 'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return base64.b64encode(answer['result']).decode()
 
   async def validatesolution(self, solution):
     _id = str(uuid4())
