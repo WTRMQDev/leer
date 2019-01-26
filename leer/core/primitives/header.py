@@ -1,6 +1,6 @@
 import hashlib
 from leer.core.utils import encode_target, decode_target
-from leer.core.hash.mining_canary import mining_canary_hash
+from leer.core.hash.mining_canary import mining_canary_hash, partial_hash
 
 class PoPoW:
   # We use compact version of PoPoW (https://eprint.iacr.org/2017/963.pdf) here
@@ -217,6 +217,10 @@ class Header:
   @property
   def hash(self):
     return mining_canary_hash(self.serialize())
+
+  @property
+  def partial_hash(self):
+    return partial_hash(self.serialize())
 
   @property
   def integer_hash(self):

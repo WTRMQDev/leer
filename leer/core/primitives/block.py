@@ -32,6 +32,10 @@ class Block():
   def hash(self):
     return self.header.hash
 
+  @property
+  def partial_hash(self)
+    return self.header.partial_hash
+
   def serialize(self, rtx, rich_block_format=False, max_size =40000):
     serialized=b""
     serialized += self.header.serialize()
