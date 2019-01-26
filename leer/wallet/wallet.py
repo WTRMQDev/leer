@@ -184,5 +184,48 @@ def wallet(syncer, config):
         
         response["result"]=tx_template
         syncer.queues[message['sender']].put(response)
+      if message['action']=="generate tx":
+        response = {"id": message["id"]}
+        value  = int(message["value"])
+        taddress = message["address"]
+        a = Address()
+        a.from_text(taddress)
+        try:
+          current_height = get_height()
+        except KeyError:
+           response["result"] = "error"
+           response["error"] = "core_loop didn't set height yet"
+           syncer.queues[message['sender']].put(response)
+           continue
+        except Exception as e:
+           response["result"] = "error"
+           response["error"] = str(e)
+           syncer.queues[message['sender']].put(response)
+           continue
+        _list = km.get_confirmed_balance_list(current_height)
+        list_to_spend = []
+        summ = 0 
+        utxos = []
+        for address in _list:
+            for texted_index in _list[address]:
+              if summ>value+100000000: #TODO fee here
+                continue
+              if isinstance(_list[address][texted_index], int):
+                _index = base64.b64decode(texted_index.encode())
+                ser_priv, ser_pub = km.priv_and_pub_by_output_index(utxo)
+                priv = PrivateKey(ser_priv, raw=True)
+                utxos.append( (_index, _list[address][texted_index], priv) )
+                summ+=_list[address][texted_index]
+        if summ < value:
+            response["result"] = "error"
+            response["error"] = "Not enough matured coins"
+            syncer.queues[message['sender']].put(response)
+            continue
+
+        tx = Transaction(None, None)
+        tx.add_destination((a, value, True))
+        #tx.generate_from_indexed_inputs        
+        response["result"]=tx.serialize()
+        syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
         return
