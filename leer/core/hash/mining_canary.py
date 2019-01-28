@@ -18,5 +18,5 @@ def mining_canary_hash_part(_bytes):
 
 def mining_canary_hash(_bytes):
     ph = partial_hash(_bytes)
-    return mining_canary_hash_part(ph)
+    return mining_canary_hash_part(ph+_bytes[-16:])
 
