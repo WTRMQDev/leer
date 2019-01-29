@@ -33,6 +33,9 @@ class KeyManagerClass:
   def priv_and_pub_by_output_index(self, output_index):
        return self.wallet.get_priv_and_pub_by_output_index(output_index)
 
+  def get_output_private_data(self, output_index):
+     return self.wallet.get_output_private_data(output_index)
+
   def priv_by_address(self, address):
     raw_priv = self.wallet.get_privkey(address.pubkey.serialize())
     if not raw_priv:
@@ -84,7 +87,9 @@ class KeyManagerClass:
                         }
          }) 
     value = output.value
-    self.wallet.put_output(index, (block_height, output.lock_height, value, taddress))
+    self.wallet.put_output(index, (block_height, output.lock_height, value,
+                                   output.blinding_key.private_key,
+                                   output.serialized_apc, taddress))
     self.wallet.put_pubkey_output_assoc(pubkey, index)
 
   def rollback(self, block_height):
@@ -100,7 +105,7 @@ class KeyManagerClass:
       cursor = txn.cursor(db=self.wallet.pubkey_index)
       for pubkey, output_index  in cursor.iternext(values=True):
         try:
-          created_height, lock_height, value, serialized_index = self.wallet.get_output(output_index)
+          created_height, lock_height, value, bk, taddress = self.wallet.get_output(output_index)
         except KeyError:
           continue #It's ok, output is already spent
         mat = None
@@ -122,7 +127,7 @@ class KeyManagerClass:
       cursor = txn.cursor(db=self.wallet.pubkey_index)
       for pubkey, output_index in cursor.iternext(values=True):
         try:
-          created_height, lock_height, value, taddress = self.wallet.get_output(output_index)
+          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index)
         except KeyError:
           continue #It's ok, output is already spent
         taddress = taddress.decode()
@@ -150,29 +155,31 @@ def _d(x):
 
 
 def serialize_output_params(p):
-  created_height, lock_height, value, taddress = p
+  created_height, lock_height, value, blinding_key, serialized_apc, taddress = p
   ser_created_height = _(created_height)
   ser_lock_height = _(lock_height)
   if value == None:
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_created_height + ser_lock_height+ser_value+taddress
+  return ser_created_height + ser_lock_height+ser_value+blinding_key+serialized_apc+taddress
 
 def deserialize_output_params(p):  
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value, p = _d(p[:7]), p[7:]
+  ser_blinding_key, p = p[:33], p[33:]
+  serialized_apc, p = p[:33], p[33:]
   taddress = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return created_height, lock_height, value, taddress
+  return created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress
 
 
 def serialize_spent_output_params(p):
   # While it is not necessary to store lock_height and created_height for spent outputs,
   # it is useful for effective unspending
-  spend_height, created_height, lock_height, value, taddress = p
+  spend_height, created_height, lock_height, value, blinding_key, serialized_apc, taddress = p
   ser_spend_height = _(spend_height)
   ser_created_height = _(created_height)
   ser_lock_height = _(lock_height)
@@ -180,17 +187,19 @@ def serialize_spent_output_params(p):
     ser_value = b"\xff"*7
   else:
     ser_value = value.to_bytes(7,"big")
-  return ser_spend_height+ser_created_height+ser_lock_height+ser_value+taddress
+  return ser_spend_height+ser_created_height+ser_lock_height+ser_value+serialized_apc+blinding_key+taddress
 
 def deserialize_spent_output_params(p):
   spend_height, p = _d(p[:4]), p[4:]
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value, p = _d(p[:7]), p[7:]
+  ser_blinding_key, p = p[:33], p[33:]
+  serialized_apc, p = p[:33], p[33:]
   taddress = p
   if value == 72057594037927935: #=b"\xff"*7
     value = None
-  return spend_height, created_height, lock_height, value, taddress
+  return spend_height, created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress
 
 def repack_ser_output_to_spent(ser_output, height):
   '''
@@ -482,6 +491,23 @@ class DiscWallet:
       if not priv:
         raise KeyError
       return pubkey, priv
+
+  def get_output_private_data(self, output_index):
+    with self.env.begin(write=False) as r_txn:
+      pubkey = r_txn.get(output_index, db=self.pubkey_index_reversed)
+      if not pubkey:
+        raise KeyError
+      priv = r_txn.get(pubkey, db=self.main_db)
+      if not priv:
+        raise KeyError
+      output_params = r_txn.get( bytes(output_index), db=self.output)    
+      if not output_params:
+         raise KeyError
+      params = deserialize_output_params( output_params)
+      blinding_key = params[3]
+      apc = params[4]
+      return priv, blinding_key, apc 
+
       
   def last_action_num(self, r_txn=None):
     if not r_txn:
