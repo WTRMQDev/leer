@@ -15,7 +15,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
     losing transactions.
   '''
-  def __init__(self, storage_space, fee_policy_config=None):
+  def __init__(self, storage_space, fee_policy_config):
     self.transactions = []
     self.built_tx = {}
     self.current_set = []
@@ -25,7 +25,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.storage_space.register_mempool_tx(self)
     self.block_templates = ObliviousDictionary(sink_delay=600)
     self.work_block_assoc = ObliviousDictionary(sink_delay=600)
-    self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
+    self.fee_policy_checker = FeePolicyChecker(fee_policy_config)
 
   def update_current_set(self, rtx):
     '''
