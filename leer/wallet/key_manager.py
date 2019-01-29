@@ -105,7 +105,7 @@ class KeyManagerClass:
       cursor = txn.cursor(db=self.wallet.pubkey_index)
       for pubkey, output_index  in cursor.iternext(values=True):
         try:
-          created_height, lock_height, value, bk, taddress = self.wallet.get_output(output_index)
+          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index)
         except KeyError:
           continue #It's ok, output is already spent
         mat = None
