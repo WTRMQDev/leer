@@ -226,7 +226,7 @@ def wallet(syncer, config):
 
         tx = Transaction(None, None)
         tx.add_destination((a, value, True))
-        tx.blindly_generate(km.new_address(), utxos, 100000)        
+        tx.blindly_generate(km.new_address(), utxos, config["fee_policy"].get("generate_fee_per_kb", 3000))        
         response["result"]=tx.serialize()
         syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
