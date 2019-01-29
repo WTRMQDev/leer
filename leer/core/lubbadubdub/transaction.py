@@ -153,24 +153,23 @@ class Transaction:
     self.sort_lists()
     self.verify(rtx=rtx)
 
-  def blindly_generate(self, priv_data, input_data, relay_fee_per_kb=0):
+  def blindly_generate(self, change_address, input_data, relay_fee_per_kb=0):
     self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
-    if not len(self.input_data):
+    if not len(input_data):
       raise Exception("Tx should have at least one input")
     if not len(self._destinations):
       raise Exception("Tx should have at least one destination")
-    in_value = sum([ioput[1] for ioput in self.inputs]) 
+    in_value = sum([ioput[1] for ioput in input_data]) 
     out_value = sum([destination[1] for destination in self._destinations])
     relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
     # +1 for destination is for change address
-    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
+    self.fee = relay_fee + self.calc_new_outputs_fee(len(input_data), len(self._destinations)+1)
     remainder = in_value - out_value - self.fee
     if remainder<0:
       raise Exception("Not enough money in inputs to cover outputs")
     # TODO We need logic here to cover too low remainders (less than new output fee)
-    change_address =  change_address if change_address else priv_data['change address']
     self._destinations.append((change_address, remainder, True))
     privkey_sum=0
     out_blinding_key_sum = None
@@ -192,10 +191,10 @@ class Transaction:
       need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     in_blinding_key_sum = None
     burdens_to_be_covered = []
-    for i, v, priv_key in self.inputs:
-      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
+    for i, v, priv_key, blinding_key, ser_apc in input_data:
+      in_blinding_key_sum = (in_blinding_key_sum + blinding_key) if in_blinding_key_sum else blinding_key
       in_blinding_key_sum += priv_key
-      self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+_input.serialized_apc)
+      self.updated_excesses[i]=excess_from_private_key(priv_key, b"\x01\x00"+ser_apc)
     if len(need_proofs):
       excesses_key_sum = need_proofs[0][1]
       for i in need_proofs[1:]:
