@@ -4,6 +4,7 @@ from leer.wallet.key_manager import KeyManagerClass
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
+from secp256k1_zkp import PrivateKey
 
 from uuid import uuid4
 import logging
@@ -212,9 +213,10 @@ def wallet(syncer, config):
                 continue
               if isinstance(_list[address][texted_index], int):
                 _index = base64.b64decode(texted_index.encode())
-                ser_priv, ser_pub = km.priv_and_pub_by_output_index(utxo)
+                ser_priv, ser_blinding, apc = km.get_output_private_data(_index)
                 priv = PrivateKey(ser_priv, raw=True)
-                utxos.append( (_index, _list[address][texted_index], priv) )
+                blinding = PrivateKey(ser_priv, raw=True)
+                utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
                 summ+=_list[address][texted_index]
         if summ < value:
             response["result"] = "error"
@@ -224,7 +226,7 @@ def wallet(syncer, config):
 
         tx = Transaction(None, None)
         tx.add_destination((a, value, True))
-        #tx.generate_from_indexed_inputs        
+        tx.blindly_generate(km.new_address(), utxos, 100000)        
         response["result"]=tx.serialize()
         syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
