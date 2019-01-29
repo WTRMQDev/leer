@@ -5,7 +5,7 @@ default_config =   {
 
 class FeePolicyChecker:
   
-  def __init__(self, config = default_config):
+  def __init__(self, config):
     self.relay_fee_per_kb = int(config['relay_fee_per_kb'])
 
   def check_tx(self,tx):

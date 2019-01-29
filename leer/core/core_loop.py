@@ -101,7 +101,7 @@ def init_storage_space(config):
     es = ExcessesStorage(storage_space, wtx=wtx)
     ts = TXOsStorage(storage_space, wtx=wtx)
     bc = Blockchain(storage_space)
-    mptx = MempoolTx(storage_space)
+    mptx = MempoolTx(storage_space, config["fee_policy"])
     utxoi = UTXOIndex(storage_space, wtx=wtx)
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)

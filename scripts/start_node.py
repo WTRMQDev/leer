@@ -82,6 +82,10 @@ config = {
                                 }
 
                               ],
+           'fee_policy': {
+                           'relay_fee_per_kb': 3000,
+                           'generate_fee_per_kb': 3000
+                         }
            'wallet' : True 
                        
          }
