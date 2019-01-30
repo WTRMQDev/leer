@@ -180,7 +180,7 @@ class Transaction:
       output = IOput()
       output.fill(address, value, generator = default_generator_ser)
       self.outputs.append( output )
-      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+      out_blinding_key_sum = (out_blinding_key_sum + output.blinding_key) if out_blinding_key_sum else output.blinding_key
       if need_proof:
         need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     offset_pk = PrivateKey()
@@ -230,8 +230,8 @@ class Transaction:
              (1 if self.coinbase else 0))*output_creation_fee
 
   def sort_lists(self):
-      self.inputs = sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize())
-      self.outputs = sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize())
+      self.inputs = sorted(self.inputs, key= lambda _input: _input.serialized_apc)
+      self.outputs = sorted(self.outputs, key= lambda _output: _output.serialized_apc)
       self.additional_excesses = sorted(self.additional_excesses, key = lambda e: e.index)
 
   def serialize(self):
