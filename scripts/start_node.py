@@ -66,8 +66,8 @@ config = {
                     'password': INSERT_PASSWORD_HERE
                  },
            'location': {
-                         'basedir': join(expanduser("~"), ".leertest3") ,
-                         'wallet': join(expanduser("~"), ".leertestwallet3")
+                         'basedir': join(expanduser("~"), ".leertest4") ,
+                         'wallet': join(expanduser("~"), ".leertestwallet4")
                        },
            'bootstrap_nodes': [
                                 {
@@ -85,7 +85,7 @@ config = {
            'fee_policy': {
                            'relay_fee_per_kb': 3000,
                            'generate_fee_per_kb': 3000
-                         }
+                         },
            'wallet' : True 
                        
          }
