@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from functools import partial
 import struct, os
 
@@ -23,6 +23,7 @@ def is_sorted(lst, key=lambda x: x):
             return False
     return True
 
+pseudoinput = namedtuple('pseudoinput',('serialized_index', 'serialized_apc'))
 
 
 class Transaction:
@@ -195,6 +196,7 @@ class Transaction:
       in_blinding_key_sum = (in_blinding_key_sum + blinding_key) if in_blinding_key_sum else blinding_key
       in_blinding_key_sum += priv_key
       self.updated_excesses[i]=excess_from_private_key(priv_key, b"\x01\x00"+ser_apc)
+      self.inputs.append(pseudoinput(i, ser_apc)) #For tx serialization and sorts
     if len(need_proofs):
       excesses_key_sum = need_proofs[0][1]
       for i in need_proofs[1:]:
