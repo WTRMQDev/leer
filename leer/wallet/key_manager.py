@@ -168,7 +168,7 @@ def deserialize_output_params(p):
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value, p = _d(p[:7]), p[7:]
-  ser_blinding_key, p = p[:33], p[33:]
+  ser_blinding_key, p = p[:32], p[32:]
   serialized_apc, p = p[:33], p[33:]
   taddress = p
   if value == 72057594037927935: #=b"\xff"*7
@@ -194,7 +194,7 @@ def deserialize_spent_output_params(p):
   created_height, p = _d(p[:4]), p[4:]
   lock_height, p = _d(p[:4]), p[4:]
   value, p = _d(p[:7]), p[7:]
-  ser_blinding_key, p = p[:33], p[33:]
+  ser_blinding_key, p = p[:32], p[32:]
   serialized_apc, p = p[:33], p[33:]
   taddress = p
   if value == 72057594037927935: #=b"\xff"*7

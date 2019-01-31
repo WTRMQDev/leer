@@ -215,7 +215,7 @@ def wallet(syncer, config):
                 _index = base64.b64decode(texted_index.encode())
                 ser_priv, ser_blinding, apc = km.get_output_private_data(_index)
                 priv = PrivateKey(ser_priv, raw=True)
-                blinding = PrivateKey(ser_priv, raw=True)
+                blinding = PrivateKey(ser_blinding, raw=True)
                 utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
                 summ+=_list[address][texted_index]
         if summ < value:
