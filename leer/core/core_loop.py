@@ -406,44 +406,6 @@ def core_loop(syncer, config):
         notify("blockchain height", our_height)
         notify("best advertised height", best_advertised_height)
 
-
-      if message["action"] == "generate tx by tx template": #TODO Move to wallet
-        notify("core workload", "generating transactions")
-        response = {"id": message["id"]}
-        try:
-          tx_template = message["tx_template"]
-          #Deserialization        
-          destination_address, change_address = Address(), Address()
-          destination_address.deserialize_raw(tx_template['address'])
-          change_address.deserialize_raw(tx_template['change address'])
-          tx_template['address'], tx_template['change address'] = destination_address, change_address
-          for pub in tx_template['priv_by_pub']:
-            tx_template['priv_by_pub'][pub] =  PrivateKey(tx_template['priv_by_pub'][pub], raw=True)
-        except Exception as e:
-          response['result'] = 'error'
-          response['error'] = str(e)
-          logger.error("Problem in tx_template: %s"%str(e))
-        try: #Tx generation
-          with storage_space.env.begin(write=True) as rtx:
-            tx = Transaction(txos_storage = storage_space.txos_storage, excesses_storage = storage_space.excesses_storage)
-            for utxo_index in tx_template['utxos']:
-              utxo = storage_space.txos_storage.confirmed.get(utxo_index, rtx=rtx)
-              tx.push_input(utxo)
-            tx.add_destination( (tx_template["address"], tx_template["value"]) )
-            tx.generate(priv_data=tx_template, rtx=rtx,
-                        change_address = tx_template['change address'],
-                        relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
-            tx.verify(rtx=rtx)
-            storage_space.mempool_tx.add_tx(tx, rtx=rtx)
-            tx_skel = TransactionSkeleton(tx=tx)
-            notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
-          response['result']="generated"
-        except Exception as e:
-          response['result'] = 'error'
-          response['error'] = str(e)
-          logger.error("Cannot generate tx by template: %s"%str(e))
-        send_message(message["sender"], response)
-
       if message["action"] == "add tx to mempool":
         notify("core workload", "processing local transaction")
         response = {"id": message["id"]}

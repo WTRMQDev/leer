@@ -141,50 +141,6 @@ def wallet(syncer, config):
         response["result"] = km.give_transactions(num)
         syncer.queues[message['sender']].put(response) 
         continue
-      if message['action']=="generate tx template":
-        response = {"id": message["id"]}
-        value  = int(message["value"])
-        taddress = message["address"]
-        a = Address()
-        a.from_text(taddress)
-        try:
-          current_height = get_height()
-        except KeyError:
-           response["result"] = "error"
-           response["error"] = "core_loop didn't set height yet"
-           syncer.queues[message['sender']].put(response)
-           continue
-        except Exception as e:
-           response["result"] = "error"
-           response["error"] = str(e)
-           syncer.queues[message['sender']].put(response)
-           continue
-        _list = km.get_confirmed_balance_list(current_height)
-        list_to_spend = []
-        summ = 0 
-        utxos = []
-        for address in _list:
-            for texted_index in _list[address]:
-              if summ>value+100000000: #TODO fee here
-                continue
-              if isinstance(_list[address][texted_index], int):
-                _index = base64.b64decode(texted_index.encode())
-                utxos.append(_index)
-                summ+=_list[address][texted_index]
-        if summ < value:
-            response["result"] = "error"
-            response["error"] = "Not enough matured coins"
-            syncer.queues[message['sender']].put(response)
-            continue
-        
-        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address().serialize(), 'utxos':utxos,
-                        'address': a.serialize(), 'value': value }
-        for utxo in utxos:
-          pub,priv = km.priv_and_pub_by_output_index(utxo)
-          tx_template['priv_by_pub'][pub]=priv
-        
-        response["result"]=tx_template
-        syncer.queues[message['sender']].put(response)
       if message['action']=="generate tx":
         response = {"id": message["id"]}
         value  = int(message["value"])
