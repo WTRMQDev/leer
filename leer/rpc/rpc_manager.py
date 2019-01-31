@@ -131,7 +131,7 @@ class RPCManager():
     if "0x"==hex_nonce[:2]:
      hex_nonce = hex_nonce[2:]
     nonce = int(hex_nonce, "big")
-    self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager"
+    self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager",
                                           'nonce':nonce, 'partial_hash':partial_hash})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
@@ -177,7 +177,7 @@ class RPCManager():
 
   async def sendtoaddress(self, address, value):
     _id = str(uuid4())
-    self.syncer.queues['Wallet'].put({'action':'generate tx template', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'generate tx', 'id':_id,
                                           'address': address, 'value': value,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
@@ -186,13 +186,14 @@ class RPCManager():
     if answer['result']=='error':
       return answer['error']
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'generate tx by tx template', 'id':_id,
-                                          'tx_template': answer['result'],
+    self.syncer.queues['Blockchain'].put({'action':'add tx to mempool', 'id':_id,
+                                          'tx': answer['result'],
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
     return answer['result']
+
 
   async def getnewaddress(self):
     _id = str(uuid4())
