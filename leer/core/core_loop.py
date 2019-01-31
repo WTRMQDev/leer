@@ -444,6 +444,26 @@ def core_loop(syncer, config):
           logger.error("Cannot generate tx by template: %s"%str(e))
         send_message(message["sender"], response)
 
+      if message["action"] == "add tx to mempool":
+        notify("core workload", "processing local transaction")
+        response = {"id": message["id"]}
+        #deserialization
+        try:
+          ser_tx = message["tx"]
+          tx = Transaction(txos_storage = storage_space.txos_storage, excesses_storage = storage_space.excesses_storage)
+          with storage_space.env.begin(write=False) as rtx:            
+            tx.deserialize(ser_tx, rtx)
+            storage_space.mempool_tx.add_tx(tx, rtx=rtx)
+            tx_skel = TransactionSkeleton(tx=tx)
+            notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+          response['result']="generated"
+        except Exception as e:
+          response['result'] = 'error'
+          response['error'] = str(e)
+          logger.error("Problem in tx: %s"%str(e))
+        send_message(message["sender"], response)
+
+
       #message from core_loop
       if message["action"] == "check txouts download status":
         txos = message["txos_hashes"]
