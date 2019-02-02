@@ -93,6 +93,7 @@ class KeyManagerClass:
     self.wallet.put_pubkey_output_assoc(pubkey, index)
 
   def rollback(self, block_height):
+    self.wallet.remove_all_actions_in_last_block(block_height)
     self.wallet.remove_all_outputs_created_in_block(block_height)
     self.wallet.restore_all_outputs_spent_in_block(block_height)
 
@@ -157,9 +158,9 @@ class KeyManagerClass:
         o.serialized_apc, output.address.to_text().encode()
       self.wallet.put_outgoing_output(output_index, params)
 
-  def is_saved(self, output_index):
+  def is_saved(self, output):
     try:
-      self.wallet.get_outgoing_output(output_index)
+      self.wallet.get_outgoing_output(output.serialized_index)
       return True
     except KeyError:
       return False
@@ -324,7 +325,8 @@ class DiscWallet:
       with self.env.begin(write=True) as txn:
         return self.put_output(output_index, output_params, txn=txn)
     else:     
-      p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)    
+      p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)  
+      self.add_block_new_output_association(output_params[0], output_index, w_txn=txn)  
       txn.put( _(self.last_action_num()), RECEIVED+bytes(output_index), db=self.actions_list)
       self.bump_action_num(w_txn=txn)
 
@@ -344,12 +346,12 @@ class DiscWallet:
       else:
         return deserialize_output_params( output_params)
 
-  def get_outgoing_output(self, output_index, r_txn=None)
-    if not txn:
+  def get_outgoing_output(self, output_index, r_txn=None):
+    if not r_txn:
       with self.env.begin(write=False) as r_txn:
         return self.get_outgoing_output(output_index, r_txn=r_txn)
     else:     
-      output_params = txn.get( bytes(output_index), db=self.generated_outputs)    
+      output_params = r_txn.get( bytes(output_index), db=self.generated_outputs)    
       if not output_params:
          raise KeyError
       else:
@@ -358,7 +360,7 @@ class DiscWallet:
   def pop_ser_output(self, output_index, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
-        self.pop_output(output_index, w_txn=w_txn)
+        return self.pop_ser_output(output_index, w_txn=w_txn)
     else:     
       output_params = w_txn.pop( bytes(output_index), db=self.output)    
       if not output_params:
@@ -482,16 +484,15 @@ class DiscWallet:
         return self.remove_all_outputs_created_in_block(block_height, w_txn)
     else: 
       cursor = w_txn.cursor(db=self.block_index)
-      output_list = []
       if not cursor.set_key(_(block_height)):
         return #It's okay, block doesn't contain anything related to our wallet
       for assoc in cursor.iternext_dup():
         if assoc[:1] == b"\x00":
-          output_list.append(self.pop_ser_output(assoc[1:], w_txn=w_txn))
+          self.pop_ser_output(assoc[1:], w_txn=w_txn)
           self.remove_block_new_output_association(block_height, assoc[1:], w_txn=w_txn)
       #NOTE: last n actions can also contain spent outputs, so remove_all_outputs_created_in_block call
       # without restore_all_outputs_spent_in_block call is unsafe
-      self.remove_last_actions(n=len(output_list), w_txn=w_txn)
+      #self.remove_last_actions(n=len(output_list), w_txn=w_txn)
           
 
 
@@ -510,7 +511,32 @@ class DiscWallet:
           self.remove_block_spent_output_association(block_height, assoc[1:], w_txn=w_txn)
       #NOTE: last n actions can also contain spent outputs, so remove_all_outputs_created_in_block call
       # without restore_all_outputs_spent_in_block call is unsafe
-      self.remove_last_actions(n=len(output_list), w_txn=w_txn)
+      #self.remove_last_actions(n=len(output_list), w_txn=w_txn)
+
+  def remove_all_actions_in_last_block(self, block_height, w_txn=None):
+    if not w_txn:
+      with self.env.begin(write=True) as w_txn:
+        return self.remove_all_actions_in_last_block(block_height, w_txn)
+    start = current = self.last_action_num(r_txn=w_txn)    
+    num = 0
+    while current>0:
+      tp = w_txn.get(_(current-1), db = self.actions_list)
+      act, output_index = tp[:1], tp[1:]
+      try:
+          height = self.get_output(output_index, txn=w_txn)[0]
+      except KeyError:
+        try:
+          height = self.get_spent_output(output_index, txn=w_txn)[0]
+        except KeyError:
+           try:
+             height = self.get_outgoing_output(output_index, r_txn=w_txn)[0]
+           except KeyError:
+             pass
+      if height<block_height:
+        break
+      current-=1
+      num+=1
+    self.remove_last_actions(num, w_txn)  
   
   def put_pubkey_output_assoc(self, pubkey, index, w_txn=None):
     if not w_txn:
@@ -569,7 +595,7 @@ class DiscWallet:
     return lan
 
   def bump_action_num(self, w_txn, n=None):
-    lan = self.last_action_num(r_txn=w_txn) if not n else n
+    lan = self.last_action_num(r_txn=w_txn) if not n else n-1
     w_txn.put(b'last num', _(lan+1), db = self.actions_list)
 
   def remove_last_actions(self, n, w_txn):
@@ -584,7 +610,8 @@ class DiscWallet:
       txdict = {} #Each element is dict {block_num: {'output':{params}}}
       current_action = self.last_action_num(r_txn=r_txn) - 1
       while current_action>=0 and len(txdict)<n:
-        output_index = r_txn.get(_(current_action), db = self.actions_list)
+        tp = r_txn.get(_(current_action), db = self.actions_list)
+        action, output_index = tp[:1], tp[1:]
         soi = base64.b64encode(output_index).decode()
         current_action-=1
         output_params = None
