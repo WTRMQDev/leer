@@ -88,9 +88,11 @@ def wallet(syncer, config):
             km.spend_output(index, block_height)
             last_time_updated = time()
         for _o in tx.outputs:
-          if km.is_owned_pubkey(_o.address.pubkey.serialize()):
+          if km.is_owned_pubkey(_o.address.pubkey.serialize()): #TODO mass checks
             km.add_output(_o, block_height)
             last_time_updated = time()
+          if km.is_saved(_o):
+            km.register_processed_output(_o)
         if last_time_updated:
           notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":
