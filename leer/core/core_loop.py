@@ -217,6 +217,9 @@ def core_loop(syncer, config):
     notification_cache[key] = {'value':value, 'timestamp':timestamp}
 
   logger.debug("Start of core loop")
+  with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
+    notify("blockchain height", storage_space.blockchain.current_height(rtx=rtx))
+    notify("best header", storage_space.headers_manager.best_header_height)         
   while True:
     sleep(0.05)
     put_back_messages = []
