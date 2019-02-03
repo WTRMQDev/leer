@@ -92,7 +92,7 @@ def wallet(syncer, config):
             km.add_output(_o, block_height)
             last_time_updated = time()
           if km.is_saved(_o):
-            km.register_processed_output(_o)
+            km.register_processed_output(_o.serialized_index)
         if last_time_updated:
           notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":
@@ -185,6 +185,7 @@ def wallet(syncer, config):
         tx = Transaction(None, None)
         tx.add_destination((a, value, True))
         tx.blindly_generate(km.new_address(), utxos, config["fee_policy"].get("generate_fee_per_kb", 3000))        
+        km.save_generated_transaction(tx)
         response["result"]=tx.serialize()
         syncer.queues[message['sender']].put(response)
       if message['action']=="stop":

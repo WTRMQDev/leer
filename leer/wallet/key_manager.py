@@ -155,7 +155,7 @@ class KeyManagerClass:
       output_index = o.serialized_index
       params = \
         0, o.lock_height, o.value, o.blinding_key.private_key,\
-        o.serialized_apc, output.address.to_text().encode()
+        o.serialized_apc, o.address.to_text().encode()
       self.wallet.put_outgoing_output(output_index, params)
 
   def is_saved(self, output):
@@ -166,7 +166,7 @@ class KeyManagerClass:
       return False
 
   def register_processed_output(self, output_index):
-    pass
+    self.wallet.register_processed_output(output_index)
 
     
 
@@ -333,6 +333,11 @@ class DiscWallet:
   def put_outgoing_output(self, output_index, output_params):
     with self.env.begin(write=True) as txn:
       p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.generated_outputs)    
+
+  def register_processed_output(self, output_index):
+    with self.env.begin(write=True) as txn:
+      txn.put( _(self.last_action_num()), SENT+bytes(output_index), db=self.actions_list)
+      self.bump_action_num(w_txn=txn)
 
   def get_output(self, output_index, txn=None):
     if not txn:
@@ -513,6 +518,21 @@ class DiscWallet:
       # without restore_all_outputs_spent_in_block call is unsafe
       #self.remove_last_actions(n=len(output_list), w_txn=w_txn)
 
+  def search_output_everywhere(self, output_index, r_txn, guess=None):
+      methods = [self.get_output, self.get_spent_output, self.get_outgoing_output]
+      if not guess or guess==RECEIVED:
+        pass
+      elif guess==SPENT:
+        methods = [self.get_spent_output, self.get_output, self.get_outgoing_output]
+      elif guess==SENT:
+        methods = methods[::-1]
+      for method in methods:
+        try:
+          return method(output_index, r_txn)
+        except KeyError:
+          continue
+      raise KeyError
+
   def remove_all_actions_in_last_block(self, block_height, w_txn=None):
     if not w_txn:
       with self.env.begin(write=True) as w_txn:
@@ -523,15 +543,9 @@ class DiscWallet:
       tp = w_txn.get(_(current-1), db = self.actions_list)
       act, output_index = tp[:1], tp[1:]
       try:
-          height = self.get_output(output_index, txn=w_txn)[0]
+          height = self.search_output_everywhere(output_index, r_txn = w_txn)[0]
       except KeyError:
-        try:
-          height = self.get_spent_output(output_index, txn=w_txn)[0]
-        except KeyError:
-           try:
-             height = self.get_outgoing_output(output_index, r_txn=w_txn)[0]
-           except KeyError:
-             pass
+          pass
       if height<block_height:
         break
       current-=1
@@ -619,22 +633,28 @@ class DiscWallet:
           output_params = self.get_output(output_index, txn=r_txn)
         except KeyError:
           try:
-            output_params = self.get_spent_output(output_index, txn=r_txn)
+            output_params = self.search_output_everywhere(output_index, r_txn = r_txn, guess=action)
           except KeyError:
             pass #TODO warning
-        if not output_params:
-          continue
-        spent = len(output_params)==5
-        if spent:
-          spend_height, created_height, lock_height, value, taddress = output_params
+            continue
+        if action==SPENT:
+          spend_height, created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
           if not spend_height in txdict:
             txdict[spend_height] = {}
           txdict[spend_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'spent'}
-        else:
-          created_height, lock_height, value, taddress = output_params
+        elif action==RECEIVED:
+          if len(output_params)==6:
+            created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
+          elif len(output_params)==7: #It was received on created_height but later spent
+            spend_height, created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
           if not created_height in txdict:
             txdict[created_height] = {}
           txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'received'}
+        elif action==SENT:
+          created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
+          if not created_height in txdict:
+            txdict[created_height] = {}
+          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'sent'}
       return txdict  
         
             
