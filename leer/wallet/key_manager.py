@@ -649,12 +649,18 @@ class DiscWallet:
             spend_height, created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
           if not created_height in txdict:
             txdict[created_height] = {}
-          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'received'}
+          _type = 'received'
+          if soi in txdict[created_height] and txdict[created_height][soi]['type']=='sent':
+           _type = 'inner transfer'
+          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':_type}
         elif action==SENT:
           created_height, lock_height, value, ser_blinding_key, serialized_apc, taddress = output_params
           if not created_height in txdict:
             txdict[created_height] = {}
-          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':'sent'}
+          _type = 'sent'
+          if soi in txdict[created_height] and txdict[created_height][soi]['type']=='received':
+           _type = 'inner transfer'
+          txdict[created_height][soi] = {'lock_height':lock_height, 'value':value, 'address':taddress.decode(), 'type':_type}
       return txdict  
         
             
