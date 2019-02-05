@@ -92,7 +92,7 @@ def wallet(syncer, config):
             km.add_output(_o, block_height)
             last_time_updated = time()
           if km.is_saved(_o):
-            km.register_processed_output(_o.serialized_index)
+            km.register_processed_output(_o.serialized_index, block_height)
         if last_time_updated:
           notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":

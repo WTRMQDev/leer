@@ -165,9 +165,11 @@ class KeyManagerClass:
     except KeyError:
       return False
 
-  def register_processed_output(self, output_index):
+  def register_processed_output(self, output_index, block_height):
     self.wallet.register_processed_output(output_index)
-
+    params = list(self.wallet.get_outgoing_output(output_index))
+    params[0] = block_height
+    self.wallet.put_outgoing_output(output_index, params)
     
 
 def _(x):
