@@ -47,6 +47,7 @@ class RPCManager():
     methods.add(self.getheight)
     methods.add(self.getblocktemplate)
     methods.add(self.getwork)
+    methods.add(self.submitwork)
     methods.add(self.validatesolution)
     methods.add(self.getbalancestats)
     methods.add(self.getbalancelist)
@@ -126,17 +127,22 @@ class RPCManager():
     else:
       return answer["error"]
 
-  async def submitwork(self, hex_nonce, partial_hash, comparibility_field):
+  async def submitwork(self, hex_nonce, partial_hash_hex, compatibility_field):
     _id = str(uuid4())
     if "0x"==hex_nonce[:2]:
      hex_nonce = hex_nonce[2:]
-    nonce = int(hex_nonce, "big")
+    if "0x"==partial_hash_hex[:2]:
+     partial_hash_hex = partial_hash_hex[2:]
+    nonce = int(hex_nonce, 16)
+    partial_hash = bytes.fromhex(partial_hash_hex)
     self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager",
                                           'nonce':nonce, 'partial_hash':partial_hash})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
-    return answer["error"]
+    if answer["result"]=="error":
+      return answer["error"]
+    return answer['result']
 
   async def validatesolution(self, solution):
     _id = str(uuid4())

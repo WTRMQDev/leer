@@ -372,7 +372,7 @@ def core_loop(syncer, config):
         try:
           nonce, partial_work = message['nonce'], message['partial_hash']
           mp = storage_space.mempool_tx
-          block_template =  mp.work_block_assoc
+          block_template =  mp.work_block_assoc[partial_work]
           block_template.nonce = nonce
           solved_block = block_template 
           header = solved_block.header
