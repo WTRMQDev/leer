@@ -133,7 +133,7 @@ class RPCManager():
      hex_nonce = hex_nonce[2:]
     if "0x"==partial_hash_hex[:2]:
      partial_hash_hex = partial_hash_hex[2:]
-    nonce = int(hex_nonce, 16)
+    nonce = int(hex_nonce, 16).to_bytes(16, "big")
     partial_hash = bytes.fromhex(partial_hash_hex)
     self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager",
                                           'nonce':nonce, 'partial_hash':partial_hash})
