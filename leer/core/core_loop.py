@@ -392,7 +392,7 @@ def core_loop(syncer, config):
           notify("blockchain height", our_height)
         except Exception as e:
           logger.error("Wrong submitted work %s"%str(e))
-          send_message(message["sender"], {"id": message["id"], "error": str(e)})
+          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
           our_height = storage_space.blockchain.current_height(rtx=rtx)
