@@ -216,11 +216,11 @@ class Header:
 
   @property
   def hash(self):
-    return mining_canary_hash(self.serialize())
+    return mining_canary_hash(self.height, self.template, self.nonce)
 
   @property
   def partial_hash(self):
-    return partial_hash(self.serialize())
+    return partial_hash(self.template)
 
   @property
   def integer_hash(self):
