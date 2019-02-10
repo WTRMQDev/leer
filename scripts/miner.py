@@ -1,5 +1,5 @@
 from leer.core.primitives.header import Header
-from leer.core.hash.mining_canary import mining_canary_hash
+from leer.core.hash.mining_canary import mining_canary_hash, mining_canary_hash_part
 import requests
 import json
 import base64
@@ -25,9 +25,9 @@ def basic_request(method, params=[]):
      raise Exception(result['error'])
    return result['result']
 
-def check_solution(partial_template, int_nonce, target):
-  _hash = mining_canary_hash(partial_template+int_nonce.to_bytes(16,'big'))
-  if int.from_bytes(_hash, "big") < target:
+def check_solution(height, partial_hash, int_nonce, int_target):
+  _hash = mining_canary_hash_part(partial_hash+int_nonce.to_bytes(16,'big'))
+  if int.from_bytes(_hash, "big") < int_target:
     return True
   return False 
 
@@ -50,11 +50,13 @@ def start_mining():
     nonce = 0
     next_level=4096
     update_block = False
-    while not check_solution(partial_template, nonce+basic_nonce, header.target):
+    height, target = header.height, header.target
+    partial_hash = header.partial_hash
+    while not check_solution(height, partial_hash, nonce+basic_nonce, target):
       nonce+=1
       if time()-height_check_time>5:
         height_check_time = time()
-        if header.height<=get_height():
+        if height<=get_height():
           print("New block on network")
           update_block = True
           break
