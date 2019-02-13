@@ -200,9 +200,9 @@ class Header:
     if len(serialized)<4:
       raise Exception("Not enough bytes for extension bytes deserialization")
     self.extension_bytes, serialized = serialized[:4], serialized[4:]
-    if len(serialized)<16:
+    if len(serialized)<8:
       raise Exception("Not enough bytes for nonce deserialization")
-    self.nonce, serialized = serialized[:16], serialized[16:]
+    self.nonce, serialized = serialized[:8], serialized[8:]
     return serialized
     
 
