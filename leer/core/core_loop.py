@@ -366,7 +366,7 @@ def core_loop(syncer, config):
           notify("blockchain height", our_height)
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
-          send_message(message["sender"], {"id": message["id"], "error": str(e)})
+          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
       if message["action"] == "take mining work":
         notify("core workload", "processing mining work")
         try:
