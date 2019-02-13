@@ -1,5 +1,6 @@
 from leer.core.primitives.header import Header
-from leer.core.hash.mining_canary import mining_canary_hash_part
+from leer.core.hash.progpow import progpow_hash, handler as pp_handler
+
 import requests
 import json
 import base64
@@ -51,27 +52,29 @@ def start_mining():
     print("Start mining new block")
     initial_time = time()
     last_update_time = initial_time
-    basic_nonce = randint(0, int(256**10))
+    basic_nonce = randint(0, int(256**7))
     partial_hash, int_target = getwork()
     print("Got work. Target %d (* 2**220). Average hashes for block %d."%(int_target/2**220, 2**256/int_target)) 
      
     nonce = 0
-    next_level=4096
+    step = next_level = 16    
     update_block = False
-    while not check_solution(partial_hash, nonce+basic_nonce, int_target):
-      nonce+=1
+    solution_found = False
+    while not solution_found:
+      res = pp_handler.light_search(1, partial_hash, int_target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
+      solution_found = res['solution_found']
+      if res['solution_found']:
+        final_nonce, final_hash = res['nonce'], res['final_hash']
+        break
+      nonce += next_level
       if time()-last_update_time>5:
         last_update_time = time()
         partial_hash, int_target = getwork()
-      if not nonce%next_level:
-        next_level*=2
-        print("Nonce reached %d"%nonce)
+      next_level*=2
+      print("Nonce reached %d"%nonce)
     final_time = time()
-    if update_block:
-      print("Hashrate %d H/s"%(int(nonce/(final_time-initial_time))))
-      continue
     print("Get solution. Nonce = %d. Hashrate %d H/s"%(nonce, int(nonce/(final_time-initial_time))))
-    hex_nonce = "0x"+(nonce+basic_nonce).to_bytes(16, "big").hex()
+    hex_nonce = "0x"+(final_nonce).to_bytes(8, "big").hex()
     partial_hash_hex = "0x"+partial_hash.hex()
     res = basic_request('submitwork', [hex_nonce, partial_hash_hex, "0x"+"00"*32])
     print("Submitted block. Result %s"%res)
