@@ -15,7 +15,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
     losing transactions.
   '''
-  def __init__(self, storage_space, fee_policy_config=None):
+  def __init__(self, storage_space, fee_policy_config):
     self.transactions = []
     self.built_tx = {}
     self.current_set = []
@@ -23,9 +23,9 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction = {}
     self.storage_space = storage_space
     self.storage_space.register_mempool_tx(self)
-    self.block_templates = ObliviousDictionary(sink_delay=6000)
-    self.key_manager = None
-    self.fee_policy_checker = FeePolicyChecker(fee_policy_config) if fee_policy_config else FeePolicyChecker()
+    self.block_templates = ObliviousDictionary(sink_delay=600)
+    self.work_block_assoc = ObliviousDictionary(sink_delay=600)
+    self.fee_policy_checker = FeePolicyChecker(fee_policy_config)
 
   def update_current_set(self, rtx):
     '''
@@ -59,7 +59,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
           if tx_skeleton.tx:
             full_tx = tx_skeleton.tx
           else:
-            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage,  self.storage_space.excesses_storage, self.storage_space.blockchain.current_height(rtx=rtx) +1, rtx=rtx)
+            full_tx = build_tx_from_skeleton(tx_skeleton, self.storage_space.txos_storage,  self.storage_space.excesses_storage, self.storage_space.blockchain.current_height(rtx=rtx) +1, block_version = 1, rtx=rtx)
             tx_skeleton.tx=full_tx
           self.built_tx[tx_skeleton.serialize()]=full_tx
       except Exception as e:
@@ -96,9 +96,6 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       raise
     self.update(rtx=rtx, reason="Tx addition")
 
-  def set_key_manager(self, key_manager): #TODO remove
-    self.key_manager = key_manager
-
   def give_block_template(self, coinbase_address, wtx):
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
     value = next_reward(self.storage_space.blockchain.current_tip(rtx=wtx), self.storage_space.headers_storage, rtx=wtx)+transaction_fees
@@ -112,6 +109,13 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     block = generate_block_template(tx, self.storage_space, wtx=wtx)
     self.add_block_template(block)
     return block
+  
+  def give_mining_work(self, coinbase_address, wtx):
+    block_template = self.give_block_template(coinbase_address, wtx)
+    partial_hash = block_template.header.partial_hash
+    target = block_template.header.target.to_bytes(32, "big")
+    self.work_block_assoc[partial_hash] = block_template
+    return partial_hash, target
   
   def add_block_template(self, block):
     self.block_templates[block.header.template] = block

@@ -13,10 +13,8 @@ class UTXOIndex:
       self.__shared_states[path]={}
     self.__dict__ = self.__shared_states[path]
     self.directory = path
-    if not os.path.exists(path): 
-        os.makedirs(self.directory) #TODO catch
     self.env = storage_space.env
-    self.main_db = self.env.open_db(b'utxoi_main_db', txn=wtx, dupsort=True, dupfixed=True) #TODO duplicate
+    self.main_db = self.env.open_db(b'utxoi_main_db', txn=wtx, dupsort=True, dupfixed=True)
     self.storage_space = storage_space
     self.storage_space.register_utxo_index(self)
 

@@ -46,6 +46,8 @@ class RPCManager():
     methods.add(self.getconnectioncount)
     methods.add(self.getheight)
     methods.add(self.getblocktemplate)
+    methods.add(self.getwork)
+    methods.add(self.submitwork)
     methods.add(self.validatesolution)
     methods.add(self.getbalancestats)
     methods.add(self.getbalancelist)
@@ -58,6 +60,7 @@ class RPCManager():
     methods.add(self.getblock)
     methods.add(self.getnodes)
     methods.add(self.connecttonode)
+    methods.add(self.gettransactions)
 
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
@@ -112,6 +115,34 @@ class RPCManager():
     self.requests.pop(_id)
     return base64.b64encode(answer['result']).decode()
 
+  async def getwork(self):
+    _id = str(uuid4())
+    self.syncer.queues['Blockchain'].put({'action':'give mining work', 'id':_id, 'sender': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    if not answer["result"]=="error":
+      res = ["0x"+answer["result"]["partial_hash"],"0x"+"00"*32, "0x"+answer["result"]["target"]]
+      return res
+    else:
+      return answer["error"]
+
+  async def submitwork(self, hex_nonce, partial_hash_hex, compatibility_field):
+    _id = str(uuid4())
+    if "0x"==hex_nonce[:2]:
+     hex_nonce = hex_nonce[2:]
+    if "0x"==partial_hash_hex[:2]:
+     partial_hash_hex = partial_hash_hex[2:]
+    nonce = int(hex_nonce, 16).to_bytes(8, "big")
+    partial_hash = bytes.fromhex(partial_hash_hex)
+    self.syncer.queues['Blockchain'].put({'action':'take mining work', 'id':_id, 'sender': "RPCManager",
+                                          'nonce':nonce, 'partial_hash':partial_hash})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    if answer["result"]=="error":
+      return answer["error"]
+    return answer['result']
 
   async def validatesolution(self, solution):
     _id = str(uuid4())
@@ -152,7 +183,7 @@ class RPCManager():
 
   async def sendtoaddress(self, address, value):
     _id = str(uuid4())
-    self.syncer.queues['Wallet'].put({'action':'generate tx template', 'id':_id,
+    self.syncer.queues['Wallet'].put({'action':'generate tx', 'id':_id,
                                           'address': address, 'value': value,
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
@@ -161,13 +192,14 @@ class RPCManager():
     if answer['result']=='error':
       return answer['error']
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'generate tx by tx template', 'id':_id,
-                                          'tx_template': answer['result'],
+    self.syncer.queues['Blockchain'].put({'action':'add tx to mempool', 'id':_id,
+                                          'tx': answer['result'],
                                           'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
     return answer['result']
+
 
   async def getnewaddress(self):
     _id = str(uuid4())
@@ -293,6 +325,15 @@ class RPCManager():
     pub = base64.b64decode(sk.encode())
     self.syncer.queues['NetworkManager'].put({'action':'open connection', 'host':host,
          'port':port, 'static_key':pub, 'id':_id, 'request_source': "RPCManager"})
+    self.requests[_id]=asyncio.Future()
+    answer = await self.requests[_id]
+    self.requests.pop(_id)
+    return answer['result']
+
+  async def gettransactions(self, num):
+    _id = str(uuid4())
+    self.syncer.queues['Wallet'].put({'action':'give last transactions info', 'id':_id,
+                                      'sender': "RPCManager", 'num':int(num)})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)

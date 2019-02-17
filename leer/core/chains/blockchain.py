@@ -58,76 +58,6 @@ class Blockchain:
     # context-dependent address_excess_num_index to outputs. Thus it should be applied before txos_storage.apply_tx
     excesses_num, rollback_updates = self.storage_space.excesses_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)  
     rollback_inputs, output_num = self.storage_space.txos_storage.apply_tx(tx=block.tx, new_state=block_hash, wtx=wtx)
-
-    '''all_evaluations_are_good = True
-    updated_excesses_are_burden_free = True
-    burdens = []
-    #Additional excesses can not create burdens
-    for excess in block.tx.updated_excesses.values():
-      if  self.current_height(rtx=wtx)>0:
-        prev_block_props = {'height': self.current_height(rtx=wtx), 
-                         'timestamp': self.storage_space.headers_storage.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
-      else:
-        prev_block_props = {'height':0, 'timestamp':0}
-      burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=wtx, tx=block.tx, excesses_storage = self.storage_space.excesses_storage)
-      output_lookup_partial = partial(output_lookup, rtx=wtx, tx=block.tx, txos_storage = self.storage_space.txos_storage)
-      result = execute(script = excess.message,
-                       prev_block_props = prev_block_props,
-                       excess_lookup = excess_lookup_partial,
-                       output_lookup = output_lookup_partial,
-                       burden = burden_list)
-      if not result:
-        all_evaluations_are_good = False
-        break
-      if not len(burden_list)==0:
-        updated_excesses_are_burden_free = False
-        break
-    if not (all_evaluations_are_good and updated_excesses_are_burden_free):
-      self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad script"%(block.hash, block.header.height))
-      return self.update(wtx=wtx, reason="Detected corrupted block")        
-
-    burdens_authorized = True
-    #Additionally check that all burdens are authorized  
-    for excess in block.tx.additional_excesses:
-      if  self.current_height(rtx=wtx)>0:
-        prev_block_props = {'height': self.current_height(rtx=wtx), 
-                         'timestamp': self.storage_space.headers_storage.get(self.current_tip(rtx=wtx), rtx=wtx).timestamp}
-      else:
-        prev_block_props = {'height':0, 'timestamp':0}
-      burden_list = []
-      excess_lookup_partial = partial(excess_lookup, rtx=wtx, tx=block.tx, excesses_storage = self.storage_space.excesses_storage)
-      output_lookup_partial = partial(output_lookup, rtx=wtx, tx=block.tx, txos_storage = self.storage_space.txos_storage)
-      result = execute(script = excess.message,
-                       prev_block_props = prev_block_props,
-                       excess_lookup = excess_lookup_partial,
-                       output_lookup = output_lookup_partial,
-                       burden = burden_list)
-      if not result:
-        all_evaluations_are_good = False
-        break
-      for commitment,_pubkey in burden_list:
-        commitment_pc = commitment.to_pedersen_commitment()
-        ser = commitment_pc.serialize()
-        pubkey = _pubkey.to_pubkey()
-        output = None
-        for o in block.tx.outputs:
-          if ser == o.serialized_apc:
-            output = o
-            break
-        if not output:
-          burdens_authorized = False
-          break
-        if (not output.authorized_burden) or (not output.authorized_burden==excess.burden_hash):
-          burdens_authorized = False
-          break
-        burdens.append( (output.serialized_index,pubkey) )
-      if not burdens_authorized:
-        break
-    if not (all_evaluations_are_good and burdens_authorized):
-      self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed context validation: bad burden"%(block.hash, block.header.height))
-      return self.update(wtx=wtx, reason="Detected corrupted block")        
-    '''
     #Write to db
     burden_for_rollback = []
     for burden in block.tx.burdens:
@@ -189,7 +119,7 @@ class Blockchain:
 
   def context_validation(self, block, wtx):
     assert block.header.prev == self.current_tip(rtx=wtx)
-    block.tx.verify(block_height=self.current_height(rtx=wtx), rtx=wtx, skip_non_context=True)
+    block.tx.verify(block_height=self.current_height(rtx=wtx), block_version = block.header.version, rtx=wtx, skip_non_context=True)
     excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(block.tx, wtx=wtx)
     if not [commitment_root, txos_root, excesses_root]==block.header.merkles:

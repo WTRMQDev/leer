@@ -96,12 +96,12 @@ def init_storage_space(config):
   storage_space=StorageSpace(_path)
   with storage_space.env.begin(write=True) as wtx:
     hs = HeadersStorage(storage_space, wtx=wtx)
-    hm = HeadersManager(storage_space)
+    hm = HeadersManager(storage_space, do_not_check_pow=config.get('do_not_check_pow', False))
     bs = BlocksStorage(storage_space, wtx=wtx)
     es = ExcessesStorage(storage_space, wtx=wtx)
     ts = TXOsStorage(storage_space, wtx=wtx)
     bc = Blockchain(storage_space)
-    mptx = MempoolTx(storage_space)
+    mptx = MempoolTx(storage_space, config["fee_policy"])
     utxoi = UTXOIndex(storage_space, wtx=wtx)
     init_blockchain(wtx=wtx)
     validate_state(storage_space, rtx=wtx)
@@ -217,6 +217,9 @@ def core_loop(syncer, config):
     notification_cache[key] = {'value':value, 'timestamp':timestamp}
 
   logger.debug("Start of core loop")
+  with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
+    notify("blockchain height", storage_space.blockchain.current_height(rtx=rtx))
+    notify("best header", storage_space.headers_manager.best_header_height)         
   while True:
     sleep(0.05)
     put_back_messages = []
@@ -330,7 +333,17 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "result":ser_head})
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
-          self.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+          logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+      if message["action"] == "give mining work":
+        notify("core workload", "generating block template")
+        try:
+          address = get_new_address()
+          with storage_space.env.begin(write=True) as wtx:
+            partial_header_hash, target = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
+          send_message(message["sender"], {"id": message["id"], "result":{'partial_hash':partial_header_hash.hex(), 'target':target.hex()}})
+        except Exception as e:
+          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
+          logger.error("Can not generate work `%s`"%(str(e)), exc_info=True)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
@@ -353,8 +366,33 @@ def core_loop(syncer, config):
           notify("blockchain height", our_height)
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
-          send_message(message["sender"], {"id": message["id"], "error": str(e)})
-
+          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+      if message["action"] == "take mining work":
+        notify("core workload", "processing mining work")
+        try:
+          nonce, partial_work = message['nonce'], message['partial_hash']
+          mp = storage_space.mempool_tx
+          block_template =  mp.work_block_assoc[partial_work]
+          block_template.header.nonce = nonce
+          solved_block = block_template 
+          header = solved_block.header
+          with storage_space.env.begin(write=True) as wtx:
+            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
+            storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
+            solved_block.non_context_verify(rtx=wtx)
+            storage_space.blockchain.add_block(solved_block, wtx=wtx)
+            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
+            our_height = storage_space.blockchain.current_height(rtx=wtx)
+            best_known_header = storage_space.headers_manager.best_header_height
+            if not after_tip==initial_tip:
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx)
+          send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
+          notify("best header", best_known_header)
+          notify("blockchain height", our_height)
+        except Exception as e:
+          logger.error("Wrong submitted work %s"%str(e))
+          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
           our_height = storage_space.blockchain.current_height(rtx=rtx)
@@ -371,34 +409,15 @@ def core_loop(syncer, config):
         notify("blockchain height", our_height)
         notify("best advertised height", best_advertised_height)
 
-
-      if message["action"] == "generate tx by tx template": #TODO Move to wallet
-        notify("core workload", "generating transactions")
+      if message["action"] == "add tx to mempool":
+        notify("core workload", "processing local transaction")
         response = {"id": message["id"]}
+        #deserialization
         try:
-          tx_template = message["tx_template"]
-          #Deserialization        
-          destination_address, change_address = Address(), Address()
-          destination_address.deserialize_raw(tx_template['address'])
-          change_address.deserialize_raw(tx_template['change address'])
-          tx_template['address'], tx_template['change address'] = destination_address, change_address
-          for pub in tx_template['priv_by_pub']:
-            tx_template['priv_by_pub'][pub] =  PrivateKey(tx_template['priv_by_pub'][pub], raw=True)
-        except Exception as e:
-          response['result'] = 'error'
-          response['error'] = str(e)
-          logger.error("Problem in tx_template: %s"%str(e))
-        try: #Tx generation
-          with storage_space.env.begin(write=True) as rtx:
-            tx = Transaction(txos_storage = storage_space.txos_storage, excesses_storage = storage_space.excesses_storage)
-            for utxo_index in tx_template['utxos']:
-              utxo = storage_space.txos_storage.confirmed.get(utxo_index, rtx=rtx)
-              tx.push_input(utxo)
-            tx.add_destination( (tx_template["address"], tx_template["value"]) )
-            tx.generate_new(priv_data=tx_template, rtx=rtx,
-                        change_address = tx_template['change address'],
-                        relay_fee_per_kb=storage_space.mempool_tx.fee_policy_checker.relay_fee_per_kb)
-            tx.verify(rtx=rtx)
+          ser_tx = message["tx"]
+          tx = Transaction(txos_storage = storage_space.txos_storage, excesses_storage = storage_space.excesses_storage)
+          with storage_space.env.begin(write=False) as rtx:            
+            tx.deserialize(ser_tx, rtx)
             storage_space.mempool_tx.add_tx(tx, rtx=rtx)
             tx_skel = TransactionSkeleton(tx=tx)
             notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
@@ -406,8 +425,9 @@ def core_loop(syncer, config):
         except Exception as e:
           response['result'] = 'error'
           response['error'] = str(e)
-          logger.error("Cannot generate tx by template: %s"%str(e))
+          logger.error("Problem in tx: %s"%str(e))
         send_message(message["sender"], response)
+
 
       #message from core_loop
       if message["action"] == "check txouts download status":

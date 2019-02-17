@@ -1,11 +1,11 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from functools import partial
 import struct, os
 
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, RangeProof, default_blinding_generator, Point
 
 from leer.core.lubbadubdub.offset_utils import sum_offset
-from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
+from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
 from leer.core.lubbadubdub.address import Address, Excess, excess_from_private_key
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.storage.txos_storage import TXOsStorage
@@ -23,11 +23,12 @@ def is_sorted(lst, key=lambda x: x):
             return False
     return True
 
+pseudoinput = namedtuple('pseudoinput',('serialized_index', 'serialized_apc'))
 
 
 class Transaction:
 
-  def __init__(self, txos_storage, excesses_storage,  raw_tx=None, key_manager=None):
+  def __init__(self, txos_storage, excesses_storage,  raw_tx=None):
     #serializable data 
     self.inputs = []
     self.updated_excesses = {} # after spending inputs their addresses excesses should be updated to become additional excesses
@@ -42,8 +43,7 @@ class Transaction:
     self.serialized = None
 
     self.txos_storage = txos_storage 
-    self.excesses_storage = excesses_storage 
-    self.key_manager = key_manager
+    self.excesses_storage = excesses_storage
     
     if raw_tx:
       self.deserialize(raw_tx)
@@ -84,77 +84,23 @@ class Transaction:
       self.updated_excesses = new_tx.updated_excesses
     self.verify(rtx=rtx)
 
-  '''
-  # should be moved to wallet???
-  def generate(self, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
+  def blindly_generate(self, change_address, input_data, relay_fee_per_kb=0):
     self.serialized = None
     if self.coinbase:
       raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
-    if not len(self.inputs):
+    if not len(input_data):
       raise Exception("Tx should have at least one input")
     if not len(self._destinations):
       raise Exception("Tx should have at least one destination")
-    for ioput in self.inputs:
-      if not self.key_manager:
-        raise Exception("Trying to generate tx which spends unknown input (KeyManager is None)")
-      if not ioput.detect_value(self.key_manager):
-        raise Exception("Trying to generate tx which spends unknown input")
-    in_value = sum([ioput.value for ioput in self.inputs]) 
+    in_value = sum([ioput[1] for ioput in input_data]) 
     out_value = sum([destination[1] for destination in self._destinations])
     relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
     # +1 for destination is for change address
-    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
+    self.fee = relay_fee + self.calc_new_outputs_fee(len(input_data), len(self._destinations)+1)
     remainder = in_value - out_value - self.fee
     if remainder<0:
       raise Exception("Not enough money in inputs to cover outputs")
     # TODO We need logic here to cover too low remainders (less than new output fee)
-    change_address =  change_address if change_address else self.key_manager.new_address() # TODO Check: for first glance, we cannot get here if key_manager is None.
-    self._destinations.append((change_address, remainder))
-    privkey_sum=0
-    out_blinding_key_sum = None
-    for out_index in range(len(self._destinations)-1):
-      address, value = self._destinations[out_index]
-      output = IOput()
-      output.fill(address, value, generator = default_generator_ser)
-      self.outputs.append( output )
-      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
-    # privkey for the last one output isn't arbitrary
-    address, value = self._destinations[-1]
-    in_blinding_key_sum = None
-    for _input in self.inputs:
-      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
-      in_blinding_key_sum += self.key_manager.priv_by_pub(_input.address.pubkey) # we can't get here if key_manager is None
-    output = IOput()
-    output.fill(address, value, blinding_key = in_blinding_key_sum-out_blinding_key_sum,
-      relay_fee=relay_fee, generator = default_generator_ser) #TODO relay fee should be distributed uniformly, privacy leak
-    self.outputs.append(output)
-    [output.generate() for output in self.outputs]
-    self.sort_ioputs()
-    self.verify()
-  '''
-
-  # should be moved to wallet???
-  def generate_new(self, priv_data, rtx, change_address=None, relay_fee_per_kb=0): #TODO key_manager should be substituted with inputs_info = {..., 'new_address': '', 'priv_by_pub': {'':''}}
-    self.serialized = None
-    if self.coinbase:
-      raise Exception("generate() can be used only for common transaction, to create block transaction as miner use compose_block_transaction")
-    if not len(self.inputs):
-      raise Exception("Tx should have at least one input")
-    if not len(self._destinations):
-      raise Exception("Tx should have at least one destination")
-    for ioput in self.inputs:
-      if not ioput.detect_value(inputs_info=priv_data):
-        raise Exception("Trying to generate tx which spends unknown input")
-    in_value = sum([ioput.value for ioput in self.inputs]) 
-    out_value = sum([destination[1] for destination in self._destinations])
-    relay_fee = self.calc_relay_fee(relay_fee_per_kb=relay_fee_per_kb)
-    # +1 for destination is for change address
-    self.fee = relay_fee + self.calc_new_outputs_fee(len(self.inputs), len(self._destinations)+1)
-    remainder = in_value - out_value - self.fee
-    if remainder<0:
-      raise Exception("Not enough money in inputs to cover outputs")
-    # TODO We need logic here to cover too low remainders (less than new output fee)
-    change_address =  change_address if change_address else priv_data['change address']
     self._destinations.append((change_address, remainder, True))
     privkey_sum=0
     out_blinding_key_sum = None
@@ -165,7 +111,7 @@ class Transaction:
       output = IOput()
       output.fill(address, value, generator = default_generator_ser)
       self.outputs.append( output )
-      out_blinding_key_sum = out_blinding_key_sum + output.blinding_key if out_blinding_key_sum else output.blinding_key
+      out_blinding_key_sum = (out_blinding_key_sum + output.blinding_key) if out_blinding_key_sum else output.blinding_key
       if need_proof:
         need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     offset_pk = PrivateKey()
@@ -176,14 +122,11 @@ class Transaction:
       need_proofs.append((output, PrivateKey())) #excesses will be generated after output generation
     in_blinding_key_sum = None
     burdens_to_be_covered = []
-    for _input in self.inputs:
-      in_blinding_key_sum = in_blinding_key_sum + _input.blinding_key if in_blinding_key_sum else _input.blinding_key
-      priv_key = priv_data['priv_by_pub'][_input.address.pubkey.serialize()]
+    for i, v, priv_key, blinding_key, ser_apc in input_data:
+      in_blinding_key_sum = (in_blinding_key_sum + blinding_key) if in_blinding_key_sum else blinding_key
       in_blinding_key_sum += priv_key
-      if self.txos_storage.confirmed.burden.has(_input.serialized_index, rtx=rtx):
-        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+_input.serialized_apc)
-      else:
-        self.updated_excesses[_input.serialized_index]=excess_from_private_key(priv_key, b"\x01\x00"+os.urandom(33))
+      self.updated_excesses[i]=excess_from_private_key(priv_key, b"\x01\x00"+ser_apc)
+      self.inputs.append(pseudoinput(i, ser_apc)) #For tx serialization and sorts
     if len(need_proofs):
       excesses_key_sum = need_proofs[0][1]
       for i in need_proofs[1:]:
@@ -200,8 +143,7 @@ class Transaction:
       script = generate_proof_script(ae[0])
       e = excess_from_private_key(ae[1], script)
       self.additional_excesses.append(e)
-    self.sort_ioputs()
-    self.verify(rtx=rtx)
+    self.sort_lists()
     
 
   def calc_relay_fee(self, relay_fee_per_kb):
@@ -219,24 +161,10 @@ class Transaction:
              (inputs_num if inputs_num else len(self.inputs)) - 
              (1 if self.coinbase else 0))*output_creation_fee
 
-  def sort_ioputs(self):
-      self.inputs = sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize())
-      self.outputs = sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize())
-
-  #XXX: obsolete, to be deleted
-  def calc_txid(self):
-    if not len(self.inputs) or not len(self.outputs):
-      raise Exception("Tx is not ready for id formation")
-    self.sort_ioputs()
-    to_hash = b''
-    for _list in [self.inputs, self.outputs]:
-        for ioput in _list:
-            to_hash += ioput.pedersen_commitment.serialize()
-    if not GLOBAL_TEST:
-        raise NotImplemented 
-    h = hashlib.new('sha256')
-    h.update(to_hash)
-    self.txid = h.digest()
+  def sort_lists(self):
+      self.inputs = sorted(self.inputs, key= lambda _input: _input.serialized_apc)
+      self.outputs = sorted(self.outputs, key= lambda _output: _output.serialized_apc)
+      self.additional_excesses = sorted(self.additional_excesses, key = lambda e: e.index)
 
   def serialize(self):
     if self.serialized:
@@ -282,14 +210,11 @@ class Transaction:
           raise Exception("Serialized transaction doesn't contain enough bytes for input %s"%_input_index)
         input_index_buffer, serialized_tx = serialized_tx[:input_len], serialized_tx[input_len:]
 
-        if not GLOBAL_TEST['spend from mempool']:
-            raise NotImplemented
-        else:
-          if not skip_verification:
+        if not skip_verification:
             if (not self.txos_storage.confirmed.has(input_index_buffer, rtx=rtx)):
               raise Exception("Unknown input index")
             self.inputs.append(self.txos_storage.confirmed.get(input_index_buffer, rtx=rtx))
-          else:
+        else:
             self.inputs.append(input_index_buffer)
 
     if len(serialized_tx)<2:
@@ -342,8 +267,6 @@ class Transaction:
     self.mixer_offset, serialized_tx = int.from_bytes(serialized_tx[:32], "big"), serialized_tx[32:]
     if not skip_verification:
       self.verify(rtx=rtx)
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
 
   def to_json(self):
     pass #TODO
@@ -366,6 +289,7 @@ class Transaction:
 
     assert is_sorted(self.inputs, key= lambda _input: _input.authorized_pedersen_commitment.serialize()), "Inputs are not sorted"
     assert is_sorted(self.outputs, key= lambda _output: _output.authorized_pedersen_commitment.serialize()), "Outputs are not sorted"
+    assert is_sorted(self.additional_excesses, key= lambda e: e.index), "Additional excesses are not sorted"
 
     assert len(self.inputs)==len(self.updated_excesses)
     for _input in self.inputs:
@@ -475,7 +399,7 @@ class Transaction:
     verification_cache[(self.serialize(), block_height)] = True
     return True
 
-  def verify(self, rtx, block_height = None, skip_non_context=False):
+  def verify(self, rtx, block_height = None, block_version = 1, skip_non_context=False):
     """
      Transaction is valid if:
       0) inputs and outputs are sorted  (non context verification)
@@ -501,12 +425,9 @@ class Transaction:
     if not skip_non_context: # skip_non_context is used when non context verification for that tx was made earlier
       assert self.non_context_verify(block_height)
 
-    if not GLOBAL_TEST['spend from mempool']:
-        raise NotImplemented #XXX Check that all inputs in UTXO
-    else:
-        database_inputs = []
-        assert len(set([_input.serialized_index for _input in self.inputs]))==len(self.inputs)
-        for _input in self.inputs:
+    database_inputs = []
+    assert len(set([_input.serialized_index for _input in self.inputs]))==len(self.inputs)
+    for _input in self.inputs:
           index=_input.serialized_index
           if not self.txos_storage.confirmed.has(index, rtx=rtx):
               raise Exception("Spend unknown output")
@@ -515,10 +436,7 @@ class Transaction:
           assert not self.excesses_storage.excesses.has_index(rtx, self.updated_excesses[index].index), "Duplication of already existed excess during update"
           self.inputs = database_inputs
     
-    if not GLOBAL_TEST['spend from mempool']:
-        raise NotImplemented #XXX Check that all inputs are in UTXOSet
-    else:
-        for _output in self.outputs:
+    for _output in self.outputs:
           _o_index = _output.serialized_index
           if self.txos_storage.confirmed.has(_o_index, rtx=rtx):
               raise Exception("Create duplicate output")
@@ -527,14 +445,11 @@ class Transaction:
           else:
               #previously unknown output, let's add to database
               self.txos_storage.mempool[_o_index] = _output
+          if not _output.block_version == block_version:
+              raise Exception("Incompatible block version")
 
     for _ae in self.additional_excesses:
       assert not self.excesses_storage.excesses.has_index(rtx, _ae.index), "New additional excess duplicates old one"
-
-    if not GLOBAL_TEST['block_version checking']: 
-        # Note, transactions where outputs have different block_versions are valid
-        # by consensus rules. However, they cannot be included into any block.
-        raise NotImplemented
 
     if block_height > 0:
       prev_block_props = {'height': self.txos_storage.storage_space.blockchain.current_height(rtx=rtx), 
@@ -551,22 +466,18 @@ class Transaction:
     
 
   def merge(self, another_tx, rtx):
-    self.serialized = None
-    tx=Transaction(txos_storage = self.txos_storage, key_manager = self.key_manager, excesses_storage=self.excesses_storage) #TODO instead of key_manager, inputs info should be merged here
+    #self.serialized = None
+    tx=Transaction(txos_storage = self.txos_storage, excesses_storage=self.excesses_storage)
     tx.inputs=self.inputs+another_tx.inputs
     tx.outputs=self.outputs+another_tx.outputs
     tx.additional_excesses = self.additional_excesses + another_tx.additional_excesses
     tx.updated_excesses = self.updated_excesses.copy()
     tx.updated_excesses.update(another_tx.updated_excesses)
     tx.mixer_offset = sum_offset(self.mixer_offset, another_tx.mixer_offset)
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
-      #tx.combined_excesses = self.combined_excesses.update(another_tx.combined_excesses)
-    tx.sort_ioputs()
-    if not GLOBAL_TEST['spend from mempool']: 
-      # If we merge transactions where the second spends outputs from the first, result is invalid
-      # since we don't delete identical ioputs 
-      raise NotImplemented
+    tx.sort_lists()
+    #TODO
+    # If we merge transactions where the second spends outputs from the first, result is invalid
+    # since we don't delete identical ioputs 
     assert tx.verify(rtx=rtx)
     return tx
 

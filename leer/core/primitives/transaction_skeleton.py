@@ -1,6 +1,4 @@
-from collections import OrderedDict
-
-from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators, GLOBAL_TEST
+from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Excess
 from leer.core.parameters.constants import output_creation_fee
@@ -13,9 +11,9 @@ class TransactionSkeleton:
     self.output_relay_fees = []
     self.additional_excesses = []
     self.updated_excesses = {}
-    self.combined_excesses = OrderedDict()
     self.mixer_offset = 0
     self.tx = tx
+    self.version = 0
     if tx:
       for _i in tx.inputs:
         self.input_indexes.append(_i.serialized_index)
@@ -25,9 +23,6 @@ class TransactionSkeleton:
       self.additional_excesses = tx.additional_excesses.copy()
       self.updated_excesses = tx.updated_excesses.copy()
       self.mixer_offset = tx.mixer_offset
-      
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
 
   def serialize(self, rich_format=False, max_size =40000, full_tx = None):
     #TODO we messed up a lot here with storage-space-free skeletons
@@ -41,8 +36,7 @@ class TransactionSkeleton:
     if rich_format and not full_tx:
       raise Exception("Full_tx is required for serialization in rich format")
     serialization_array = []
-    version = 1
-    version_byte = ((version<<1)+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
+    version_byte = ((self.version<<1)+int(rich_format)).to_bytes(1,"big") #lowest bit sets rich/not_rich format. Other bits are used for version
     serialization_array.append(version_byte)
     serialization_array.append(len(self.input_indexes).to_bytes(2, "big"))
     serialization_array.append(len(self.output_indexes).to_bytes(2, "big"))
@@ -75,7 +69,7 @@ class TransactionSkeleton:
             break
       if not txouts_count:
         #we don't have enough space even for one output
-        serialization_array[0] = (version<<1).to_bytes(1,"big")
+        serialization_array[0] = (self.version<<1).to_bytes(1,"big")
       else:
         serialization_array.append(txouts_count.to_bytes(2,"big"))
         serialization_array.append(txouts_data)
@@ -91,8 +85,8 @@ class TransactionSkeleton:
       raise Exception("Not enough bytes for tx skeleton version marker")
     serialized, ser_version = serialized[1:], serialized[0]
     rich_format = ser_version & 1
-    version = ser_version >> 1
-    if not version in [0,1]:
+    self.version = ser_version >> 1
+    if not self.version in [0]:
       raise Exception("Unknown tx_sceleton version")
     if len(serialized)<2:
       raise Exception("Not enough bytes for tx skeleton inputs len")
@@ -117,8 +111,7 @@ class TransactionSkeleton:
       _output_index, serialized  = serialized[:serialized_index_len], serialized[serialized_index_len:]
       self.output_indexes.append(_output_index)
 
-    if version>=1:
-      for i in range(_len_o):
+    for i in range(_len_o):
         if len(serialized)<4:
           raise Exception("Not enough bytes for tx skeleton' output relay fee %d len"%i)
         ser_relay_fee, serialized  = serialized[:4], serialized[4:]
@@ -150,26 +143,10 @@ class TransactionSkeleton:
           raise Exception("Unknown output in rich txskel data") 
         storage_space.txos_storage.mempool[output.serialized_index]=output
 
-
-    if not GLOBAL_TEST['skip combined excesses']:
-      raise NotImplemented
     return serialized
 
   def verify(self):
-    '''
-      Additional excess should sign one of output apc.
-      Each output can be signed only once.
-    '''
-    output_apcs = []
-    for _o in self.output_indexes:
-      output_apcs.append(_o[:33])
-    for _e in self.additional_excesses:
-      pass
-      #if not _e.message in output_apcs:
-      #  return False
-      #else:
-      #  output_apcs.remove(_e.message)
-    #TODO pedersen_sum_check
+    #We cannot verify sum to zero by tx_scel, since tx_scel doesn't contain address_excesses
     return True
 
   def calc_new_outputs_fee(self, is_block_transaction):

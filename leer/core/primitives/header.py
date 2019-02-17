@@ -1,6 +1,6 @@
 import hashlib
 from leer.core.utils import encode_target, decode_target
-from leer.core.hash.mining_canary import mining_canary_hash
+from leer.core.hash.progpow import progpow_hash, partial_hash
 
 class PoPoW:
   # We use compact version of PoPoW (https://eprint.iacr.org/2017/963.pdf) here
@@ -154,7 +154,8 @@ class Header:
     '''
       Serialized header without nonce. Templates are used during mining, when we search for acceptable nonce
     '''
-    return self.height.to_bytes(4,"big") +\
+    return self.version.to_bytes(1, "big") +\
+           self.height.to_bytes(4,"big") +\
            self.popow.serialize() +\
            self.votedata.serialize() + \
            self.serialized_merkles + \
@@ -162,7 +163,6 @@ class Header:
            self.full_offset.to_bytes(32,"big") + \
            int(self.timestamp).to_bytes(5, "big") +\
            self.encoded_target +\
-           self.version.to_bytes(1, "big") +\
            self.extension_bytes
 
   def serialize(self):
@@ -172,6 +172,9 @@ class Header:
     self.deserialize_raw(serialized)
 
   def deserialize_raw(self, serialized):
+    if len(serialized)<1:
+      raise Exception("Not enough bytes for version deserialization")
+    self.version, serialized = serialized[0], serialized[1:]
     if len(serialized)<4:
       raise Exception("Not enough bytes for height deserialization")
     self.height, serialized = int.from_bytes(serialized[:4], "big"), serialized[4:]
@@ -194,15 +197,12 @@ class Header:
     if len(serialized)<5:
       raise Exception("Not enough bytes for target deserialization")
     self.target, serialized = decode_target(serialized[0],serialized[1]), serialized[2:]
-    if len(serialized)<1:
-      raise Exception("Not enough bytes for version deserialization")
-    self.version, serialized = serialized[0], serialized[1:]
     if len(serialized)<4:
       raise Exception("Not enough bytes for extension bytes deserialization")
     self.extension_bytes, serialized = serialized[:4], serialized[4:]
-    if len(serialized)<16:
+    if len(serialized)<8:
       raise Exception("Not enough bytes for nonce deserialization")
-    self.nonce, serialized = serialized[:16], serialized[16:]
+    self.nonce, serialized = serialized[:8], serialized[8:]
     return serialized
     
 
@@ -216,7 +216,11 @@ class Header:
 
   @property
   def hash(self):
-    return mining_canary_hash(self.serialize())
+    return progpow_hash(self.height, self.template, self.nonce)
+
+  @property
+  def partial_hash(self):
+    return partial_hash(self.template)
 
   @property
   def integer_hash(self):

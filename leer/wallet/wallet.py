@@ -4,6 +4,7 @@ from leer.wallet.key_manager import KeyManagerClass
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
+from secp256k1_zkp import PrivateKey
 
 from uuid import uuid4
 import logging
@@ -70,7 +71,11 @@ def wallet(syncer, config):
     sleep(0.01)
     while not message_queue.empty():
       message = message_queue.get()
-      logger.info("Process message %s"% message)
+      if 'action' in message:
+        logger.info("Process message `%s`"% message['action'])
+        logger.debug("Process message %s"%message)
+      else:
+        logger.info("Process message %s"%message)
       if not 'action' in message:
         continue
       if message['action']=="process new block":
@@ -83,9 +88,11 @@ def wallet(syncer, config):
             km.spend_output(index, block_height)
             last_time_updated = time()
         for _o in tx.outputs:
-          if km.is_owned_pubkey(_o.address.pubkey.serialize()):
+          if km.is_owned_pubkey(_o.address.pubkey.serialize()): #TODO mass checks
             km.add_output(_o, block_height)
             last_time_updated = time()
+          if km.is_saved(_o):
+            km.register_processed_output(_o.serialized_index, block_height)
         if last_time_updated:
           notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":
@@ -130,7 +137,13 @@ def wallet(syncer, config):
         pass
       if message['action']=="take private key":
         pass
-      if message['action']=="generate tx template":
+      if message['action']=="give last transactions info":
+        response = {"id": message["id"]}
+        num = int(message["num"])
+        response["result"] = km.give_transactions(num)
+        syncer.queues[message['sender']].put(response) 
+        continue
+      if message['action']=="generate tx":
         response = {"id": message["id"]}
         value  = int(message["value"])
         taddress = message["address"]
@@ -158,24 +171,22 @@ def wallet(syncer, config):
                 continue
               if isinstance(_list[address][texted_index], int):
                 _index = base64.b64decode(texted_index.encode())
-                utxos.append(_index)
+                ser_priv, ser_blinding, apc = km.get_output_private_data(_index)
+                priv = PrivateKey(ser_priv, raw=True)
+                blinding = PrivateKey(ser_blinding, raw=True)
+                utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
                 summ+=_list[address][texted_index]
         if summ < value:
             response["result"] = "error"
             response["error"] = "Not enough matured coins"
             syncer.queues[message['sender']].put(response)
             continue
-        
-        tx_template = { 'priv_by_pub': {}, 'change address': km.new_address().serialize(), 'utxos':utxos,
-                        'address': a.serialize(), 'value': value }
-        for utxo in utxos:
-          pub,priv = km.priv_and_pub_by_output_index(utxo)
-          tx_template['priv_by_pub'][pub]=priv
-        
-        response["result"]=tx_template
+
+        tx = Transaction(None, None)
+        tx.add_destination((a, value, True))
+        tx.blindly_generate(km.new_address(), utxos, config["fee_policy"].get("generate_fee_per_kb", 3000))        
+        km.save_generated_transaction(tx)
+        response["result"]=tx.serialize()
         syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
         return
-
-    
-

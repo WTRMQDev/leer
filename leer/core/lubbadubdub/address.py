@@ -1,5 +1,4 @@
 from secp256k1_zkp import PublicKey, ALL_FLAGS
-from leer.core.lubbadubdub.constants import GLOBAL_TEST
 import hashlib, base64
 
 class Excess:
@@ -108,16 +107,6 @@ class Excess:
       m=hashlib.sha256()
       m.update(self.message)
       return self.pubkey.serialize() + m.digest()
-
-    @property
-    def burden_hash(self):
-      '''
-        When script in excess creates burden for some output, this output should authorize burden
-        by signing burden_hash.
-      '''
-      m=hashlib.sha256()
-      m.update(self.index)
-      return m.digest()
 
 class Address(Excess):
 

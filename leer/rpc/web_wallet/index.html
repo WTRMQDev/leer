@@ -144,6 +144,25 @@ footer {
    margin-bottom: 10px;
    font-size: large;
 }
+#transactions-table {
+  border: 1px solid; 
+}
+#transactions-table td {
+  padding-top: 20px;
+  border: 1px solid;
+}
+.mined {
+   color: #333;
+   margin-left: 10px;
+}
+.received {
+   color: #181;
+   margin-left: 10px;
+}
+.sent {
+   color: #811;
+   margin-left: 10px;
+}
 </style>
 <script>
 function openTab(event, tabId) {
@@ -256,6 +275,7 @@ function update_sync_status() {
            last_wallet_update=lwu;
            update_balance();
            update_addresses();
+           update_transactions();
          }
     } 
   basic_request("getsyncstatus",[],set_sync_status);
@@ -317,6 +337,61 @@ function update_connection_num() {
   basic_request("getconnectioncount",[],set_con_num);
 }
 
+function update_transactions() {
+  var set_transactions = function(data) {
+      block_heights = Object.keys(data);
+      block_heights.sort(function(x,y){return x-y;}).reverse();
+      var transactions = document.getElementById("transactions-table");
+      while(transactions.rows.length>1) {transactions.deleteRow(1);}
+      for(var i=0, l=block_heights.length; i<l; ++i)
+        {
+           var height = block_heights[i];
+           var mined=0, sent=0, received=0, sent_num=0, received_num=0;
+           for(output in data[height])
+             {
+               value = data[height][output]["value"];
+               if(data[height][output]["type"]=="spent") {
+                 sent+=value;
+                 sent_num+=1;
+               }
+
+               if(data[height][output]["type"]=="received") //It can be both mining and payment
+                 {
+                   if(data[height][output]["lock_height"]>height){
+                     mined+=value;
+                   } else {
+                     received+=value;
+                     received_num+=1;
+                   }
+                 }
+
+               if(data[height][output]["type"]=="inner transfer") 
+                 {
+                    received+=value;
+                    received_num+=1;
+                 }
+
+             }
+          var row = transactions.insertRow(-1);
+          height_cell = row.insertCell(0);
+          tx_cell = row.insertCell(1);
+          height_cell.innerHTML = height;
+          tx_cell_html ="";
+          if(mined>0)
+            tx_cell_html += "<span class='mined'>Mined "+(mined/1e8).toString() +"</span>"
+          if(received>0)
+            tx_cell_html += "<span class='received'>Received "+(received/1e8).toString()+" (in "+received_num.toString()+" outputs)" +"</span>"
+          if(sent>0)
+            tx_cell_html += "<span class='sent'>Sent "+(sent/1e8).toString()+" (in "+sent_num.toString()+" outputs)" +"</span>"
+          tx_cell.innerHTML=tx_cell_html;
+
+
+        }
+      
+      
+    } 
+  basic_request("gettransactions",[30],set_transactions);
+}
 
 function load_wallet() {
 // Routines:
@@ -347,7 +422,7 @@ window.onload = load_wallet;
       <button class="tablinks" onclick="openTab(event, 'receive')">Receive</button>
       <button class="tablinks" onclick="openTab(event, 'addresses')">Addresses</button>
       <button class="tablinks" onclick="openTab(event, 'network')">Network</button>
-      <button class="tablinks disabled" onclick="">Transactions</button>
+      <button class="tablinks" onclick="openTab(event, 'transactions')">Transactions</button>
     </div>
     <div class="header-right">
       <span id="balance">Balance 0 leer</span>
@@ -393,6 +468,16 @@ window.onload = load_wallet;
     <input type="submit" value="Connect to node" onclick="connect_to_node()">   
     </br>
    </center>
+  </div>
+
+  <div class="tabcontent" id="transactions">
+    <table id="transactions-table">
+      <tr>
+       <th>Block_height</th>
+       <th>Tx</th>
+      </tr>
+
+    </table>
   </div>
 
   <footer>

@@ -1,5 +1,5 @@
 from leer.core.primitives.header import Header
-from leer.core.hash.mining_canary import mining_canary_hash
+from leer.core.hash.progpow import progpow_hash, handler as pp_handler
 import requests
 import json
 import base64
@@ -25,9 +25,9 @@ def basic_request(method, params=[]):
      raise Exception(result['error'])
    return result['result']
 
-def check_solution(partial_template, int_nonce, target):
-  _hash = mining_canary_hash(partial_template+int_nonce.to_bytes(16,'big'))
-  if int.from_bytes(_hash, "big") < target:
+def check_solution(height, partial_hash, int_nonce, int_target):
+  _hash = progpow_hash(partial_hash+int_nonce.to_bytes(16,'big'))
+  if int.from_bytes(_hash, "big") < int_target:
     return True
   return False 
 
@@ -39,7 +39,7 @@ def start_mining():
     print("Start mining new block")
     initial_time = time()
     height_check_time = initial_time
-    basic_nonce = randint(0, int(256**10))
+    basic_nonce = randint(0, int(256**3))
     block_template = basic_request('getblocktemplate')
     block_template = base64.b64decode(block_template.encode())
     header = Header()
@@ -48,25 +48,35 @@ def start_mining():
      
     partial_template = block_template[:-16]
     nonce = 0
-    next_level=4096
+    step = next_level = 16
     update_block = False
-    while not check_solution(partial_template, nonce+basic_nonce, header.target):
-      nonce+=1
+    height, target = header.height, header.target
+    partial_hash = header.partial_hash
+    solution_found = False
+    while not solution_found:
+      res = pp_handler.light_search(1, partial_hash, target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
+      solution_found = res['solution_found']
+      if res['solution_found']:
+        final_nonce, final_hash = res['nonce'], res['final_hash']
+        break
+      nonce += next_level
       if time()-height_check_time>5:
         height_check_time = time()
-        if header.height<=get_height():
+        if height<=get_height():
           print("New block on network")
           update_block = True
           break
       if not nonce%next_level:
         next_level*=2
         print("Nonce reached %d"%nonce)
+
+        
     final_time = time()
     if update_block:
       print("Hashrate %d H/s"%(int(nonce/(final_time-initial_time))))
       continue
-    print("Get solution. Nonce = %d. Hashrate %d H/s"%(nonce, int(nonce/(final_time-initial_time))))
-    solution =partial_template +(nonce+basic_nonce).to_bytes(16,'big')
+    print("Get solution. Nonce = %d (final_nonce %d). Hashrate %d H/s"%(nonce, final_nonce, int(nonce/(final_time-initial_time))))
+    solution =partial_template +final_nonce.to_bytes(8,'big')
     encoded_solution = base64.b64encode(solution).decode()
     res = basic_request('validatesolution', [encoded_solution])
     print("Submitted block. Result %s"%res)
