@@ -54,7 +54,7 @@ def start_mining():
     partial_hash = header.partial_hash
     solution_found = False
     while not solution_found:
-      res = pp_handler.light_search(1, partial_hash, target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
+      res = pp_handler.light_search(height, partial_hash, target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
       solution_found = res['solution_found']
       if res['solution_found']:
         final_nonce, final_hash = res['nonce'], res['final_hash']
