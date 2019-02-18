@@ -122,7 +122,10 @@ class RPCManager():
     answer = await self.requests[_id]
     self.requests.pop(_id)
     if not answer["result"]=="error":
-      res = ["0x"+answer["result"]["partial_hash"],"0x"+"00"*32, "0x"+answer["result"]["target"]]
+      res = ["0x"+answer["result"]["partial_hash"],\
+             "0x"+"00"*32,\
+             "0x"+answer["result"]["target"],\
+             answer["result"]["height"]]
       return res
     else:
       return answer["error"]

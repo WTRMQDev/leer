@@ -339,8 +339,12 @@ def core_loop(syncer, config):
         try:
           address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            partial_header_hash, target = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
-          send_message(message["sender"], {"id": message["id"], "result":{'partial_hash':partial_header_hash.hex(), 'target':target.hex()}})
+            partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
+          send_message(message["sender"], {"id": message["id"], 
+              "result":{'partial_hash':partial_header_hash.hex(), 
+                        'target':target.hex(),
+                        'height':height
+                       }})
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
           logger.error("Can not generate work `%s`"%(str(e)), exc_info=True)

@@ -115,7 +115,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     partial_hash = block_template.header.partial_hash
     target = block_template.header.target.to_bytes(32, "big")
     self.work_block_assoc[partial_hash] = block_template
-    return partial_hash, target
+    return partial_hash, target, block_template.header.height
   
   def add_block_template(self, block):
     self.block_templates[block.header.template] = block
