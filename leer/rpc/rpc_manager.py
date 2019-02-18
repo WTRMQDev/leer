@@ -343,10 +343,10 @@ class RPCManager():
     return answer['result']
 
   #Ethereum compatibility
-  async def eth_getwork(self):
+  async def eth_getWork(self):
     return await self.getwork()
 
-  async def eth_submitwork(self,hex_nonce, partial_hash_hex, mix_digest):
+  async def eth_submitWork(self,hex_nonce, partial_hash_hex, mix_digest):
     return await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
 
   async def eth_getBlockByNumber(self, tag):
