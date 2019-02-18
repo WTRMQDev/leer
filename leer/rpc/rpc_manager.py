@@ -342,6 +342,23 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
+  #Ethereum compatibility
+  async def eth_getwork(self):
+    return await self.getwork()
+
+  async def eth_submitwork(self,hex_nonce, partial_hash_hex, mix_digest):
+    return await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
+
+  async def eth_getBlockByNumber(self, tag):
+    '''
+      Only returns block_number and difficulty in hex format.
+    '''
+    if not tag=='pending':
+      return "Works only for pending tag"
+    partial, seed, target, height = await self.getwork()
+    difficulty = 2**256//int(target[2:], 16)
+    return {'number':height.to_bytes(8, "big").hex(), 'difficulty':difficulty.to_bytes(8, "big").hex()}
+    
  
   async def check_queue(self):
     while self.up:
