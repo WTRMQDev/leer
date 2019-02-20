@@ -367,7 +367,12 @@ class RPCManager():
 
   #Ethereum compatibility
   async def eth_getWork(self):
-    return await self.getwork()
+    _hash, seed, target, height = await self.getwork()
+    # GPU miners work very bad with low diff target
+    #dirty hack, to made minimal target 1m
+    if not target[2:7]=="00000":
+      target = "0x00000"+target[7:]
+    return _hash, seed, target, height 
 
   async def eth_submitWork(self,hex_nonce, partial_hash_hex, mix_digest):
     res = await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
