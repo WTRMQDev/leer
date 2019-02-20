@@ -190,6 +190,8 @@ def core_loop(syncer, config):
     address.deserialize_raw(result)
     return address
 
+  mining_address = None #Will be initialised at first ask
+
   def send_message(destination, message):
     if not 'id' in message:
       message['id'] = uuid4()
@@ -326,9 +328,10 @@ def core_loop(syncer, config):
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
         try:
-          address = get_new_address()
+          if not mining_address:
+            mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            block = storage_space.mempool_tx.give_block_template(address, wtx=wtx)
+            block = storage_space.mempool_tx.give_block_template(mining_address, wtx=wtx)
           ser_head = block.header.serialize()
           send_message(message["sender"], {"id": message["id"], "result":ser_head})
         except Exception as e:
@@ -337,9 +340,10 @@ def core_loop(syncer, config):
       if message["action"] == "give mining work":
         notify("core workload", "generating block template")
         try:
-          address = get_new_address()
+          if not mining_address:
+            mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
+            partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
           send_message(message["sender"], {"id": message["id"], 
               "result":{'partial_hash':partial_header_hash.hex(), 
                         'target':target.hex(),
