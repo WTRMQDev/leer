@@ -34,10 +34,11 @@ class RPCManager():
     rpc_manager_location = __file__
     web_wallet_dir = join(path_split(rpc_manager_location)[0], "web_wallet")
     self.app = web.Application(loop=self.loop)
-    self.loop.run_until_complete(setup(self.app, BasicAuth(config['rpc']['login'],config['rpc']['password'],"realm")))
+    self.loop.run_until_complete(setup(self.app, BasicAuth(config['rpc']['login'],config['rpc']['password'], "realm", white_paths=['/'])))
     
-    self.app.router.add_static('/',web_wallet_dir)
     self.app.router.add_route('*', '/rpc', self.handle)
+    self.app.router.add_route('*', '/', self.handle_root)
+    self.app.router.add_static('/',web_wallet_dir)
     self.server = self.loop.create_server(self.app.make_handler(), self.host, self.port)
     asyncio.ensure_future(self.server, loop=loop)
     asyncio.ensure_future(self.check_queue())
@@ -62,6 +63,12 @@ class RPCManager():
     methods.add(self.connecttonode)
     methods.add(self.gettransactions)
 
+
+    methods.add(self.eth_getWork)
+    methods.add(self.eth_submitWork)
+    methods.add(self.eth_getBlockByNumber)
+    self.no_auth_methods = ["eth_getWork", "eth_submitWork", "eth_getBlockByNumber"]
+
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
     cors_headers_header = ("Access-Control-Allow-Headers", "content-type")
@@ -78,6 +85,22 @@ class RPCManager():
     else:
         return web.json_response(response, status=response.http_status, headers=[cors_origin_header, cors_headers_header])
 
+  async def handle_root(self, request):
+    try:
+      request_text = await request.text()
+      if request_text=="":
+        response = web.HTTPSeeOther("/index.html")
+        return response
+      else:
+        try:
+          rqst = json.loads(request_text)
+          assert rqst["method"] in self.no_auth_methods
+          response = await methods.dispatch(request_text, schema_validation=False)
+          return web.json_response(response, status=response.http_status)
+        except:
+          return web.Response(request)
+    except CancelledError:
+      return web.Response() #TODO can we set response.wanted to false?    
 
   async def ping(self):
     return 'pong'
@@ -122,10 +145,10 @@ class RPCManager():
     answer = await self.requests[_id]
     self.requests.pop(_id)
     if not answer["result"]=="error":
-      res = ["0x"+answer["result"]["partial_hash"],\
-             "0x"+"00"*32,\
-             "0x"+answer["result"]["target"],\
-             answer["result"]["height"]]
+      res = ["0x"+answer["result"]["partial_hash"].upper(),\
+             "0x"+("00"*32).upper(),\
+             "0x"+(answer["result"]["target"]).upper(),\
+             "0x"+answer["result"]["height"].to_bytes(8, "big").hex().upper()]
       return res
     else:
       return answer["error"]
@@ -347,7 +370,8 @@ class RPCManager():
     return await self.getwork()
 
   async def eth_submitWork(self,hex_nonce, partial_hash_hex, mix_digest):
-    return await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
+    res = await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
+    return res=="Accepted"
 
   async def eth_getBlockByNumber(self, tag):
     '''
