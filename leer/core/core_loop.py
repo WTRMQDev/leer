@@ -387,7 +387,7 @@ def core_loop(syncer, config):
           with storage_space.env.begin(write=True) as wtx:
             if header.height <= storage_space.blockchain.current_height(rtx=wtx):
               send_message(message["sender"], {"id": message["id"], "result": "Stale"})
-              logger.error("Stale work submitted: height %d"%str(header.height))
+              logger.error("Stale work submitted: height %d"%(header.height))
               continue
             initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
             storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
