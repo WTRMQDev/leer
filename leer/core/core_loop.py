@@ -291,7 +291,7 @@ def core_loop(syncer, config):
             process_find_common_root(message, send_message, rtx)
         if message["action"] == "find common root response":
           with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root_reponse(message, nodes[message["node"]], send_message, rtx=rtx)
+            process_find_common_root_response(message, nodes[message["node"]], send_message, rtx=rtx)
         if message["action"] == "give TBM transaction":
           notify("core workload", "giving mempool tx")
           with storage_space.env.begin(write=False) as rtx:
@@ -848,7 +848,7 @@ def process_find_common_root(message, send_message, rtx):
       "known_headers": b"".join([i.to_bytes(1,"big") for i in result]), 
       "id":message['id'], "node": message["node"] })
 
-def process_find_common_root_reponse(message, node_info, send_message, rtx):
+def process_find_common_root_response(message, node_info, send_message, rtx):
   logger.info("Processing of fcrr")
   header_hash = message["header_hash"]
   result = [int(i) for i in message["known_headers"]]
