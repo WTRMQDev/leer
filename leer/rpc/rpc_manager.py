@@ -370,8 +370,8 @@ class RPCManager():
     _hash, seed, target, height = await self.getwork()
     # GPU miners work very bad with low diff target
     #dirty hack, to made minimal target 1m
-    if not target[2:7]=="00000":
-      target = "0x00000"+target[7:]
+    if not target[2:9]=="0000000":
+      target = "0x0000003"+target[9:]
     return _hash, seed, target, height 
 
   async def eth_submitWork(self,hex_nonce, partial_hash_hex, mix_digest):
