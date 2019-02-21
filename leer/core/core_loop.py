@@ -891,7 +891,10 @@ def process_find_common_root_response(message, node_info, send_message, rtx):
                           send = partial(send_message, "NetworkManager") )
       if node_info["common_root"]["try_num"]>5:
         pass #TODO we shoould try common root not from worst_nonmutual but at the middle between worst_nonmutual and best_mutual (binary search)
-  height, total_difficulty = node_info['height'],node_info['total_difficulty']
+  try:
+    height, total_difficulty = node_info['height'],node_info['total_difficulty']
+  except KeyError:
+    return
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
     node_info["common_root"].pop("worst_nonmutual", None)
