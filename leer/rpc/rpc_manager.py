@@ -2,7 +2,11 @@ from aiohttp import web
 from aiohttp_remotes import BasicAuth, setup
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
-from asyncio.base_futures import InvalidStateError
+try:
+  from asyncio.base_futures import InvalidStateError
+except ImportError:
+  from asyncio.futures import InvalidStateError
+
 import asyncio
 import logging
 import json
