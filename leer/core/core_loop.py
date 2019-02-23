@@ -989,5 +989,12 @@ def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
 def notify_all_nodes_about_new_tip(nodes, send, rtx):
   for node_index in nodes:
     node = nodes[node_index]
+    if "height" in node:
+      our_height = storage_space.blockchain.current_height(rtx=rtx)
+      our_tip = storage_space.blockchain.current_tip(rtx=rtx)
+      if node["height"]==our_height-1:
+        serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
+        send({"action":"take the headers", "num": 1, 
+              "headers":serialized_header, "id":str(uuid4()),
+              "node": node["node"] })
     send_tip_info(node_info=node, send=send, rtx=rtx)
-
