@@ -1004,7 +1004,9 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx):
       our_tip = storage_space.blockchain.current_tip(rtx=rtx)
       if node["height"]==our_height-1:
         serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
+        serialized_block = storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
         send_headers(send, 1, serialized_header, node["node"])
+        send_blocks(send, 1, serialized_block, node["node"])
     send_tip_info(node_info=node, send=send, rtx=rtx)
 
 def send_assets(asset_type, send, num, serialized_assets, node, _id=None):
@@ -1019,4 +1021,3 @@ def send_headers(send, num, headers, node, _id=None):
 
 def send_blocks(send, num, blocks, node, _id=None):
   send_assets("blocks", send, num, blocks, node, _id=None)
-
