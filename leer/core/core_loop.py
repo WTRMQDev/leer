@@ -12,7 +12,7 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 import base64
-from leer.core.utils import DOSException
+from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from time import sleep, time
 from uuid import uuid4
@@ -31,6 +31,8 @@ from ipaddress import ip_address
 logger = logging.getLogger("core_loop")
 
 storage_space = None
+upload_cache = ObliviousDictionary(sink_delay=600) #tracks what we already sent in recent past to our peers
+
 
 def init_blockchain(wtx):
   '''
@@ -665,15 +667,19 @@ def process_blocks_request(message, send_message, rtx):
       serialized_blocks+=serialized_block
       blocks_num +=1
     else:
-        send_message(message['sender'], {"action":"take the blocks", "num":blocks_num, 
-                                              "blocks":serialized_blocks, "id":message['id'],
-                                              "node":message["node"]})
+        send_blocks(partial(send_message, message['sender']), \
+                     num = blocks_num, \
+                     blocks = serialized_blocks, \
+                     node = message["node"], \
+                     _id=message['id'])
         serialized_blocks=serialized_block
         blocks_num =1
-  send_message(message['sender'], {"action":"take the blocks", "num":blocks_num, 
-                                              "blocks":serialized_blocks, "id":message['id'],
-                                              "node":message["node"]})
 
+  send_blocks(partial(send_message, message['sender']), \
+              num = blocks_num, \
+              blocks = serialized_blocks, \
+              node = message["node"], \
+              _id=message['id'])
 
 def send_next_headers_request(from_hash, num, node, send):
   send({"action":"give next headers", "num":num, "from":from_hash, 
@@ -709,15 +715,19 @@ def process_next_headers_request(message, send_message, rtx):
       serialized_headers+=serialized_header
       headers_num +=1
     else:
-      send_message(message['sender'], {"action":"take the headers", "num": headers_num, 
-                                            "headers":serialized_headers, "id":message['id'],
-                                            "node": message["node"] })
+      send_headers(partial(send_message, message['sender']), \
+                   num = headers_num, \
+                   headers = serialized_headers, \
+                   node = message["node"], \
+                   _id=message['id'])
       serialized_headers=serialized_header
       headers_num =1
   if headers_num:
-    send_message(message['sender'], {"action":"take the headers", "num": headers_num, 
-                                            "headers":serialized_headers, "id":message['id'],
-                                            "node": message["node"] })
+      send_headers(partial(send_message, message['sender']), \
+                   num = headers_num, \
+                   headers = serialized_headers, \
+                   node = message["node"], \
+                   _id=message['id'])
 
 def process_txos_request(message, send_message, rtx):
   num = message["num"]
@@ -994,7 +1004,19 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx):
       our_tip = storage_space.blockchain.current_tip(rtx=rtx)
       if node["height"]==our_height-1:
         serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
-        send({"action":"take the headers", "num": 1, 
-              "headers":serialized_header, "id":str(uuid4()),
-              "node": node["node"] })
+        send_headers(send, 1, serialized_header, node["node"])
     send_tip_info(node_info=node, send=send, rtx=rtx)
+
+def send_assets(asset_type, send, num, serialized_assets, node, _id=None):
+  if not _id:
+    _id=str(uuid4())
+  send({"action":"take the %s"%asset_type, "num": num, 
+        asset_type:serialized_assets, "id":_id,
+        "node": node})
+
+def send_headers(send, num, headers, node, _id=None):
+  send_assets("headers", send, num, headers, node, _id=None)
+
+def send_blocks(send, num, blocks, node, _id=None):
+  send_assets("blocks", send, num, blocks, node, _id=None)
+
