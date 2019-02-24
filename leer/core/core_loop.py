@@ -655,6 +655,7 @@ def process_blocks_request(message, send_message, rtx):
   _hashes = [_hashes[i*32:(i+1)*32] for i in range(num)]
   serialized_blocks = b""
   blocks_num=0
+  blocks_hashes = [] 
   for _hash in _hashes:
     if not storage_space.blocks_storage.has(_hash, rtx=rtx):
       continue
@@ -666,18 +667,21 @@ def process_blocks_request(message, send_message, rtx):
     if len(serialized_blocks)+len(serialized_block)<60000:
       serialized_blocks+=serialized_block
       blocks_num +=1
+      blocks_hashes.append(_hash)
     else:
         send_blocks(partial(send_message, message['sender']), \
                      num = blocks_num, \
                      blocks = serialized_blocks, \
+                     hashes = blocks_hashes, \
                      node = message["node"], \
                      _id=message['id'])
         serialized_blocks=serialized_block
         blocks_num =1
-
+        blocks_hashes = [_hash]
   send_blocks(partial(send_message, message['sender']), \
               num = blocks_num, \
               blocks = serialized_blocks, \
+              hashes = blocks_hashes, \
               node = message["node"], \
               _id=message['id'])
 
@@ -707,6 +711,7 @@ def process_next_headers_request(message, send_message, rtx):
 
   serialized_headers = b""
   headers_num=0
+  out_headers_hashes = []
   for _hash in headers_hashes:
     if not storage_space.headers_storage.has(_hash, rtx=rtx):
       continue
@@ -714,18 +719,21 @@ def process_next_headers_request(message, send_message, rtx):
     if len(serialized_headers)+len(serialized_header)<60000:
       serialized_headers+=serialized_header
       headers_num +=1
+      out_headers_hashes.append(_hash)
     else:
       send_headers(partial(send_message, message['sender']), \
                    num = headers_num, \
                    headers = serialized_headers, \
+                   hashes = out_headers_hashes,\
                    node = message["node"], \
                    _id=message['id'])
       serialized_headers=serialized_header
-      headers_num =1
-  if headers_num:
-      send_headers(partial(send_message, message['sender']), \
+      headers_num = 1
+      out_headers_hashes = [_hash]
+  send_headers(partial(send_message, message['sender']), \
                    num = headers_num, \
-                   headers = serialized_headers, \
+                   headers = serialized_headers,\
+                   hashes = out_headers_hashes,\
                    node = message["node"], \
                    _id=message['id'])
 
@@ -1005,19 +1013,19 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx):
       if node["height"]==our_height-1:
         serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
         serialized_block = storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
-        send_headers(send, 1, serialized_header, node["node"])
-        send_blocks(send, 1, serialized_block, node["node"])
+        send_headers(send, 1, serialized_header, [our_tip], node["node"])
+        send_blocks(send, 1, serialized_block, [our_tip], node["node"])
     send_tip_info(node_info=node, send=send, rtx=rtx)
 
-def send_assets(asset_type, send, num, serialized_assets, node, _id=None):
+def send_assets(asset_type, send, num, serialized_assets, assets_hashes, node, _id=None):
   if not _id:
     _id=str(uuid4())
   send({"action":"take the %s"%asset_type, "num": num, 
         asset_type:serialized_assets, "id":_id,
         "node": node})
 
-def send_headers(send, num, headers, node, _id=None):
-  send_assets("headers", send, num, headers, node, _id=None)
+def send_headers(send, num, headers, hashes, node, _id=None):
+  send_assets("headers", send, num, headers, hashes, node, _id)
 
-def send_blocks(send, num, blocks, node, _id=None):
-  send_assets("blocks", send, num, blocks, node, _id=None)
+def send_blocks(send, num, blocks, hashes, node, _id=None):
+  send_assets("blocks", send, num, blocks, hashes,  node, _id)
