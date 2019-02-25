@@ -269,7 +269,7 @@ def core_loop(syncer, config):
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx) 
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx, _except=[message["node"]]) 
             look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
@@ -614,7 +614,6 @@ def process_new_headers(message, node_info, send_message, wtx, notify=None):
              node_info["common_root"].pop("long_reorganization", None) 
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
-    raise e
     raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, notify=None):
@@ -633,6 +632,7 @@ def process_new_blocks(message, wtx, notify=None):
           prev_not = time()
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
   except Exception as e:
+    raise e
     raise DOSException() #TODO add info
 
 def process_new_txos(message, wtx):
@@ -733,36 +733,31 @@ def process_txos_request(message, send_message, rtx):
   num = message["num"]
   _hashes = message["txos_hashes"]
   _hashes = [bytes(_hashes[i*65:(i+1)*65]) for i in range(num)]
-  serialized_txos = b""
-  txos_num=0
-  txos_hashes = b""
-  txos_lengths = b""
+  serialized_txos = []
+  txos_hashes = []
   for _hash in _hashes:
     try:
       serialized_txo = storage_space.txos_storage.find_serialized(_hash, rtx=rtx)
     except KeyError:
       continue
-    len_txos_hashes = 65*txos_num
-    len_txos_lens = 2*txos_num
-    if len(serialized_txos)+len(serialized_txo)+len_txos_hashes+len_txos_lens<64000:
-      serialized_txos+=serialized_txo
-      txos_num +=1
-      txos_hashes += _hash
-      txos_lengths += len(serialized_txo).to_bytes(2,"big")
+    len_txos_hashes = 65*len(serialized_txos)
+    len_txos_lens = 2*len(serialized_txos)
+    if arrlen(serialized_txos)+len(serialized_txo)+len_txos_hashes+len_txos_lens<64000:
+      serialized_txos.append(serialized_txo)
+      txos_hashes.append(_hash)
     else:
-      send_message(message['sender'], {"action":"take the txos", 
-                                            "num":txos_num, "txos":serialized_txos, 
-                                            "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
-                                            "id":message['id'], 'node': message["node"] })
-      serialized_txos=serialized_txo
-      txos_num = 1
-      txos_hashes = _hash
-      txos_lengths = len(serialized_txo).to_bytes(2,"big")
-  if txos_num:
-    send_message(message['sender'], {"action":"take the txos", 
-                                            "num":txos_num, "txos":serialized_txos, 
-                                            "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
-                                            "id":message['id'], 'node': message["node"] })
+      send_txos(partial(send_message, message['sender']), \
+                   txos = serialized_txos,\
+                   hashes = txos_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
+      serialized_txos=[serialized_txo]
+      txos_hashes = [_hash]
+  send_txos(partial(send_message, message['sender']), \
+                   txos = serialized_txos,\
+                   hashes = txos_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
 
 def send_tip_info(node_info, send, rtx, our_tip_hash=None ):
   our_height = storage_space.blockchain.current_height(rtx=rtx)
@@ -996,9 +991,11 @@ def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
     send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
-def notify_all_nodes_about_new_tip(nodes, send, rtx):
+def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[]):
   for node_index in nodes:
     node = nodes[node_index]
+    if node_index in _except:
+      continue
     if "height" in node:
       our_height = storage_space.blockchain.current_height(rtx=rtx)
       our_tip = storage_space.blockchain.current_tip(rtx=rtx)
@@ -1012,9 +1009,12 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx):
 def send_assets(asset_type, send, serialized_assets, assets_hashes, node, _id=None):
   if not _id:
     _id=str(uuid4())
+  #Note hashes and lengths will be ignored by NetworkManager for headers and blocks
   send({"action":"take the %s"%asset_type,\
         "num": len(serialized_assets),\
         asset_type: b"".join(serialized_assets),\
+        "%s_hashes"%asset_type : b"".join(assets_hashes),\
+        "%s_lengths"%asset_type : b"".join([len(s_a).to_bytes(2,"big") for s_a in serialized_assets]),\
         "id":_id, "node": node})
 
 def send_headers(send, headers, hashes, node, _id=None):
@@ -1022,3 +1022,6 @@ def send_headers(send, headers, hashes, node, _id=None):
 
 def send_blocks(send, blocks, hashes, node, _id=None):
   send_assets("blocks", send, blocks, hashes,  node, _id)
+
+def send_txos(send, txos, hashes, node, _id=None):
+  send_assets("txos", send, txos, hashes,  node, _id)
