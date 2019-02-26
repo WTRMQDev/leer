@@ -54,6 +54,12 @@ class ExcessesStorage():
          raise Exception("Wrong excess update") #Never should get here, since tx is already checked, but this check is cheap
        return num_index_ser, old_excess_index, old_excess
       
+    def rollback_serialized_excess_to_address(self, num_index_ser, address_index, serialized_address, wtx):
+       excess_index, excess = self.excesses.update_index_by_num(wtx, num_index_ser, address_index, serialized_address)
+       if not excess_index[:33]==address_index[:33]: #First 33 bytes - serialized pubkey
+         raise Exception("Wrong excess update") #Never should get here, since tx is already checked, but this check is cheap
+       return num_index_ser, excess_index, excess
+      
 
     #def __contains__(self, serialized_index, ):
     #  return bool(self.excesses.get_by_hash(serialized_index))
@@ -103,7 +109,7 @@ class ExcessesStorage():
       self.excesses.remove(num_of_added_excesses, wtx=wtx)
       self.set_state(prev_state, wtx=wtx)
       for rb in rollback_updates:
-        self.update_spent_address_with_serialized_excess(rb[0], rb[1], rb[2], wtx=wtx)
+        self.rollback_serialized_excess_to_address(rb[0], rb[1], rb[2], wtx=wtx)
 
     def get_state(self, rtx):
       return self.excesses.get_state(rtx=rtx)

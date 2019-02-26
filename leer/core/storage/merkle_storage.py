@@ -159,7 +159,11 @@ class MMR:
       wtx.put( num_index_ser, bytes(obj_index), db=self.order_db)
       wtx.delete( bytes(old_index), num_index_ser, db=self.reverse_order_db)
       wtx.put( bytes(obj_index), num_index_ser, db=self.reverse_order_db)
-      old_obj = wtx.pop(bytes(old_index), db=self.leaf_db)
+      if not wtx.get(bytes(old_index), db=self.reverse_order_db):
+        #no leafs with the same index      
+        old_obj = wtx.pop(bytes(old_index), db=self.leaf_db)
+      else:
+        old_obj = wtx.get(bytes(old_index), db=self.leaf_db)
       wtx.put(bytes(obj_index), bytes(obj) , db=self.leaf_db)
       self._update_path(0, int.from_bytes(num_index_ser,"big"), wtx=wtx)
       return old_index, old_obj
