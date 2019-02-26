@@ -1009,13 +1009,25 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[]):
 def send_assets(asset_type, send, serialized_assets, assets_hashes, node, _id=None):
   if not _id:
     _id=str(uuid4())
+  assets, hashes = [],[]
+  for i, h in enumerate(assets_hashes):
+    if (node, asset_type, h) in upload_cache:
+      continue
+    else:
+      assets.append(serialized_assets[i])
+      hashes.append(h)
+      upload_cache[(node, asset_type, h)] = True
+  all_assets  = b"".join(assets)
+  all_hashes  = b"".join(hashes)
+  all_lengths = b"".join([len(a).to_bytes(2,"big") for a in assets])
   #Note hashes and lengths will be ignored by NetworkManager for headers and blocks
-  send({"action":"take the %s"%asset_type,\
-        "num": len(serialized_assets),\
-        asset_type: b"".join(serialized_assets),\
-        "%s_hashes"%asset_type : b"".join(assets_hashes),\
-        "%s_lengths"%asset_type : b"".join([len(s_a).to_bytes(2,"big") for s_a in serialized_assets]),\
-        "id":_id, "node": node})
+  if len(all_assets):
+    send({"action":"take the %s"%asset_type,\
+          "num": len(assets),\
+          asset_type: all_assets,\
+          "%s_hashes"%asset_type : all_hashes,\
+          "%s_lengths"%asset_type : all_lengths,\
+          "id":_id, "node": node})
 
 def send_headers(send, headers, hashes, node, _id=None):
   send_assets("headers", send, headers, hashes, node, _id)
