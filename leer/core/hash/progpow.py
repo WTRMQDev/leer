@@ -18,3 +18,6 @@ def progpow_hash(header_height, serialized_header_without_nonce, nonce_bytes):
     ph = partial_hash(serialized_header_without_nonce)
     return _progpow_hash(header_height, ph, int.from_bytes(nonce_bytes, "big"))
 
+@functools.lru_cache(maxsize=5)
+def seed_hash(header_height):
+  return handler.give_seed(header_height)

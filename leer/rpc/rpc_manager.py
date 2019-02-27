@@ -150,7 +150,7 @@ class RPCManager():
     self.requests.pop(_id)
     if not answer["result"]=="error":
       res = ["0x"+answer["result"]["partial_hash"].upper(),\
-             "0x"+("00"*32).upper(),\
+             "0x"+answer["result"]["seed_hash"].upper(),\
              "0x"+(answer["result"]["target"]).upper(),\
              "0x"+answer["result"]["height"].to_bytes(8, "big").hex().upper()]
       return res

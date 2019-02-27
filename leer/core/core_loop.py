@@ -11,6 +11,7 @@ from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
+from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -348,8 +349,10 @@ def core_loop(syncer, config):
             mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
             partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
+          seed_hash = progpow_seed_hash(height)
           send_message(message["sender"], {"id": message["id"], 
               "result":{'partial_hash':partial_header_hash.hex(), 
+                        'seed_hash':seed_hash.hex(),
                         'target':target.hex(),
                         'height':height
                        }})
