@@ -132,7 +132,7 @@ class NetworkNode:
 
   async def listening_loop(self):
     try:
-      while True:
+      while self.connected:
         if not self.handshake.state==self.handshake.STATES.ESTABLISHED:
             await asyncio.sleep(1)
             continue
@@ -163,13 +163,16 @@ class NetworkNode:
       pass
 
   async def send(self,message):
-    message = message
-    while not (self.handshake.state==self.handshake.STATES.ESTABLISHED):
-      await asyncio.sleep(1)
-    encoded_message = self.handshake.session.encode(message)
-    self.writer._transport.set_write_buffer_limits(high=0)
-    self.writer.write(encoded_message)
-    await self.writer.drain()
+    try:
+      message = message
+      while not (self.handshake.state==self.handshake.STATES.ESTABLISHED):
+        await asyncio.sleep(1)
+      encoded_message = self.handshake.session.encode(message)
+      self.writer._transport.set_write_buffer_limits(high=0)
+      self.writer.write(encoded_message)
+      await self.writer.drain()
+    except ConnectionResetError as e:
+      asyncio.ensure_future(self._on_closed_connection(error=e))
 
   async def on_established_connection(self):
     '''

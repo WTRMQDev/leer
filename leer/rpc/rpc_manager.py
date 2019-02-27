@@ -2,7 +2,11 @@ from aiohttp import web
 from aiohttp_remotes import BasicAuth, setup
 from jsonrpcserver.aio import methods
 from concurrent.futures._base import CancelledError
-from asyncio.base_futures import InvalidStateError
+try:
+  from asyncio.base_futures import InvalidStateError
+except ImportError:
+  from asyncio.futures import InvalidStateError
+
 import asyncio
 import logging
 import json
@@ -34,10 +38,11 @@ class RPCManager():
     rpc_manager_location = __file__
     web_wallet_dir = join(path_split(rpc_manager_location)[0], "web_wallet")
     self.app = web.Application(loop=self.loop)
-    self.loop.run_until_complete(setup(self.app, BasicAuth(config['rpc']['login'],config['rpc']['password'],"realm")))
+    self.loop.run_until_complete(setup(self.app, BasicAuth(config['rpc']['login'],config['rpc']['password'], "realm", white_paths=['/'])))
     
-    self.app.router.add_static('/',web_wallet_dir)
     self.app.router.add_route('*', '/rpc', self.handle)
+    self.app.router.add_route('*', '/', self.handle_root)
+    self.app.router.add_static('/',web_wallet_dir)
     self.server = self.loop.create_server(self.app.make_handler(), self.host, self.port)
     asyncio.ensure_future(self.server, loop=loop)
     asyncio.ensure_future(self.check_queue())
@@ -62,6 +67,12 @@ class RPCManager():
     methods.add(self.connecttonode)
     methods.add(self.gettransactions)
 
+
+    methods.add(self.eth_getWork)
+    methods.add(self.eth_submitWork)
+    methods.add(self.eth_getBlockByNumber)
+    self.no_auth_methods = ["eth_getWork", "eth_submitWork", "eth_getBlockByNumber"]
+
   async def handle(self, request):
     cors_origin_header = ("Access-Control-Allow-Origin", "*") #TODO should be restricted
     cors_headers_header = ("Access-Control-Allow-Headers", "content-type")
@@ -78,6 +89,22 @@ class RPCManager():
     else:
         return web.json_response(response, status=response.http_status, headers=[cors_origin_header, cors_headers_header])
 
+  async def handle_root(self, request):
+    try:
+      request_text = await request.text()
+      if request_text=="":
+        response = web.HTTPSeeOther("/index.html")
+        return response
+      else:
+        try:
+          rqst = json.loads(request_text)
+          assert rqst["method"] in self.no_auth_methods
+          response = await methods.dispatch(request_text, schema_validation=False)
+          return web.json_response(response, status=response.http_status)
+        except:
+          return web.Response(request)
+    except CancelledError:
+      return web.Response() #TODO can we set response.wanted to false?    
 
   async def ping(self):
     return 'pong'
@@ -122,7 +149,10 @@ class RPCManager():
     answer = await self.requests[_id]
     self.requests.pop(_id)
     if not answer["result"]=="error":
-      res = ["0x"+answer["result"]["partial_hash"],"0x"+"00"*32, "0x"+answer["result"]["target"]]
+      res = ["0x"+answer["result"]["partial_hash"].upper(),\
+             "0x"+answer["result"]["seed_hash"].upper(),\
+             "0x"+(answer["result"]["target"]).upper(),\
+             "0x"+answer["result"]["height"].to_bytes(8, "big").hex().upper()]
       return res
     else:
       return answer["error"]
@@ -339,6 +369,29 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
+  #Ethereum compatibility
+  async def eth_getWork(self):
+    _hash, seed, target, height = await self.getwork()
+    # GPU miners work very bad with low diff target
+    #dirty hack, to made minimal target 1m
+    if not target[2:9]=="0000000":
+      target = "0x0000003"+target[9:]
+    return _hash, seed, target, height 
+
+  async def eth_submitWork(self,hex_nonce, partial_hash_hex, mix_digest):
+    res = await self.submitwork(hex_nonce, partial_hash_hex, mix_digest)
+    return res=="Accepted"
+
+  async def eth_getBlockByNumber(self, tag):
+    '''
+      Only returns block_number and difficulty in hex format.
+    '''
+    if not tag=='pending':
+      return "Works only for pending tag"
+    partial, seed, target, height = await self.getwork()
+    difficulty = 2**256//int(target[2:], 16)
+    return {'number':height.to_bytes(8, "big").hex(), 'difficulty':difficulty.to_bytes(8, "big").hex()}
+    
  
   async def check_queue(self):
     while self.up:

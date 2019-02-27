@@ -11,8 +11,9 @@ from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
+from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 import base64
-from leer.core.utils import DOSException
+from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from time import sleep, time
 from uuid import uuid4
@@ -31,6 +32,10 @@ from ipaddress import ip_address
 logger = logging.getLogger("core_loop")
 
 storage_space = None
+upload_cache = ObliviousDictionary(sink_delay=600) #tracks what we already sent in recent past to our peers
+
+def arrlen(array):
+  return sum([len(el) for el in array])
 
 def init_blockchain(wtx):
   '''
@@ -190,6 +195,8 @@ def core_loop(syncer, config):
     address.deserialize_raw(result)
     return address
 
+  mining_address = None #Will be initialised at first ask
+
   def send_message(destination, message):
     if not 'id' in message:
       message['id'] = uuid4()
@@ -263,7 +270,7 @@ def core_loop(syncer, config):
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx) 
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx, _except=[message["node"]]) 
             look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
@@ -289,7 +296,7 @@ def core_loop(syncer, config):
             process_find_common_root(message, send_message, rtx)
         if message["action"] == "find common root response":
           with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root_reponse(message, nodes[message["node"]], send_message, rtx=rtx)
+            process_find_common_root_response(message, nodes[message["node"]], send_message, rtx=rtx)
         if message["action"] == "give TBM transaction":
           notify("core workload", "giving mempool tx")
           with storage_space.env.begin(write=False) as rtx:
@@ -326,9 +333,10 @@ def core_loop(syncer, config):
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
         try:
-          address = get_new_address()
+          if not mining_address:
+            mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            block = storage_space.mempool_tx.give_block_template(address, wtx=wtx)
+            block = storage_space.mempool_tx.give_block_template(mining_address, wtx=wtx)
           ser_head = block.header.serialize()
           send_message(message["sender"], {"id": message["id"], "result":ser_head})
         except Exception as e:
@@ -337,10 +345,17 @@ def core_loop(syncer, config):
       if message["action"] == "give mining work":
         notify("core workload", "generating block template")
         try:
-          address = get_new_address()
+          if not mining_address:
+            mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            partial_header_hash, target = storage_space.mempool_tx.give_mining_work(address, wtx=wtx)
-          send_message(message["sender"], {"id": message["id"], "result":{'partial_hash':partial_header_hash.hex(), 'target':target.hex()}})
+            partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
+          seed_hash = progpow_seed_hash(height)
+          send_message(message["sender"], {"id": message["id"], 
+              "result":{'partial_hash':partial_header_hash.hex(), 
+                        'seed_hash':seed_hash.hex(),
+                        'target':target.hex(),
+                        'height':height
+                       }})
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
           logger.error("Can not generate work `%s`"%(str(e)), exc_info=True)
@@ -377,6 +392,10 @@ def core_loop(syncer, config):
           solved_block = block_template 
           header = solved_block.header
           with storage_space.env.begin(write=True) as wtx:
+            if header.height <= storage_space.blockchain.current_height(rtx=wtx):
+              send_message(message["sender"], {"id": message["id"], "result": "Stale"})
+              logger.error("Stale work submitted: height %d"%(header.height))
+              continue
             initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
             storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
             storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
@@ -452,18 +471,17 @@ def core_loop(syncer, config):
                                                "id":str(uuid4()), "node":node_params })
           new_message = {"action": "check txouts download status", "txos_hashes":to_be_downloaded,
                          "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
-                         "time": int(time()+300) }
+                         "time": int(time()+30) }
           asked = True
           put_back_messages.append(new_message)
           break
         if not asked: #We already asked all applicable nodes
-          message["time"]=int(time())+3600
+          message["time"]=int(time())+600
           message["already_asked_nodes"] = []
           put_back_messages.append(message) # we will try to ask again in an hour
 
       #message from core_loop
       if message["action"] == "check blocks download status":
-        #TODO download many blocks at once
         block_hashes = message["block_hashes"]
         to_be_downloaded = []
         lowest_height=1e10
@@ -489,12 +507,12 @@ def core_loop(syncer, config):
           send_to_nm({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
           new_message = {"action": "check blocks download status", "block_hashes":to_be_downloaded,
                          "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
-                         "time": int(time()+300) }
+                         "time": int(time()+30) }
           asked = True
           put_back_messages.append(new_message)
           break
         if not asked: #We already asked all applicable nodes
-          message["time"]=int(time())+3600
+          message["time"]=int(time())+600
           message["already_asked_nodes"] = []
           put_back_messages.append(message) # we will try to ask again in an hour
 
@@ -526,17 +544,24 @@ def core_loop(syncer, config):
         for k in requests_cache:
           if not len(requests_cache[k]):
             continue
+          copy = list(set(requests_cache[k]))
           if k=="blocks":
-            new_message = {"action": "check blocks download status", "block_hashes":list(set(requests_cache[k])),
-                          "already_asked_nodes": [], "id": str(uuid4()),
-                          "time": -1 }
-            message_queue.put(new_message)
+            chunk_size=20
+            while len(copy):
+              request, copy = copy[:chunk_size], copy[chunk_size:]
+              new_message = {"action": "check blocks download status", "block_hashes":request,
+                            "already_asked_nodes": [], "id": str(uuid4()),
+                            "time": -1 }
+              message_queue.put(new_message)
             requests_cache[k] = []
           if k=="txouts":
-            new_message = {"action": "check txouts download status", "txos_hashes": list(set(requests_cache[k])),
+            chunk_size=30
+            while len(copy):
+              request, copy = copy[:chunk_size], copy[chunk_size:]
+              new_message = {"action": "check txouts download status", "txos_hashes": request,
                            "already_asked_nodes": [], "id": str(uuid4()),
                            "time": -1 }
-            message_queue.put(new_message)
+              message_queue.put(new_message)
             requests_cache[k] = []
 
     for _message in put_back_messages:
@@ -598,7 +623,6 @@ def process_new_headers(message, node_info, send_message, wtx, notify=None):
              node_info["common_root"].pop("long_reorganization", None) 
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
-    raise e
     raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, notify=None):
@@ -617,6 +641,7 @@ def process_new_blocks(message, wtx, notify=None):
           prev_not = time()
     storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
   except Exception as e:
+    raise e
     raise DOSException() #TODO add info
 
 def process_new_txos(message, wtx):
@@ -639,8 +664,8 @@ def process_blocks_request(message, send_message, rtx):
   num = message["num"]
   _hashes = message["block_hashes"]
   _hashes = [_hashes[i*32:(i+1)*32] for i in range(num)]
-  serialized_blocks = b""
-  blocks_num=0
+  serialized_blocks = []
+  blocks_hashes = [] 
   for _hash in _hashes:
     if not storage_space.blocks_storage.has(_hash, rtx=rtx):
       continue
@@ -649,19 +674,22 @@ def process_blocks_request(message, send_message, rtx):
     except KeyError:
       #Some outputs were pruned
       serialized_block = storage_space.blocks_storage.get(_hash, rtx=rtx).serialize(rtx=rtx, rich_block_format=False)
-    if len(serialized_blocks)+len(serialized_block)<60000:
-      serialized_blocks+=serialized_block
-      blocks_num +=1
+    if arrlen(serialized_blocks)+len(serialized_block)<60000:
+      serialized_blocks.append(serialized_block)
+      blocks_hashes.append(_hash)
     else:
-        send_message(message['sender'], {"action":"take the blocks", "num":blocks_num, 
-                                              "blocks":serialized_blocks, "id":message['id'],
-                                              "node":message["node"]})
-        serialized_blocks=serialized_block
-        blocks_num =1
-  send_message(message['sender'], {"action":"take the blocks", "num":blocks_num, 
-                                              "blocks":serialized_blocks, "id":message['id'],
-                                              "node":message["node"]})
-
+        send_blocks(partial(send_message, message['sender']), \
+                     blocks = serialized_blocks, \
+                     hashes = blocks_hashes, \
+                     node = message["node"], \
+                     _id=message['id'])
+        serialized_blocks=[serialized_block]
+        blocks_hashes = [_hash]
+  send_blocks(partial(send_message, message['sender']), \
+              blocks = serialized_blocks, \
+              hashes = blocks_hashes, \
+              node = message["node"], \
+              _id=message['id'])
 
 def send_next_headers_request(from_hash, num, node, send):
   send({"action":"give next headers", "num":num, "from":from_hash, 
@@ -687,60 +715,58 @@ def process_next_headers_request(message, send_message, rtx):
   last_to_send = storage_space.headers_manager.find_ancestor_with_height(current_tip, last_to_send_height, rtx=rtx)
   headers_hashes = storage_space.headers_manager.get_subchain(from_hash, last_to_send, rtx=rtx)
 
-  serialized_headers = b""
-  headers_num=0
+  serialized_headers = []
+  out_headers_hashes = []
   for _hash in headers_hashes:
     if not storage_space.headers_storage.has(_hash, rtx=rtx):
       continue
     serialized_header = storage_space.headers_storage.get(_hash, rtx=rtx).serialize()
-    if len(serialized_headers)+len(serialized_header)<60000:
-      serialized_headers+=serialized_header
-      headers_num +=1
+    if arrlen(serialized_headers)+len(serialized_header)<60000:
+      serialized_headers.append(serialized_header)
+      out_headers_hashes.append(_hash)
     else:
-      send_message(message['sender'], {"action":"take the headers", "num": headers_num, 
-                                            "headers":serialized_headers, "id":message['id'],
-                                            "node": message["node"] })
-      serialized_headers=serialized_header
-      headers_num =1
-  if headers_num:
-    send_message(message['sender'], {"action":"take the headers", "num": headers_num, 
-                                            "headers":serialized_headers, "id":message['id'],
-                                            "node": message["node"] })
+      send_headers(partial(send_message, message['sender']), \
+                   headers = serialized_headers, \
+                   hashes = out_headers_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
+      serialized_headers=[serialized_header]
+      out_headers_hashes = [_hash]
+  send_headers(partial(send_message, message['sender']), \
+                   headers = serialized_headers,\
+                   hashes = out_headers_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
 
 def process_txos_request(message, send_message, rtx):
   num = message["num"]
   _hashes = message["txos_hashes"]
   _hashes = [bytes(_hashes[i*65:(i+1)*65]) for i in range(num)]
-  serialized_txos = b""
-  txos_num=0
-  txos_hashes = b""
-  txos_lengths = b""
+  serialized_txos = []
+  txos_hashes = []
   for _hash in _hashes:
     try:
       serialized_txo = storage_space.txos_storage.find_serialized(_hash, rtx=rtx)
     except KeyError:
       continue
-    len_txos_hashes = 65*txos_num
-    len_txos_lens = 2*txos_num
-    if len(serialized_txos)+len(serialized_txo)+len_txos_hashes+len_txos_lens<64000:
-      serialized_txos+=serialized_txo
-      txos_num +=1
-      txos_hashes += _hash
-      txos_lengths += len(serialized_txo).to_bytes(2,"big")
+    len_txos_hashes = 65*len(serialized_txos)
+    len_txos_lens = 2*len(serialized_txos)
+    if arrlen(serialized_txos)+len(serialized_txo)+len_txos_hashes+len_txos_lens<64000:
+      serialized_txos.append(serialized_txo)
+      txos_hashes.append(_hash)
     else:
-      send_message(message['sender'], {"action":"take the txos", 
-                                            "num":txos_num, "txos":serialized_txos, 
-                                            "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
-                                            "id":message['id'], 'node': message["node"] })
-      serialized_txos=serialized_txo
-      txos_num = 1
-      txos_hashes = _hash
-      txos_lengths = len(serialized_txo).to_bytes(2,"big")
-  if txos_num:
-    send_message(message['sender'], {"action":"take the txos", 
-                                            "num":txos_num, "txos":serialized_txos, 
-                                            "txos_hashes": txos_hashes, "txos_lengths": txos_lengths,
-                                            "id":message['id'], 'node': message["node"] })
+      send_txos(partial(send_message, message['sender']), \
+                   txos = serialized_txos,\
+                   hashes = txos_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
+      serialized_txos=[serialized_txo]
+      txos_hashes = [_hash]
+  send_txos(partial(send_message, message['sender']), \
+                   txos = serialized_txos,\
+                   hashes = txos_hashes,\
+                   node = message["node"], \
+                   _id=message['id'])
 
 def send_tip_info(node_info, send, rtx, our_tip_hash=None ):
   our_height = storage_space.blockchain.current_height(rtx=rtx)
@@ -836,7 +862,7 @@ def process_find_common_root(message, send_message, rtx):
       "known_headers": b"".join([i.to_bytes(1,"big") for i in result]), 
       "id":message['id'], "node": message["node"] })
 
-def process_find_common_root_reponse(message, node_info, send_message, rtx):
+def process_find_common_root_response(message, node_info, send_message, rtx):
   logger.info("Processing of fcrr")
   header_hash = message["header_hash"]
   result = [int(i) for i in message["known_headers"]]
@@ -879,7 +905,10 @@ def process_find_common_root_reponse(message, node_info, send_message, rtx):
                           send = partial(send_message, "NetworkManager") )
       if node_info["common_root"]["try_num"]>5:
         pass #TODO we shoould try common root not from worst_nonmutual but at the middle between worst_nonmutual and best_mutual (binary search)
-  height, total_difficulty = node_info['height'],node_info['total_difficulty']
+  try:
+    height, total_difficulty = node_info['height'],node_info['total_difficulty']
+  except KeyError:
+    return
   logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
     node_info["common_root"].pop("worst_nonmutual", None)
@@ -971,8 +1000,49 @@ def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
     send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
-def notify_all_nodes_about_new_tip(nodes, send, rtx):
+def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[]):
   for node_index in nodes:
     node = nodes[node_index]
+    if node_index in _except:
+      continue
+    if "height" in node:
+      our_height = storage_space.blockchain.current_height(rtx=rtx)
+      our_tip = storage_space.blockchain.current_tip(rtx=rtx)
+      if node["height"]==our_height-1:
+        serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
+        serialized_block = storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
+        send_headers(send, [serialized_header], [our_tip], node["node"])
+        send_blocks(send, [serialized_block], [our_tip], node["node"])
     send_tip_info(node_info=node, send=send, rtx=rtx)
 
+def send_assets(asset_type, send, serialized_assets, assets_hashes, node, _id=None):
+  if not _id:
+    _id=str(uuid4())
+  assets, hashes = [],[]
+  for i, h in enumerate(assets_hashes):
+    if (node, asset_type, h) in upload_cache:
+      continue
+    else:
+      assets.append(serialized_assets[i])
+      hashes.append(h)
+      upload_cache[(node, asset_type, h)] = True
+  all_assets  = b"".join(assets)
+  all_hashes  = b"".join(hashes)
+  all_lengths = b"".join([len(a).to_bytes(2,"big") for a in assets])
+  #Note hashes and lengths will be ignored by NetworkManager for headers and blocks
+  if len(all_assets):
+    send({"action":"take the %s"%asset_type,\
+          "num": len(assets),\
+          asset_type: all_assets,\
+          "%s_hashes"%asset_type : all_hashes,\
+          "%s_lengths"%asset_type : all_lengths,\
+          "id":_id, "node": node})
+
+def send_headers(send, headers, hashes, node, _id=None):
+  send_assets("headers", send, headers, hashes, node, _id)
+
+def send_blocks(send, blocks, hashes, node, _id=None):
+  send_assets("blocks", send, blocks, hashes,  node, _id)
+
+def send_txos(send, txos, hashes, node, _id=None):
+  send_assets("txos", send, txos, hashes,  node, _id)

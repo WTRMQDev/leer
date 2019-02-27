@@ -37,15 +37,18 @@ def get_height():
 
 def getwork():
     work = basic_request('getwork')
-    partial_hash, temp, target = work
+    partial_hash, temp, target, height = work
     print(work)
     if partial_hash[:2]=="0x":
       partial_hash = partial_hash[2:]
     if target[:2]=="0x":
       target = target[2:]
+    if height[:2]=="0x":
+      height = height[2:]
+    height = int(height,16)
     partial_hash, target = bytes.fromhex(partial_hash), bytes.fromhex(target)
     int_target = int.from_bytes(target, "big")
-    return partial_hash, int_target
+    return partial_hash, int_target, height
 
 def start_mining():
   while True:
@@ -53,7 +56,7 @@ def start_mining():
     initial_time = time()
     last_update_time = initial_time
     basic_nonce = randint(0, int(256**7))
-    partial_hash, int_target = getwork()
+    partial_hash, int_target, height = getwork()
     print("Got work. Target %d (* 2**220). Average hashes for block %d."%(int_target/2**220, 2**256/int_target)) 
      
     nonce = 0
@@ -61,7 +64,7 @@ def start_mining():
     update_block = False
     solution_found = False
     while not solution_found:
-      res = pp_handler.light_search(1, partial_hash, int_target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
+      res = pp_handler.light_search(height, partial_hash, int_target.to_bytes(32,"big"), start_nonce = basic_nonce+nonce, iterations = next_level, step=step)
       solution_found = res['solution_found']
       if res['solution_found']:
         final_nonce, final_hash = res['nonce'], res['final_hash']
@@ -69,7 +72,7 @@ def start_mining():
       nonce += next_level
       if time()-last_update_time>5:
         last_update_time = time()
-        partial_hash, int_target = getwork()
+        partial_hash, int_target, height = getwork()
       next_level*=2
       print("Nonce reached %d"%nonce)
     final_time = time()
