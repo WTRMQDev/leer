@@ -468,18 +468,17 @@ def core_loop(syncer, config):
                                                "id":str(uuid4()), "node":node_params })
           new_message = {"action": "check txouts download status", "txos_hashes":to_be_downloaded,
                          "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
-                         "time": int(time()+300) }
+                         "time": int(time()+30) }
           asked = True
           put_back_messages.append(new_message)
           break
         if not asked: #We already asked all applicable nodes
-          message["time"]=int(time())+3600
+          message["time"]=int(time())+600
           message["already_asked_nodes"] = []
           put_back_messages.append(message) # we will try to ask again in an hour
 
       #message from core_loop
       if message["action"] == "check blocks download status":
-        #TODO download many blocks at once
         block_hashes = message["block_hashes"]
         to_be_downloaded = []
         lowest_height=1e10
@@ -505,12 +504,12 @@ def core_loop(syncer, config):
           send_to_nm({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
           new_message = {"action": "check blocks download status", "block_hashes":to_be_downloaded,
                          "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
-                         "time": int(time()+300) }
+                         "time": int(time()+30) }
           asked = True
           put_back_messages.append(new_message)
           break
         if not asked: #We already asked all applicable nodes
-          message["time"]=int(time())+3600
+          message["time"]=int(time())+600
           message["already_asked_nodes"] = []
           put_back_messages.append(message) # we will try to ask again in an hour
 
@@ -542,17 +541,24 @@ def core_loop(syncer, config):
         for k in requests_cache:
           if not len(requests_cache[k]):
             continue
+          copy = list(set(requests_cache[k]))
           if k=="blocks":
-            new_message = {"action": "check blocks download status", "block_hashes":list(set(requests_cache[k])),
-                          "already_asked_nodes": [], "id": str(uuid4()),
-                          "time": -1 }
-            message_queue.put(new_message)
+            chunk_size=20
+            while len(copy):
+              request, copy = copy[:chunk_size], copy[chunk_size:]
+              new_message = {"action": "check blocks download status", "block_hashes":request,
+                            "already_asked_nodes": [], "id": str(uuid4()),
+                            "time": -1 }
+              message_queue.put(new_message)
             requests_cache[k] = []
           if k=="txouts":
-            new_message = {"action": "check txouts download status", "txos_hashes": list(set(requests_cache[k])),
+            chunk_size=30
+            while len(copy):
+              request, copy = copy[:chunk_size], copy[chunk_size:]
+              new_message = {"action": "check txouts download status", "txos_hashes": request,
                            "already_asked_nodes": [], "id": str(uuid4()),
                            "time": -1 }
-            message_queue.put(new_message)
+              message_queue.put(new_message)
             requests_cache[k] = []
 
     for _message in put_back_messages:
