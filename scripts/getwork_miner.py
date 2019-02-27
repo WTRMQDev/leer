@@ -43,6 +43,9 @@ def getwork():
       partial_hash = partial_hash[2:]
     if target[:2]=="0x":
       target = target[2:]
+    if height[:2]=="0x":
+      height = height[2:]
+    height = int(height,16)
     partial_hash, target = bytes.fromhex(partial_hash), bytes.fromhex(target)
     int_target = int.from_bytes(target, "big")
     return partial_hash, int_target, height
