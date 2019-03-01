@@ -1,11 +1,12 @@
 import setuptools
+from leer.version import VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="leer",
-    version="0.1.1",
+    version= VERSION,
     author="Evil Morty, Crez Khansick, Sark Czenchi",
     author_email="TetsuwanAtomu@tuta.io", 
     description="Leer cryptocurrency (alpha testing)",
