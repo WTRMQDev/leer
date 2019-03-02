@@ -19,7 +19,7 @@ setuptools.setup(
     install_requires=['setuptools', 'wheel', 'lnoise', 'secp256k1_zkp>=0.14.3', 'lmdb', 'aiohttp', 'jsonrpcserver==3.5.6', 'aiohttp_remotes', 'leer_vm>=1.1', 'progpow>=0.3'],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
