@@ -18,6 +18,8 @@ from time import time
 
 from jsonrpcserver.dispatcher import request_logger, response_logger
 from aiohttp.web import access_logger
+
+from leer import version
 request_logger.setLevel(logging.ERROR)
 response_logger.setLevel(logging.ERROR)
 access_logger.setLevel(logging.ERROR)
@@ -66,6 +68,7 @@ class RPCManager():
     methods.add(self.getnodes)
     methods.add(self.connecttonode)
     methods.add(self.gettransactions)
+    methods.add(self.getversion)
 
 
     methods.add(self.eth_getWork)
@@ -391,6 +394,10 @@ class RPCManager():
     partial, seed, target, height = await self.getwork()
     difficulty = 2**256//int(target[2:], 16)
     return {'number':height.to_bytes(8, "big").hex(), 'difficulty':difficulty.to_bytes(8, "big").hex()}
+
+  async def getversion(self):
+    leer_version, leer_codename = version.VERSION, version.CODENAME
+    return {'version':leer_version, 'codename':leer_codename}
     
  
   async def check_queue(self):

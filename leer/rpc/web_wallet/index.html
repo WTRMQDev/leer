@@ -116,6 +116,12 @@ footer {
     padding-left: 20px;
 }
 
+#version {
+    float : right;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
 #progressDiv {
     max-width: 400px;
     background-color: #aaa;
@@ -337,6 +343,16 @@ function update_connection_num() {
   basic_request("getconnectioncount",[],set_con_num);
 }
 
+function update_version() {
+  var set_version = function(ver) {
+      var cn = document.getElementById("version");
+      cn.innerHTML = "v "+ver.version + "<i style='padding-left:10px;'>" + ver.codename +"</i>"
+    } 
+  basic_request("getversion",[],set_version);
+}
+
+
+
 function update_transactions() {
   var set_transactions = function(data) {
       block_heights = Object.keys(data);
@@ -400,6 +416,7 @@ function load_wallet() {
 // 3. Check addresses
 // TODO if sync status wasn't changed there is no reason to update balance and addresses.
   update_sync_status();
+  update_version();
   update_balance();
   update_addresses();
   setInterval(update_sync_status, 500);
@@ -488,6 +505,7 @@ window.onload = load_wallet;
       
       <div id="actualprogressDiv"><span id="syncstatus">Synchronisation: -1 / -1 / -1;</span></div>
     </div>
+    <div id="version">  </div>
     
   </footer>
  </body>
