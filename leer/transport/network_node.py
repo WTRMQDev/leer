@@ -173,6 +173,9 @@ class NetworkNode:
       await self.writer.drain()
     except ConnectionResetError as e:
       asyncio.ensure_future(self._on_closed_connection(error=e))
+    except Exception as e:
+      self.logger.info("Exception during send")
+      asyncio.ensure_future(self._on_closed_connection(error=e))
 
   async def on_established_connection(self):
     '''
