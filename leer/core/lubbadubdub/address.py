@@ -1,3 +1,4 @@
+import functools
 from secp256k1_zkp import PublicKey, ALL_FLAGS
 import hashlib, base64
 
@@ -17,6 +18,7 @@ class Excess:
     def drop_cached(self):
       self.cached_pubkey = None
       self.cached_nonrec = None
+      self.serialized = None
 
     def calc_pubkey(self):
       unrelated = PublicKey(flags=ALL_FLAGS)
@@ -61,23 +63,28 @@ class Excess:
         return self.pubkey.ecdsa_verify(self.message, self.nonrec_signature)
 
     def serialize(self):
+        if self.serialized:
+          return self.serialized
         if self.version==0 and len(self.message):
           raise
 
         unrelated = PublicKey(flags=ALL_FLAGS)
         if self.version==0:
-          return unrelated.ecdsa_recoverable_serialize_raw(self.recoverable_signature)
-        if self.version==1:
+          self.serialized = unrelated.ecdsa_recoverable_serialize_raw(self.recoverable_signature)
+        elif self.version==1:
           rec_sig_serialized = unrelated.ecdsa_recoverable_serialize_raw(self.recoverable_signature)
           rec_sig_serialized = (rec_sig_serialized[0] | 128).to_bytes(1,"big") + rec_sig_serialized[1:]
           mes_serialized = len(self.message).to_bytes(2,"big")+self.message
-          return rec_sig_serialized+mes_serialized
+          self.serialized = rec_sig_serialized+mes_serialized
+        return self.serialized
 
     def deserialize_raw(self, serialized_data):
         self.drop_cached()
+        consumed = b""
         if len(serialized_data)<65:
           raise Exception("Not enough bytes to encode recovery signature")
         rec_sig, serialized_data = serialized_data[:65], serialized_data[65:]
+        consumed += rec_sig
         unrelated = PublicKey(flags=ALL_FLAGS)
         if rec_sig[0] & 128 ==0:
           self.version = 0
@@ -94,6 +101,8 @@ class Excess:
           if len(serialized_data)<mlen:
             raise Exception("Not enough bytes to encode message") 
           self.message, serialized_data = serialized_data[:mlen], serialized_data[mlen:]
+          consumed += mlen_ser+self.message
+        self.serialized = consumed
         return serialized_data      
 
     @property
@@ -107,6 +116,13 @@ class Excess:
       m=hashlib.sha256()
       m.update(self.message)
       return self.pubkey.serialize() + m.digest()
+
+    @classmethod
+    @functools.lru_cache(maxsize=40)
+    def from_serialized(cls, serialized_address):
+      address = cls()
+      address.deserialize_raw(serialized_address)
+      return address
 
 class Address(Excess):
 
