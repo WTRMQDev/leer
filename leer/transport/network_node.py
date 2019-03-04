@@ -188,7 +188,7 @@ class NetworkNode:
     if not error:
       self.logger.info("Connection is closed, stop listening_loop")
     else:
-      self.logger.error("Close connection due to error: `%s`"%(str(error)))
+      self.logger.info("Close connection due to error: `%s`"%(str(error)))
     if self.listening_loop_task:
       self.listening_loop_task.cancel()
     if self.writer:
