@@ -10,7 +10,7 @@ from leer.core.lubbadubdub.offset_utils import sum_offset
 from time import time
 from leer.core.parameters.dynamic import next_reward, next_target
 from leer.core.parameters.constants import initial_target
-
+import functools
 
 class Block():
 
@@ -46,6 +46,13 @@ class Block():
                                          self.header.height, self.header.version, rtx=rtx,\
                                          historical = True) if rich_block_format else None)
     return serialized
+
+  @classmethod
+  @functools.lru_cache(maxsize=40)
+  def from_serialized(cls, serialized_block, storage_space):
+    b = cls(storage_space=storage_space)
+    b.deserialize(serialized_block)
+    return b
 
   def deserialize(self, serialized):
     self.deserialize_raw(serialized)
@@ -216,6 +223,13 @@ class ContextBlock(Block):
     ser += int(len(reason)).to_bytes(2,'big')
     ser += reason.encode('utf-8')
     return ser
+
+  @classmethod
+  @functools.lru_cache(maxsize=40)
+  def from_serialized(cls, serialized_block, storage_space):
+    b = cls(storage_space=storage_space)
+    b.deserialize(serialized_block)
+    return b
 
   def deserialize(self, serialized):
     self.deserialize_raw(serialized)
