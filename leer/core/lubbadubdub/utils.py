@@ -1,3 +1,4 @@
+import functools
 from leer.core.lubbadubdub.offset_utils import subtract_offset
 from chacha20poly1305 import ChaCha20Poly1305
 from secp256k1_zkp import PrivateKey, PublicKey, PedersenCommitment, default_blinding_generator
@@ -43,7 +44,7 @@ def decrypt(privkey, nonce, ciphertext):
       raise Exception("Cant decrypt")
     return res
 
-
+@functools.lru_cache(maxsize=30)
 def compare_supply_and_merkle_roots(total_supply, commitment_root, excesses_root, full_offset):
   '''
     Each txout (authorized pedersen) commitment is v*H + r*G, where v is value and r is blinding key, G and H - generators.
