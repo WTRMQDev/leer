@@ -243,8 +243,7 @@ class Transaction:
       if len(serialized_tx)<ae_len:
           raise Exception("Serialized transaction doesn't contain enough bytes for additional excess %s"%_ae)
       ae_buffer, serialized_tx = serialized_tx[:ae_len], serialized_tx[ae_len:]
-      e = Excess()
-      e.deserialize_raw(ae_buffer)
+      e = Excess.from_serialized(ae_buffer)
       self.additional_excesses.append(e )
 
     for _ue in range(inputs_len):
@@ -255,8 +254,7 @@ class Transaction:
       if len(serialized_tx)<ue_len:
           raise Exception("Serialized transaction doesn't contain enough bytes for updated excess %s"%_ue)
       ue_buffer, serialized_tx = serialized_tx[:ue_len], serialized_tx[ue_len:]
-      e = Excess()
-      e.deserialize_raw(ue_buffer)
+      e = Excess.from_serialized(ae_buffer)
       #Depending on skif_verification self.inputs either contains inputs or serialized_indexes only
       if isinstance(self.inputs[_ue], bytes):
         self.updated_excesses[self.inputs[_ue]]=e        
