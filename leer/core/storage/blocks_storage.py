@@ -1,6 +1,7 @@
 from leer.core.storage.txos_storage import TXOsStorage
 from leer.core.primitives.block import Block, ContextBlock
 import shutil, os, time, lmdb, math
+import functools
 
 class BlocksStorage:
   __shared_states = {}
@@ -15,13 +16,12 @@ class BlocksStorage:
     self.storage_space.register_blocks_storage(self)
     self.download_queue = []
     
+  @functools.lru_cache(maxsize=15)
   def get(self, _hash, rtx):
     serialized_context_block = self.storage.get_by_hash(_hash, rtx=rtx)
     if not serialized_context_block:
       raise KeyError(_hash)
-    block=Block(storage_space=self.storage_space)
-    cblock = ContextBlock(block=block)
-    cblock.deserialize_raw(serialized_context_block)
+    cblock = ContextBlock.from_serialized(serialized_context_block, self.storage_space)
     return cblock
 
   def put(self, _hash, block, wtx):
