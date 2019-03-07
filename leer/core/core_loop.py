@@ -198,6 +198,7 @@ def core_loop(syncer, config):
   mining_address = None #Will be initialised at first ask
 
   def send_message(destination, message):
+    logger.debug("Sending message to %s:\t\t %s"%(str(destination), str(message)))
     if not 'id' in message:
       message['id'] = uuid4()
     if not 'sender' in message:
