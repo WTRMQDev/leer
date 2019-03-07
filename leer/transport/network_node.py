@@ -80,10 +80,10 @@ class NetworkNode:
       # TODO somehow instead of ConnectionRefused, OSError(Multiple exceptions) happens
       # should be cleared
       self.logger.info("Node (%s:%s) is not reachable `%s`"%(self.host, self.port, str(e)))
-      asyncio.ensure_future(self._on_closed_connection())
+      self._on_closed_connection()
       return
     except Exception as e:
-      asyncio.ensure_future(self._on_closed_connection(error=e))
+      self._on_closed_connection(error=e)
       return
     self.handshake.initialize('Noise_XK', prologue=b'leer', s=self.our_node.static_full_key, e=self.our_node.ephemeral_key, rs=self.static_key, re=None, initiator=True)
     try:
@@ -91,7 +91,7 @@ class NetworkNode:
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       self.logger.info("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
-      asyncio.ensure_future(self._on_closed_connection(error=e))
+      self._on_closed_connection(error=e)
     
 
   async def accept_connection(self, reader, writer):
@@ -108,7 +108,7 @@ class NetworkNode:
     except Exception as e:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       self.logger.info("Close connection due to error in handshake `%s`"%(str(e)), exc_info=True)
-      asyncio.ensure_future(self._on_closed_connection(error=e))
+      self._on_closed_connection(error=e)
 
   async def do_handshake(self):
     if not self.handshake.state in [self.handshake.STATES.WAITING_TO_WRITE, self.handshake.STATES.WAITING_TO_READ]:#wait to read or write
@@ -138,7 +138,7 @@ class NetworkNode:
             continue
         data = await self.reader.read(65536) 
         if (not data) or self.writer.transport.is_closing():
-          asyncio.ensure_future(self._on_closed_connection())
+          self._on_closed_connection()
           break
         else:
             try:
@@ -157,8 +157,10 @@ class NetworkNode:
                   result = await self.handle_message(message)
             except PartialData:
               self.partial_data=data
+            except CancelledError:
+              return
             except Exception as e:
-                asyncio.ensure_future(self._on_closed_connection(error=e))
+                self._on_closed_connection(error=e)
     except CancelledError:
       pass
 
@@ -167,15 +169,17 @@ class NetworkNode:
       message = message
       while not (self.handshake.state==self.handshake.STATES.ESTABLISHED):
         await asyncio.sleep(1)
+      while self.writer._protocol._drain_waiter:
+        await asyncio.sleep(0.03) #wait for previous send to complete
       encoded_message = self.handshake.session.encode(message)
       self.writer._transport.set_write_buffer_limits(high=0)
       self.writer.write(encoded_message)
       await self.writer.drain()
     except ConnectionResetError as e:
-      asyncio.ensure_future(self._on_closed_connection(error=e))
+      self._on_closed_connection(error=e)
     except Exception as e:
       self.logger.info("Exception during send")
-      asyncio.ensure_future(self._on_closed_connection(error=e))
+      self._on_closed_connection(error=e)
 
   async def on_established_connection(self):
     '''
@@ -183,7 +187,7 @@ class NetworkNode:
     '''
     pass
 
-  async def _on_closed_connection(self, error=None):
+  def _on_closed_connection(self, error=None):
     self.connected = False
     if not error:
       self.logger.info("Connection is closed, stop listening_loop")
