@@ -495,6 +495,8 @@ def core_loop(syncer, config):
             block_height = storage_space.headers_storage.get(block_hash, rtx=rtx).height
             if block_height<lowest_height:
               lowest_height = block_height
+        if not len(to_be_downloaded):
+          continue #We are good, blocks are already downloaded
         already_asked_nodes = message["already_asked_nodes"]
         asked = False
         for node_params in nodes:
