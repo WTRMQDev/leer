@@ -17,18 +17,24 @@ class Node(NetworkNode):
   async def on_established_connection(self):
     self.logger.info("Connection is established")
     print("Connection with %s:%s is established"%(self.host, self.port))
-    await self.send(inv_message_id["init"] + self.our_node.serialize_params())
+    init_send = await self.send(inv_message_id["init"] + self.our_node.serialize_params())
+    if not init_send:
+      self._on_closed_connection(error="Cant send init message")
+      return
     await asyncio.sleep(0.2)
-    await self.send(inv_message_id["give nodes"])
+    give_nodes_send = await self.send(inv_message_id["give nodes"])
+    if not give_nodes_send:
+      self._on_closed_connection(error="Cant send give nodes message")
+      return
     self.ping_loop_task = asyncio.ensure_future(self.ping_loop())
     self.peer_exchange_loop_task = asyncio.ensure_future(self.peer_exchange_loop())
 
   async def on_closed_connection(self):
-    await self.message_handler(self,'close', b'\x00')
     if self.ping_loop_task:
       self.ping_loop_task.cancel()
     if self.peer_exchange_loop_task:
       self.peer_exchange_loop_task.cancel()
+    await self.message_handler(self,'close', b'\x00')
 
   async def ping_loop(self):
     try:
