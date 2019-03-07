@@ -177,9 +177,12 @@ class NetworkNode:
       await self.writer.drain()
     except ConnectionResetError as e:
       self._on_closed_connection(error=e)
+      return False
     except Exception as e:
       self.logger.info("Exception during send")
       self._on_closed_connection(error=e)
+      return False
+    return True
 
   async def on_established_connection(self):
     '''
