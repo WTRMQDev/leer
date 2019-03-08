@@ -83,39 +83,45 @@ def wallet(syncer, config):
         tx.deserialize(message['tx'], rtx=None, skip_verification=True) #skip_verification allows us to not provide rtx
         block_height = message['height']
         last_time_updated = None
-        for index in tx.inputs:
-          if km.is_unspent(index): #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
-            km.spend_output(index, block_height)
-            last_time_updated = time()
-        for _o in tx.outputs:
-          if km.is_owned_pubkey(_o.address.pubkey.serialize()): #TODO mass checks
-            km.add_output(_o, block_height)
-            last_time_updated = time()
-          if km.is_saved(_o):
-            km.register_processed_output(_o.serialized_index, block_height)
+        with km.disc_txn(write = True) as w_txn:
+          for index in tx.inputs:
+            #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
+            if km.is_unspent(index, r_txn=w_txn):
+              km.spend_output(index, block_height, w_txn=w_txn)
+              last_time_updated = time()
+          for _o in tx.outputs:
+            if km.is_owned_pubkey(_o.address.pubkey.serialize(), r_txn=w_txn):
+              km.add_output(_o, block_height, w_txn=w_txn)
+              last_time_updated = time()
+            if km.is_saved(_o, r_txn=w_txn):
+              km.register_processed_output(_o.serialized_index, block_height, w_txn=w_txn)
         if last_time_updated:
           notify('last wallet update', last_time_updated)
       if message['action']=="process rollback":
         rollback = message['rollback_object']
         block_height = message['block_height']
-        km.rollback(block_height)
+        with km.disc_txn(write = True) as w_txn:
+          km.rollback(block_height, w_txn=w_txn)
         last_time_updated = time()
         notify('last wallet update', last_time_updated)
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
       if message['action']=="give new taddress":
-        address = km.new_address()
+        with km.disc_txn(write = True) as w_txn:
+          address = km.new_address(w_txn)
         response = {"id": message["id"], "result": address.to_text()}
         syncer.queues[message['sender']].put(response)
       if message['action']=="give new address":
-        address = km.new_address()
+        with km.disc_txn(write = True) as w_txn:
+          address = km.new_address(w_txn)
         response = {"id": message["id"], "result": address.serialize()}
         syncer.queues[message['sender']].put(response)
       if message['action']=="get confirmed balance stats":
         response = {"id": message["id"]}
         try:
           height = get_height()
-          stats = km.get_confirmed_balance_stats(height)
+          with km.disc_txn(write = False) as r_txn:
+            stats = km.get_confirmed_balance_stats(height, r_txn)
           response["result"] = stats
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
@@ -126,7 +132,8 @@ def wallet(syncer, config):
         response = {"id": message["id"]}
         try:
           height = get_height()
-          stats = km.get_confirmed_balance_list(height)
+          with km.disc_txn(write = True) as r_txn:
+            stats = km.get_confirmed_balance_list(height, r_txn)
           response["result"] = stats
         except KeyError:
           response["result"] = "error: core_loop didn't set height yet"
@@ -140,7 +147,8 @@ def wallet(syncer, config):
       if message['action']=="give last transactions info":
         response = {"id": message["id"]}
         num = int(message["num"])
-        response["result"] = km.give_transactions(num)
+        with km.disc_txn(write = False) as r_txn:
+          response["result"] = km.give_transactions(num, r_txn)
         syncer.queues[message['sender']].put(response) 
         continue
       if message['action']=="generate tx":
@@ -161,32 +169,32 @@ def wallet(syncer, config):
            response["error"] = str(e)
            syncer.queues[message['sender']].put(response)
            continue
-        _list = km.get_confirmed_balance_list(current_height)
-        list_to_spend = []
-        summ = 0 
-        utxos = []
-        for address in _list:
-            for texted_index in _list[address]:
-              if summ>value+100000000: #TODO fee here
-                continue
-              if isinstance(_list[address][texted_index], int):
-                _index = base64.b64decode(texted_index.encode())
-                ser_priv, ser_blinding, apc = km.get_output_private_data(_index)
-                priv = PrivateKey(ser_priv, raw=True)
-                blinding = PrivateKey(ser_blinding, raw=True)
-                utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
-                summ+=_list[address][texted_index]
-        if summ < value:
-            response["result"] = "error"
-            response["error"] = "Not enough matured coins"
-            syncer.queues[message['sender']].put(response)
-            continue
-
-        tx = Transaction(None, None)
-        tx.add_destination((a, value, True))
-        tx.blindly_generate(km.new_address(), utxos, config["fee_policy"].get("generate_fee_per_kb", 3000))        
-        km.save_generated_transaction(tx)
-        response["result"]=tx.serialize()
-        syncer.queues[message['sender']].put(response)
+        with km.disc_txn(write = True) as w_txn:
+          _list = km.get_confirmed_balance_list(current_height, r_txn=w_txn)
+          list_to_spend = []
+          summ = 0 
+          utxos = []
+          for address in _list:
+              for texted_index in _list[address]:
+                if summ>value+100000000: #TODO fee here
+                  continue
+                if isinstance(_list[address][texted_index], int):
+                  _index = base64.b64decode(texted_index.encode())
+                  ser_priv, ser_blinding, apc = km.get_output_private_data(_index, r_txn = w_txn)
+                  priv = PrivateKey(ser_priv, raw=True)
+                  blinding = PrivateKey(ser_blinding, raw=True)
+                  utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
+                  summ+=_list[address][texted_index]
+          if summ < value:
+              response["result"] = "error"
+              response["error"] = "Not enough matured coins"
+              syncer.queues[message['sender']].put(response)
+              continue
+          tx = Transaction(None, None)
+          tx.add_destination((a, value, True))
+          tx.blindly_generate(km.new_address(w_txn), utxos, config["fee_policy"].get("generate_fee_per_kb", 3000))        
+          km.save_generated_transaction(tx, w_txn)
+          response["result"]=tx.serialize()
+          syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
         return

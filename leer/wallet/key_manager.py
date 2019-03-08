@@ -17,96 +17,96 @@ class KeyManagerClass:
     #  m.update(password_bytes)
     #  self.privkey = Privkey(m.digest(), raw=True)
     self.wallet = DiscWallet(dir_path=path)
+    self.disc_txn = self.wallet.env.begin
 
-  def new_address(self):
+  def new_address(self, w_txn):
     prk=PrivateKey()
-    self.wallet.add_privkey_to_pool(prk.pubkey.serialize(), prk.private_key)
-    privkey = PrivateKey(self.wallet.get_privkey_from_pool(), raw=True)
+    self.wallet.add_privkey_to_pool(prk.pubkey.serialize(), prk.private_key, w_txn)
+    privkey = PrivateKey(self.wallet.get_privkey_from_pool(w_txn), raw=True)
     return address_from_private_key(privkey) 
 
-  def priv_by_pub(self, pubkey):
-    raw_priv = self.wallet.get_privkey(pubkey.serialize())
+  def priv_by_pub(self, pubkey, r_txn):
+    raw_priv = self.wallet.get_privkey(pubkey.serialize(), r_txn)
     if not raw_priv:
       raise KeyError("Private key not in the wallet")
     return PrivateKey(raw_priv, raw=True)
 
-  def priv_and_pub_by_output_index(self, output_index):
-       return self.wallet.get_priv_and_pub_by_output_index(output_index)
+  def priv_and_pub_by_output_index(self, output_index, r_txn):
+       return self.wallet.get_priv_and_pub_by_output_index(output_index, r_txn)
 
-  def get_output_private_data(self, output_index):
-     return self.wallet.get_output_private_data(output_index)
+  def get_output_private_data(self, output_index, r_txn):
+     return self.wallet.get_output_private_data(output_index, r_txn)
 
-  def priv_by_address(self, address):
-    raw_priv = self.wallet.get_privkey(address.pubkey.serialize())
+  def priv_by_address(self, address, r_txn):
+    raw_priv = self.wallet.get_privkey(address.pubkey.serialize(), r_txn)
     if not raw_priv:
       raise KeyError("Private key not in the wallet")
     return PrivateKey(raw_priv, raw=True)
 
-  def add_privkey(self, privkey):
-    self.wallet.put(privkey.pubkey.serialize(), privkey.private_key)
+  def add_privkey(self, privkey, w_txn):
+    self.wallet.put(privkey.pubkey.serialize(), privkey.private_key, w_txn)
 
-  def fill_pool(self, keys_number=100):
+  def fill_pool(self, w_txn, keys_number=100):
     for _ in range(keys_number):
      prk=PrivateKey()
-     self.wallet.add_privkey_to_pool(prk.pubkey.serialize(), prk.private_key)
+     self.wallet.add_privkey_to_pool(prk.pubkey.serialize(), prk.private_key, w_txn)
 
-  @property
-  def pool_size(self):
-    raw_pool_size = self.wallet.get_pool_size()
-    if raw_pool_size:
-      return int.from_bytes(self.wallet.get_pool_size(), "big") 
-    else: #NoneType
-      return 0
+  #@property
+  #def pool_size(self):
+  #  raw_pool_size = self.wallet.get_pool_size()
+  #  if raw_pool_size:
+  #    return int.from_bytes(self.wallet.get_pool_size(), "big") 
+  #  else: #NoneType
+  #    return 0
 
-  def is_unspent(self, output_index):
+  def is_unspent(self, output_index, r_txn):
     '''
       Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
     '''
     try:
-      self.wallet.get_output(output_index)
+      self.wallet.get_output(output_index, r_txn)
       return True
     except KeyError:
       return False
 
-  def is_owned_pubkey(self, serialized_pubkey):
-    pk = self.wallet.get_privkey(serialized_pubkey)
+  def is_owned_pubkey(self, serialized_pubkey, r_txn):
+    pk = self.wallet.get_privkey(serialized_pubkey, r_txn)
     if not pk:
       return False
     return True
 
-  def spend_output(self, index, spend_height):
-    self.wallet.spend_output(index,spend_height)
+  def spend_output(self, index, spend_height, w_txn):
+    self.wallet.spend_output(index,spend_height, w_txn)
 
-  def add_output(self, output, block_height):
+  def add_output(self, output, block_height, w_txn):
     index = output.serialized_index
     pubkey = output.address.serialized_pubkey
     taddress = output.address.to_text().encode()
     output.detect_value(inputs_info = 
          {'priv_by_pub':{
-                           pubkey : self.priv_by_address(output.address)
+                           pubkey : self.priv_by_address(output.address, r_txn=w_txn)
                         }
          }) 
     value = output.value
     self.wallet.put_output(index, (block_height, output.lock_height, value,
                                    output.blinding_key.private_key,
-                                   output.serialized_apc, taddress))
-    self.wallet.put_pubkey_output_assoc(pubkey, index)
+                                   output.serialized_apc, taddress), w_txn)
+    self.wallet.put_pubkey_output_assoc(pubkey, index, w_txn)
 
-  def rollback(self, block_height):
-    self.wallet.remove_all_actions_in_last_block(block_height)
-    self.wallet.remove_all_outputs_created_in_block(block_height)
-    self.wallet.restore_all_outputs_spent_in_block(block_height)
+  def rollback(self, block_height, w_txn):
+    self.wallet.remove_all_actions_in_last_block(block_height, w_txn)
+    self.wallet.remove_all_outputs_created_in_block(block_height, w_txn)
+    self.wallet.restore_all_outputs_spent_in_block(block_height, w_txn)
 
-  def get_confirmed_balance_stats(self, current_height):
+  def get_confirmed_balance_stats(self, current_height, r_txn):
     stats = {
               'matured': {'known_value':0, 'known_count':0, 'unknown_count':0},
               'immatured': {'known_value':0, 'known_count':0, 'unknown_count':0}
             }
-    with self.wallet.env.begin(write=False) as txn:
-      cursor = txn.cursor(db=self.wallet.pubkey_index)
-      for pubkey, output_index  in cursor.iternext(values=True):
+    cursor = r_txn.cursor(db=self.wallet.pubkey_index)
+    for pubkey, output_index  in cursor.iternext(values=True):
         try:
-          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index)
+          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index, r_txn)
         except KeyError:
           continue #It's ok, output is already spent
         mat = None
@@ -122,13 +122,12 @@ class KeyManagerClass:
     return stats
 
     
-  def get_confirmed_balance_list(self, current_height):
+  def get_confirmed_balance_list(self, current_height, r_txn):
     ret = {}
-    with self.wallet.env.begin(write=False) as txn:
-      cursor = txn.cursor(db=self.wallet.pubkey_index)
-      for pubkey, output_index in cursor.iternext(values=True):
+    cursor = r_txn.cursor(db=self.wallet.pubkey_index)
+    for pubkey, output_index in cursor.iternext(values=True):
         try:
-          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index)
+          created_height, lock_height, value, bk, apc, taddress = self.wallet.get_output(output_index, r_txn)
         except KeyError:
           continue #It's ok, output is already spent
         taddress = taddress.decode()
@@ -143,10 +142,10 @@ class KeyManagerClass:
             ret[taddress][texted_index]='unknown'      
     return ret
 
-  def give_transactions(self, n):
-    return self.wallet.generate_transaction_dict(n=n)
+  def give_transactions(self, n, r_txn):
+    return self.wallet.generate_transaction_dict(n=n, r_txn=r_txn)
 
-  def save_generated_transaction(self, tx):
+  def save_generated_transaction(self, tx, w_txn):
     '''
       Save transaction generated by wallet, thus then this tx will be found in block
       wallet will note outgoing payment.
@@ -156,20 +155,20 @@ class KeyManagerClass:
       params = \
         0, o.lock_height, o.value, o.blinding_key.private_key,\
         o.serialized_apc, o.address.to_text().encode()
-      self.wallet.put_outgoing_output(output_index, params)
+      self.wallet.put_outgoing_output(output_index, params, w_txn)
 
-  def is_saved(self, output):
+  def is_saved(self, output, r_txn):
     try:
-      self.wallet.get_outgoing_output(output.serialized_index)
+      self.wallet.get_outgoing_output(output.serialized_index, r_txn)
       return True
     except KeyError:
       return False
 
-  def register_processed_output(self, output_index, block_height):
-    self.wallet.register_processed_output(output_index)
-    params = list(self.wallet.get_outgoing_output(output_index))
+  def register_processed_output(self, output_index, block_height, w_txn):
+    self.wallet.register_processed_output(output_index, w_txn)
+    params = list(self.wallet.get_outgoing_output(output_index, r_txn=w_txn))
     params[0] = block_height
-    self.wallet.put_outgoing_output(output_index, params)
+    self.wallet.put_outgoing_output(output_index, params, w_txn)
     
 
 def _(x):
@@ -277,237 +276,165 @@ class DiscWallet:
 
 
 
-  def get_pool_prop(self, prop, txn = None):
-    if not txn:
-      with self.env.begin(write=False) as txn:
-        return self.get_pool_prop(prop, txn)
+  def get_pool_prop(self, prop, r_txn):
+    return r_txn.get( prop, db=self.pool) 
+
+  def get_pool_size(self, r_txn):
+    return self.get_pool_prop(b'size', r_txn=r_txn)
+
+  def get_pool_current(self, r_txn):
+    return self.get_pool_prop(b'current', r_txn=r_txn)
+
+  def get_pool_top(self, r_txn):
+    return self.get_pool_prop(b'top', r_txn=r_txn)
+
+  def set_pool_prop(self, prop, value, w_txn):
+    if not value==None:
+        return w_txn.put( prop, value.to_bytes(4,'big'), db=self.pool) 
     else:
-      return txn.get( prop, db=self.pool) 
+        return w_txn.delete( prop, db=self.pool) 
 
-  def get_pool_size(self,txn=None):
-    return self.get_pool_prop(b'size', txn=txn)
+  def set_pool_size(self, value, w_txn):
+    return self.set_pool_prop(b'size', value, w_txn=w_txn)
 
-  def get_pool_current(self,txn=None):
-    return self.get_pool_prop(b'current', txn=txn)
+  def set_pool_current(self, value, w_txn):
+    return self.set_pool_prop(b'current', value, w_txn=w_txn)
 
-  def get_pool_top(self,txn=None):
-    return self.get_pool_prop(b'top', txn=txn)
+  def set_pool_top(self, value, w_txn):
+    return self.set_pool_prop(b'top', value, w_txn=w_txn)
 
-  def set_pool_prop(self, prop, value, txn = None):
-    if not txn:
-      with self.env.begin(write=True) as txn:
-        return self.set_pool_prop(prop, value)
-    else:
-      if not value==None:
-        return txn.put( prop, value.to_bytes(4,'big'), db=self.pool) 
-      else:
-        return txn.delete( prop, db=self.pool) 
-
-  def set_pool_size(self, value, txn=None):
-    return self.set_pool_prop(b'size', value, txn=txn)
-
-  def set_pool_current(self, value, txn=None):
-    return self.set_pool_prop(b'current', value, txn=txn)
-
-  def set_pool_top(self, value, txn=None):
-    return self.set_pool_prop(b'top', value, txn=txn)
-
-
-
-  def put(self, serialized_pubkey, serialized_privkey, txn=None):
-    if not txn:
-      with self.env.begin(write=True) as txn:
-        return self.put(serialized_pubkey, serialized_privkey, txn=txn)
-    else:
-      p1=txn.put( bytes(serialized_pubkey), bytes(serialized_privkey), db=self.main_db)    
+  def put(self, serialized_pubkey, serialized_privkey, w_txn):
+    p1=w_txn.put( bytes(serialized_pubkey), bytes(serialized_privkey), db=self.main_db)    
   
 
-  def put_output(self, output_index, output_params, txn=None):
-    if not txn:
-      with self.env.begin(write=True) as txn:
-        return self.put_output(output_index, output_params, txn=txn)
-    else:     
-      p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)  
-      self.add_block_new_output_association(output_params[0], output_index, w_txn=txn)  
-      txn.put( _(self.last_action_num()), RECEIVED+bytes(output_index), db=self.actions_list)
-      self.bump_action_num(w_txn=txn)
+  def put_output(self, output_index, output_params, w_txn):
+    p1=w_txn.put( bytes(output_index), serialize_output_params(output_params), db=self.output)  
+    self.add_block_new_output_association(output_params[0], output_index, w_txn=w_txn)  
+    w_txn.put( _(self.last_action_num(r_txn=w_txn)), RECEIVED+bytes(output_index), db=self.actions_list)
+    self.bump_action_num(w_txn=w_txn)
 
-  def put_outgoing_output(self, output_index, output_params):
-    with self.env.begin(write=True) as txn:
-      p1=txn.put( bytes(output_index), serialize_output_params(output_params), db=self.generated_outputs)    
+  def put_outgoing_output(self, output_index, output_params, w_txn):
+    w_txn.put( bytes(output_index), serialize_output_params(output_params), db=self.generated_outputs)    
 
-  def register_processed_output(self, output_index):
-    with self.env.begin(write=True) as txn:
-      txn.put( _(self.last_action_num()), SENT+bytes(output_index), db=self.actions_list)
-      self.bump_action_num(w_txn=txn)
+  def register_processed_output(self, output_index, w_txn):
+    w_txn.put( _(self.last_action_num(r_txn=w_txn)), SENT+bytes(output_index), db=self.actions_list)
+    self.bump_action_num(w_txn=w_txn)
 
-  def get_output(self, output_index, txn=None):
-    if not txn:
-      with self.env.begin(write=False) as txn:
-        return self.get_output(output_index, txn=txn)
-    else:     
-      output_params = txn.get( bytes(output_index), db=self.output)    
+  def get_output(self, output_index, r_txn):
+    output_params = r_txn.get( bytes(output_index), db=self.output)    
+    if not output_params:
+       raise KeyError
+    else:
+      return deserialize_output_params( output_params)
 
-      if not output_params:
-         raise KeyError
+  def get_outgoing_output(self, output_index, r_txn):
+    output_params = r_txn.get( bytes(output_index), db=self.generated_outputs)    
+    if not output_params:
+       raise KeyError
+    else:
+      return deserialize_output_params( output_params)
+
+  def pop_ser_output(self, output_index, w_txn):
+    output_params = w_txn.pop( bytes(output_index), db=self.output)    
+    if not output_params:
+       raise KeyError
+    else:
+      return output_params
+
+  def spend_output(self, output_index, block_height, w_txn):
+    ser_output = self.pop_ser_output(output_index, w_txn=w_txn) # KeyError exception may be thrown here
+    ser_spent_output = repack_ser_output_to_spent(ser_output, block_height)
+    p1=w_txn.put( bytes(output_index), ser_spent_output, db=self.spent) 
+    w_txn.put( _(self.last_action_num(r_txn=w_txn)), SPENT+bytes(output_index), db=self.actions_list)
+    self.bump_action_num(w_txn=w_txn)
+
+  def unspend_output(self, output_index, w_txn):
+    ser_spent_output = w_txn.pop( bytes(output_index), w_txn=w_txn)
+    if not ser_spent_output:
+      raise KeyError
+    ser_output = repack_ser_spent_output_to_unspent(ser_spent_output)
+    p1=w_txn.put( bytes(output_index), ser_output, db=self.output) # TODO self.put_output?
+
+  def get_spent_output(self, output_index, r_txn):
+    output_params = r_txn.get( bytes(output_index), db=self.spent)    
+    if not output_params:
+       raise KeyError
+    else:
+      return deserialize_spent_output_params( output_params)
+
+
+  def get_privkey_from_pool(self, w_txn):
+      '''
+        Privkey will be immideately removed from the pool.
+      '''
+      # pool is integer->pubkey key_value
+      current = self.get_pool_current(r_txn=w_txn)
+      if not current:
+        raise Exception("Pool is empty")
+      privkey = w_txn.get( w_txn.get(current, db=self.pool), db=self.main_db)
+      current_int = int.from_bytes(current, 'big')
+      top_int = int.from_bytes(self.get_pool_top(r_txn=w_txn), 'big')
+      if current_int < top_int:
+        self.set_pool_current(current_int+1, r_txn=w_txn)
       else:
-        return deserialize_output_params( output_params)
-
-  def get_outgoing_output(self, output_index, r_txn=None):
-    if not r_txn:
-      with self.env.begin(write=False) as r_txn:
-        return self.get_outgoing_output(output_index, r_txn=r_txn)
-    else:     
-      output_params = r_txn.get( bytes(output_index), db=self.generated_outputs)    
-      if not output_params:
-         raise KeyError
-      else:
-        return deserialize_output_params( output_params)
-
-  def pop_ser_output(self, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.pop_ser_output(output_index, w_txn=w_txn)
-    else:     
-      output_params = w_txn.pop( bytes(output_index), db=self.output)    
-      if not output_params:
-         raise KeyError
-      else:
-        return output_params
-
-  def spend_output(self, output_index, block_height, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        self.spend_output(output_index, block_height, w_txn=w_txn)
-    else:     
-      ser_output = self.pop_ser_output(output_index, w_txn=w_txn) # KeyError exception may be thrown here
-      ser_spent_output = repack_ser_output_to_spent(ser_output, block_height)
-      p1=w_txn.put( bytes(output_index), ser_spent_output, db=self.spent) 
-      w_txn.put( _(self.last_action_num()), SPENT+bytes(output_index), db=self.actions_list)
-      self.bump_action_num(w_txn=w_txn)
-
-  def unspend_output(self, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        self.unspend_output(output_index, w_txn=w_txn)
-    else:     
-      ser_spent_output = w_txn.pop( bytes(output_index), w_txn=w_txn)
-      if not ser_spent_output:
-        raise KeyError
-      ser_output = repack_ser_spent_output_to_unspent(ser_spent_output)
-      p1=w_txn.put( bytes(output_index), ser_output, db=self.output) # TODO self.put_output?
-
-  def get_spent_output(self, output_index, txn=None):
-    if not txn:
-      with self.env.begin(write=False) as txn:
-        return self.get_output(output_index, txn=txn)
-    else:     
-      output_params = txn.get( bytes(output_index), db=self.spent)    
-      if not output_params:
-         raise KeyError
-      else:
-        return deserialize_spent_output_params( output_params)
-
-
-  def get_privkey_from_pool(self):
-    '''
-      Privkey will be immideately removed from the pool.
-    '''
-    with self.env.begin(write=True) as txn:
-        # pool is integer->pubkey key_value
-        current = self.get_pool_current(txn=txn)
-        if not current:
-          raise Exception("Pool is empty")
-        privkey = txn.get( txn.get(current, db=self.pool), db=self.main_db)
-        current_int = int.from_bytes(current, 'big')
-        top_int = int.from_bytes(self.get_pool_top(txn=txn), 'big')
-        if current_int < top_int:
-          self.set_pool_current(current_int+1, txn=txn)
-        else:
-          self.set_pool_current(None, txn=txn)
-        self.set_pool_size(int.from_bytes(self.get_pool_size(txn=txn), 'big')-1, txn=txn)
-        return privkey
+        self.set_pool_current(None, w_txn=w_txn)
+      self.set_pool_size(int.from_bytes(self.get_pool_size(r_txn=w_txn), 'big')-1, w_txn=w_txn)
+      return privkey
         
 
-  def add_privkey_to_pool(self, serialized_pubkey, serialized_privkey):
-    with self.env.begin(write=True) as txn:
-      self.put(serialized_pubkey, serialized_privkey, txn=txn)
-      pool_current = self.get_pool_current(txn=txn)
-      if pool_current == None:
-         self.set_pool_size(1, txn=txn)
-         pool_current = b"\x00\x00\x00\x00"
-         current = 0
-         self.set_pool_current(current, txn=txn)
-         self.set_pool_top(current, txn=txn)
-      else:
-         self.set_pool_size(int.from_bytes(self.get_pool_size(txn=txn),"big")+1, txn=txn)
-         self.set_pool_top(int.from_bytes(self.get_pool_top(txn=txn),"big")+1, txn=txn)
-      txn.put( self.get_pool_top(txn=txn), serialized_pubkey, db=self.pool)  
+  def add_privkey_to_pool(self, serialized_pubkey, serialized_privkey, w_txn):
+    self.put(serialized_pubkey, serialized_privkey, w_txn=w_txn)
+    pool_current = self.get_pool_current(r_txn=w_txn)
+    if pool_current == None:
+       self.set_pool_size(1, w_txn=w_txn)
+       pool_current = b"\x00\x00\x00\x00"
+       current = 0
+       self.set_pool_current(current, w_txn=w_txn)
+       self.set_pool_top(current, w_txn=w_txn)
+    else:
+       self.set_pool_size(int.from_bytes(self.get_pool_size(r_txn=w_txn),"big")+1, w_txn=w_txn)
+       self.set_pool_top(int.from_bytes(self.get_pool_top(r_txn=w_txn),"big")+1, w_txn=w_txn)
+    w_txn.put( self.get_pool_top(r_txn=w_txn), serialized_pubkey, db=self.pool)  
 
 
-  def get_privkey(self, serialized_pubkey):
+  def get_privkey(self, serialized_pubkey, r_txn):
     '''
       Note: Being get by pubkey, key pair is not checked wether it was in the pool or not.
     '''
-    with self.env.begin(write=False) as txn:
-      return txn.get(serialized_pubkey, db=self.main_db)
+    return r_txn.get(serialized_pubkey, db=self.main_db)
     #TODO if no such serialized_pubkey KeyError should be raised here
 
-  def add_block_spent_output_association(self, block_height, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.add_block_spent_output_association(block_height, output_index, w_txn)
-    else:   
-      w_txn.put( _(block_height), b"\x01"+output_index, db=self.block_index, dupdata=True)
+  def add_block_spent_output_association(self, block_height, output_index, w_txn):
+    w_txn.put( _(block_height), b"\x01"+output_index, db=self.block_index, dupdata=True)
         
 
-  def add_block_new_output_association(self, block_height, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.add_block_new_output_association(block_height, output_index, w_txn)
-    else:     
-      w_txn.put( _(block_height), b"\x00"+output_index, db=self.block_index, dupdata=True)
+  def add_block_new_output_association(self, block_height, output_index, w_txn):
+    w_txn.put( _(block_height), b"\x00"+output_index, db=self.block_index, dupdata=True)
 
 
-  def remove_block_spent_output_association(self, block_height, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.remove_block_spent_output_association(block_height, output_index, w_txn)
-    else:     
-      w_txn.delete( _(block_height), b"\x01"+output_index, db=self.block_index)
+  def remove_block_spent_output_association(self, block_height, output_index, w_txn):
+    w_txn.delete( _(block_height), b"\x01"+output_index, db=self.block_index)
 
 
-  def remove_block_new_output_association(self, block_height, output_index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.remove_block_new_output_association(block_height, output_index, w_txn)
-    else:     
-      w_txn.delete( _(block_height), b"\x00"+output_index, db=self.block_index)
+  def remove_block_new_output_association(self, block_height, output_index, w_txn):
+    w_txn.delete( _(block_height), b"\x00"+output_index, db=self.block_index)
 
 
-  def remove_all_outputs_created_in_block(self, block_height, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.remove_all_outputs_created_in_block(block_height, w_txn)
-    else: 
-      cursor = w_txn.cursor(db=self.block_index)
-      if not cursor.set_key(_(block_height)):
-        return #It's okay, block doesn't contain anything related to our wallet
-      for assoc in cursor.iternext_dup():
-        if assoc[:1] == b"\x00":
-          self.pop_ser_output(assoc[1:], w_txn=w_txn)
-          self.remove_block_new_output_association(block_height, assoc[1:], w_txn=w_txn)
+  def remove_all_outputs_created_in_block(self, block_height, w_txn):
+    cursor = w_txn.cursor(db=self.block_index)
+    if not cursor.set_key(_(block_height)):
+      return #It's okay, block doesn't contain anything related to our wallet
+    for assoc in cursor.iternext_dup():
+      if assoc[:1] == b"\x00":
+        self.pop_ser_output(assoc[1:], w_txn=w_txn)
+        self.remove_block_new_output_association(block_height, assoc[1:], w_txn=w_txn)
       #NOTE: last n actions can also contain spent outputs, so remove_all_outputs_created_in_block call
       # without restore_all_outputs_spent_in_block call is unsafe
       #self.remove_last_actions(n=len(output_list), w_txn=w_txn)
           
 
 
-  def restore_all_outputs_spent_in_block(self, block_height, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.restore_all_outputs_spent_in_block(block_height, w_txn)
-    else:     
+  def restore_all_outputs_spent_in_block(self, block_height, w_txn):
       cursor = w_txn.cursor(db=self.block_index)
       output_list = []
       if not cursor.set_key(_(block_height)):
@@ -535,10 +462,7 @@ class DiscWallet:
           continue
       raise KeyError
 
-  def remove_all_actions_in_last_block(self, block_height, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.remove_all_actions_in_last_block(block_height, w_txn)
+  def remove_all_actions_in_last_block(self, block_height, w_txn):
     start = current = self.last_action_num(r_txn=w_txn)    
     num = 0
     while current>0:
@@ -554,19 +478,11 @@ class DiscWallet:
       num+=1
     self.remove_last_actions(num, w_txn)  
   
-  def put_pubkey_output_assoc(self, pubkey, index, w_txn=None):
-    if not w_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.put_pubkey_output_assoc(pubkey, index, w_txn)
-    else:     
+  def put_pubkey_output_assoc(self, pubkey, index, w_txn):
       w_txn.put( pubkey, index, db=self.pubkey_index, dupdata=True)
       w_txn.put( index, pubkey, db=self.pubkey_index_reversed, dupdata=True)
 
-  def get_priv_and_pub_by_output_index(self, output_index, r_txn=None):
-    if not r_txn:
-      with self.env.begin(write=False) as r_txn:
-        return self.get_priv_and_pub_by_output_index( output_index, r_txn)
-    else:
+  def get_priv_and_pub_by_output_index(self, output_index, r_txn):
       pubkey = r_txn.get(output_index, db=self.pubkey_index_reversed)
       if not pubkey:
         raise KeyError
@@ -575,8 +491,7 @@ class DiscWallet:
         raise KeyError
       return pubkey, priv
 
-  def get_output_private_data(self, output_index):
-    with self.env.begin(write=False) as r_txn:
+  def get_output_private_data(self, output_index, r_txn):
       pubkey = r_txn.get(output_index, db=self.pubkey_index_reversed)
       if not pubkey:
         raise KeyError
@@ -591,18 +506,13 @@ class DiscWallet:
       apc = params[4]
       return priv, blinding_key, apc 
 
-  def add_sent_output(self, output, w_txn=None):
-    if not r_txn:
-      with self.env.begin(write=True) as w_txn:
-        return self.add_sent_output(output, w_txn=w_txn)
-    w_txn.put( _(self.last_action_num()), SENT+bytes(output_index), db=self.actions_list)
+  #TODO unused, remove?
+  def add_sent_output(self, output, w_txn): 
+    w_txn.put( _(self.last_action_num(r_txn=w_txn)), SENT+bytes(output_index), db=self.actions_list)
     self.bump_action_num(w_txn=w_txn)    
 
       
-  def last_action_num(self, r_txn=None):
-    if not r_txn:
-      with self.env.begin(write=False) as r_txn:
-        return self.last_action_num(r_txn=r_txn)
+  def last_action_num(self, r_txn):
     lan = r_txn.get(b'last num', db = self.actions_list)
     if not lan:
       lan = 0
@@ -621,8 +531,7 @@ class DiscWallet:
     self.bump_action_num(w_txn=w_txn, n = lan-n)
         
 
-  def generate_transaction_dict(self, n):
-    with self.env.begin(write=False) as r_txn:
+  def generate_transaction_dict(self, n, r_txn):
       txdict = {} #Each element is dict {block_num: {'output':{params}}}
       current_action = self.last_action_num(r_txn=r_txn) - 1
       while current_action>=0 and len(txdict)<n:
@@ -632,7 +541,7 @@ class DiscWallet:
         current_action-=1
         output_params = None
         try:
-          output_params = self.get_output(output_index, txn=r_txn)
+          output_params = self.get_output(output_index, r_txn=r_txn)
         except KeyError:
           try:
             output_params = self.search_output_everywhere(output_index, r_txn = r_txn, guess=action)
