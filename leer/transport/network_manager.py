@@ -24,6 +24,7 @@ class NetworkManager:
     self.loop.call_soon(self.check_global_message_queue)
     self.nodes={}
     self.reconnect_list = {}
+    self.connecting = [] # nodes that are connecting, but not connected yet
     self.server = asyncio.start_server(self.handle_connection, config['p2p']['host'], config['p2p']['port'], loop=loop)
     self.tasks = []
     self.up = True
@@ -55,7 +56,13 @@ class NetworkManager:
       host, port = host_port_tuple
       new_node_params = { 'network': {'host':host, 'port':port}, 'static_key':static_key}
       node = Node(self.our_node, new_node_params, self.loop, self.handle_message)
+      while host_port_tuple in self.connecting:
+        await asyncio.sleep(1)
+        if host_port_tuple in self.nodes:
+          return
+      self.connecting.append(host_port_tuple)
       await node.connect()
+      self.connecting.remove(host_port_tuple)
 
   async def handle_connection(self, reader, writer):
     extra_info = writer.get_extra_info('peername')
