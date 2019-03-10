@@ -31,6 +31,16 @@ class NetworkManager:
     asyncio.ensure_future(self.server, loop=loop)
     asyncio.ensure_future(self.reconnect_loop(), loop=loop)
 
+    #set logging
+    default_log_level = logging.INFO;
+    if "logging" in config:#debug, info, warning, error, critical
+      loglevels = { "debug":logging.DEBUG, "info":logging.INFO, "warning":logging.WARNING, "error":logging.ERROR, "critical":logging.CRITICAL}
+      if "base" in config["logging"] and config["logging"]["base"] in loglevels:
+        logger.setLevel(loglevels[config["logging"]["base"]])
+      if "network" in config["logging"] and config["logging"]["network"] in loglevels:
+        #its ok to rewrite
+        logger.setLevel(loglevels[config["logging"]["network"]])
+
   def load_from_disc(self):
     lspriv=self.config['p2p']['lspriv']
     s=Key(key=PrivateKey(lspriv.to_bytes(32,'big'), raw=True))

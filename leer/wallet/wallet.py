@@ -63,6 +63,16 @@ def wallet(syncer, config):
     notification_cache[key] = {'value':value, 'timestamp':timestamp}
 
 
+  #set logging
+  default_log_level = logging.INFO;
+  if "logging" in config:#debug, info, warning, error, critical
+    loglevels = { "debug":logging.DEBUG, "info":logging.INFO, "warning":logging.WARNING, "error":logging.ERROR, "critical":logging.CRITICAL}
+    if "base" in config["logging"] and config["logging"]["base"] in loglevels:
+      logger.setLevel(loglevels[config["logging"]["base"]])
+    if "wallet" in config["logging"] and config["logging"]["wallet"] in loglevels:
+      #its ok to rewrite
+      logger.setLevel(loglevels[config["logging"]["wallet"]])
+
   message_queue = syncer.queues['Wallet']
   _path = config['location']['wallet']
   km = KeyManagerClass(path=_path)

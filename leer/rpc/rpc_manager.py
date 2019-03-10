@@ -36,6 +36,14 @@ class RPCManager():
     self.requests = {}
     self.up = True
     self.logger = logging.getLogger("RPCManager")
+    default_log_level = logging.INFO;
+    if "logging" in config:#debug, info, warning, error, critical
+      loglevels = { "debug":logging.DEBUG, "info":logging.INFO, "warning":logging.WARNING, "error":logging.ERROR, "critical":logging.CRITICAL}
+      if "base" in config["logging"] and config["logging"]["base"] in loglevels:
+        self.logger.setLevel(loglevels[config["logging"]["base"]])
+      if "rpc" in config["logging"] and config["logging"]["rpc"] in loglevels:
+        #its ok to rewrite
+        self.logger.setLevel(loglevels[config["logging"]["rpc"]])
 
     rpc_manager_location = __file__
     web_wallet_dir = join(path_split(rpc_manager_location)[0], "web_wallet")

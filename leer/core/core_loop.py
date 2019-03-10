@@ -167,6 +167,16 @@ def core_loop(syncer, config):
   message_queue.put({"action":"give nodes list reminder"})
   message_queue.put({"action":"check requests cache"})
 
+  #set logging
+  default_log_level = logging.INFO;
+  if "logging" in config:#debug, info, warning, error, critical
+    loglevels = { "debug":logging.DEBUG, "info":logging.INFO, "warning":logging.WARNING, "error":logging.ERROR, "critical":logging.CRITICAL}
+    if "base" in config["logging"] and config["logging"]["base"] in loglevels:
+      logger.setLevel(loglevels[config["logging"]["base"]])
+    if "core" in config["logging"] and config["logging"]["core"] in loglevels:
+      #its ok to rewrite
+      logger.setLevel(loglevels[config["logging"]["core"]])
+
   def get_new_address(timeout=2.5): #blocking
     _id = str(uuid4())
     syncer.queues['Wallet'].put({'action':'give new address', 'id':_id, 'sender': "Blockchain"})
