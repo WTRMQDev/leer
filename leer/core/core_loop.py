@@ -347,18 +347,16 @@ def core_loop(syncer, config):
           if not mining_address:
             mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            if "mining" in config and "allow" in config["mining"]:
-              if config["mining"]["allow"] == "always":
-                pass
-              elif config["mining"]["allow"] == "connected":
+            if "mining" in config and "conditions" in config["mining"]:
+              if "connected" in config["mining"]["conditions"]:
                 if not len(nodes):
                   raise Exception("Cant start mining with zero connections")
-              elif config["mining"]["allow"] == "synced_headers":
+              if "synced_headers" in config["mining"]["conditions"]:
                 best_block, best_header = storage_space.blockchain.current_height(rtx=wtx),\
                                           storage_space.headers_manager.best_header_height
                 if best_block<best_header:
                   raise Exception("Cant start mining while best block %d worse than best known header %d"%(best_block, best_header))
-              elif config["mining"]["allow"] == "synced_advertised":
+              if "synced_advertised" in config["mining"]["conditions"]:
                 best_block, best_advertised_height = storage_space.blockchain.current_height(rtx=wtx),\
                                                      max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
                 if best_block<best_advertised_height:
@@ -375,18 +373,16 @@ def core_loop(syncer, config):
           if not mining_address:
             mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            if "mining" in config and "allow" in config["mining"]:
-              if config["mining"]["allow"] == "always":
-                pass
-              elif config["mining"]["allow"] == "connected":
+            if "mining" in config and "conditions" in config["mining"]:
+              if "connected" in config["mining"]["conditions"]:
                 if not len(nodes):
                   raise Exception("Cant start mining with zero connections")
-              elif config["mining"]["allow"] == "synced_headers":
+              if "synced_headers" in config["mining"]["conditions"]:
                 best_block, best_header = storage_space.blockchain.current_height(rtx=wtx),\
                                           storage_space.headers_manager.best_header_height
                 if best_block<best_header:
                   raise Exception("Cant start mining while best block %d worse than best known header %d"%(best_block, best_header))
-              elif config["mining"]["allow"] == "synced_advertised":
+              if "synced_advertised" in config["mining"]["conditions"]:
                 best_block, best_advertised_height = storage_space.blockchain.current_height(rtx=wtx),\
                                                      max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
                 if best_block<best_advertised_height:
