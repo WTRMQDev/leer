@@ -16,7 +16,11 @@ Currently works only on linux.
 `pip3 install leer`
 
 ## Run node
-Download [start script](https://github.com/WTRMQDev/leer/blob/master/scripts/start_node.py), adjust config and run. Web interface should be available on configured rpc port.
+Download [config.json](https://github.com/WTRMQDev/leer/blob/master/scripts/example_config.json) and adjust config (file extension doesn't matter). It is necessary to insert login and password in double quotes into config.
+
+Run node: open terminal and run `python3 -m leer path/to/config`
+
+After start web interface will be available on configured rpc port (open in browser address `host:port`, for default config it is `127.0.0.1:9238`).
 
 ## Run testnet miner
 Download [miner script](https://github.com/WTRMQDev/leer/blob/master/scripts/miner.py), adjust config (host and port) and run.
