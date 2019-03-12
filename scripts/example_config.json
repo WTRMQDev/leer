@@ -1,0 +1,58 @@
+{
+      "p2p":{
+          "host":"0.0.0.0", 
+          "port": 8888, 
+          "lspriv_file": "~/.leertest/p2p_key", #File which contain local privkey as long integer
+          "advertised_host": "autodetect" #Either ip, or 'autodetect' option
+         },
+      "rpc":{
+          "host":"0.0.0.0", 
+          "port": 9238,
+          "login": INSERT_LOGIN_HERE, #login should be inserted inside double quotes
+          "password": INSERT_PASSWORD_HERE #login should be inserted inside double quotes
+         },
+      "location": {
+             "basedir": "~/.leertest4" ,
+             "wallet": "~/.leertestwallet4"
+            },
+      "bootstrap_nodes": [
+                {
+                 "host":"95.179.147.141",
+                 "port":"8888",
+                 "pub":"A2cqPwj6+D4h92YmcrB6b+fpYAhX/SANdDaza3Oi1gZl"
+                },
+                {
+                 "host":"185.10.68.161",
+                 "port":"8888",
+                 "pub":"AjagtssI422F/W4/ngWK9G91cZjvYFp4ru1Wxp39LXPk"
+                }
+
+               ],
+      "fee_policy": {
+              "relay_fee_per_kb": 3000, # in minimal units (1e-8 leer)
+              "generate_fee_per_kb": 3000
+             },
+      "wallet" : "on", # 'on'/'off' 
+      "mining" : {
+                   #Allowed conditions
+                   #   "connected" - allow mining if number of connected nodes more than 0
+                   #   "synced_headers" - allow mining if current block coinsides with best 
+                   #                      known header from network. Dangerous since it allows
+                   #                      malicious miner to delay block transmission and thus
+                   #                      keep everybody else from mining. Decrease chance of
+                   #                      orphans
+                   #   "synced_advertised"- allow mining if current block coinsides with best  
+                   #                      advertised block. Decreases both chances of orphan
+                   #                      generation and cost of attack described for "synced_headers"
+                   # Insert conditions into array, for instance ["connected", "synced_headers"]
+                   "conditions": [] 
+           },
+      "logging" : {
+              #debug, info, warning, error, critical
+              "base": "error",
+              "rpc": "error",
+              "network": "error",
+              "core": "info",
+              "wallet": "info"
+           }
+}
