@@ -1,3 +1,4 @@
+# Leer json config. Note anything after '#' is considered as a comment.
 {
       "p2p":{
           "host":"0.0.0.0", 
@@ -9,7 +10,7 @@
           "host":"0.0.0.0", 
           "port": 9238,
           "login": INSERT_LOGIN_HERE, #login should be inserted inside double quotes
-          "password": INSERT_PASSWORD_HERE #login should be inserted inside double quotes
+          "password": INSERT_PASSWORD_HERE #password should be inserted inside double quotes
          },
       "location": {
              "basedir": "~/.leertest4" ,
@@ -32,7 +33,7 @@
               "relay_fee_per_kb": 3000, # in minimal units (1e-8 leer)
               "generate_fee_per_kb": 3000
              },
-      "wallet" : "on", # 'on'/'off' 
+      "wallet" : true, # true/false
       "mining" : {
                    #Allowed conditions
                    #   "connected" - allow mining if number of connected nodes more than 0
