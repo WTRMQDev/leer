@@ -199,7 +199,11 @@ class MMR:
           cache[el_n] = el
         wtx.delete( _(el_n), db=self.order_db)
         wtx.delete( cache[el_n], _(el_n), db=self.reverse_order_db)
-        removed_objects.append(wtx.pop( cache[el_n], db=self.leaf_db))
+        if not wtx.get(cache[el_n], db=self.reverse_order_db):
+          obj = wtx.pop( cache[el_n], db=self.leaf_db)
+        else:
+          obj = wtx.get( cache[el_n], db=self.leaf_db)
+        removed_objects.append(obj)
         #TODO we can make this much faster for bulk deletion by not updating
         # each path separately
         for l in range(1,mxlvl+1):
