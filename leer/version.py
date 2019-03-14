@@ -1,5 +1,5 @@
-VERSION = "0.2.0"
-CODENAME = "RizzoTheRat"
+VERSION = "0.2.1"
+CODENAME = "Buccinator"
 OVERALL_DEVELOPMENT_STATUS = "Beta"
 
 P2P_TRANSPORT_STATUS = "Ready"
