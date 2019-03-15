@@ -1,4 +1,4 @@
-VERSION = "0.2.1"
+VERSION = "0.2.3"
 CODENAME = "Buccinator"
 OVERALL_DEVELOPMENT_STATUS = "Beta"
 NETSTATUS = "Testnet4"
