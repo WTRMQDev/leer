@@ -145,6 +145,11 @@ footer {
     margin-top: 10px;
     margin-bottom: 10px;
 }
+#nodes-table td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 #mynode {
    margin-top: 25px;
    margin-bottom: 10px;
@@ -309,6 +314,8 @@ function update_network_info() {
           var row = nodestable.insertRow(-1);
           node_cell = row.insertCell(0);
           node_cell.innerHTML = other_nodes[node]["host"]+":"+other_nodes[node]["port"]+"@"+other_nodes[node]["static_key"];
+          version_cell = row.insertCell();
+          version_cell.innerHTML = other_nodes[node]["version"];
         }
     } 
   basic_request("getnodes",[],set_updated_nodes );
@@ -475,6 +482,7 @@ window.onload = load_wallet;
     <table id="nodes-table">
       <tr>
        <th>Active nodes</th>
+       <th>Version</th>
       </tr>
     </table>
     </br>

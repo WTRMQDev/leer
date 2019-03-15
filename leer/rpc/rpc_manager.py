@@ -355,8 +355,9 @@ class RPCManager():
       return answer['result']
     for hp in answer['result']:
       host, port = hp
-      static_key = base64.b64encode(answer['result'][hp]).decode()
-      res.append({'host':str(host), 'port':str(port), 'static_key':static_key})
+      static_key = base64.b64encode(answer['result'][hp]['pubkey']).decode()
+      version = answer['result'][hp]['version']
+      res.append({'host':str(host), 'port':str(port), 'static_key':static_key, 'version':version})
     return res
 
   async def connecttonode(self, node_str):
