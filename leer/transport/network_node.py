@@ -7,6 +7,7 @@ from secp256k1_zkp import PrivateKey, PublicKey
 
 from lnoise import Key, HandshakeState, PartialData
 from .messages import inv_message_id
+from leer.version import NETSTATUS, CODENAME, VERSION
 
 async def tripple_read(r):
     message = await r(65536)
@@ -41,6 +42,7 @@ class NetworkNode:
       self.logger=logging.getLogger(__name__+" Node(%s,%s from (%s))"%(str(self.host),str(self.port),str(self.our_node.port)))
     else:
       self.logger=logging.getLogger(__name__+" Node(%s,%s our_node)"%(str(self.host),str(self.port)))
+      self.version = " ".join([NETSTATUS, VERSION, CODENAME ])
     self.partial_data = None
 
   def serialize_params(self):
@@ -48,7 +50,16 @@ class NetworkNode:
     ser_port = str(self.advertised_port).encode("utf-8")
     ser_static_key = self.static_key.serialize()
     result = b""
-    return len(ser_host).to_bytes(1, "big") + ser_host +len(ser_port).to_bytes(1, "big") + ser_port +len(ser_static_key).to_bytes(1, "big") + ser_static_key
+    result += len(ser_host).to_bytes(1, "big") + ser_host +\
+              len(ser_port).to_bytes(1, "big") + ser_port +\
+              len(ser_static_key).to_bytes(1, "big") + ser_static_key
+    if not self.version:
+      return result
+    ser_version = self.version.encode("utf-8")
+    if len(ser_version)>255:
+     ser_version = ser_version[:255]
+    result += len(ser_version).to_bytes(1,"big") + ser_version
+    return result
 
   def deserialize_params(self, serialized_params, remote=False):
     try:
@@ -58,12 +69,20 @@ class NetworkNode:
       ser_port, r = r[0:len_ser_port], r[len_ser_port:]
       len_ser_key, r = r[0], r[1:]
       ser_key, r = r[0:len_ser_key], r[len_ser_key:]
+      ser_version = None
+      if len(r): #Version is optional
+        len_ser_version, r = r[0], r[1:]
+        ser_version, r = r[0:len_ser_version], r[len_ser_version:]
     except:
       raise Exception("Incorrect serialized params") #TODO handle exceptions more precisely
     if remote:
       self.advertised_host = ser_host.decode('utf-8')
       self.advertised_port = int(ser_port.decode('utf-8')) # TODO try-except here
       self.advertised_static_key = PublicKey(bytes(ser_key), raw=True)
+      try:
+        self.version = ser_version.decode('utf8')
+      except (AttributeError, UnicodeDecodeError) as e:
+        self.version = 'unknown'
     else:
       return {'network':{'host':ser_host.decode('utf-8'), 'port':int(ser_port.decode('utf-8'))}, 'static_key':PublicKey(bytes(ser_key), raw=True)}
 
