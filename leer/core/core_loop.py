@@ -281,7 +281,7 @@ def core_loop(syncer, config):
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx, _except=[message["node"]]) 
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx, _except=[], _payload_except=[]) 
             look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
@@ -1041,7 +1041,11 @@ def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
     send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
-def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[]):
+def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[], _payload_except=[]):
+  '''
+    _except: nodes which should not be notified about new tip
+    _payload_except: nodes which should be notified about tip, but header and block will not be sent
+  '''
   for node_index in nodes:
     node = nodes[node_index]
     if node_index in _except:
