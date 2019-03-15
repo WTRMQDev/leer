@@ -385,7 +385,7 @@ class RPCManager():
     _hash, seed, target, height = await self.getwork()
     # GPU miners work very bad with low diff target
     #dirty hack, to made minimal target 1m
-    if not target[2:9]=="0000000":
+    if int(target[2:9], 16)>3:
       target = "0x0000003"+target[9:]
     return _hash, seed, target, height 
 
