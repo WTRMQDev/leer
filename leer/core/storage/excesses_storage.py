@@ -1,4 +1,3 @@
-from leer.core.parameters.constants import bugged_outputs
 from leer.core.storage.merkle_storage import MMR
 from secp256k1_zkp import PedersenCommitment, PublicKey
 from leer.core.lubbadubdub.address import Excess
@@ -110,7 +109,7 @@ class ExcessesStorage():
       self.excesses.remove(num_of_added_excesses, wtx=wtx)
       self.set_state(prev_state, wtx=wtx)
       for rb in rollback_updates:
-        if rb[2]==None and rb[1] in bugged_outputs and rb[0] in bugged_outputs[rb[1]]:
+        if rb[2]==None and int.from_bytes(rb[0],"big")<14100:
           rb = (rb[0], rb[1], b"")
         self.rollback_serialized_excess_to_address(rb[0], rb[1], rb[2], wtx=wtx)
 
