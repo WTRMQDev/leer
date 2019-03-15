@@ -29,7 +29,7 @@ def commentjson_loads(text, **kwargs):
      else:
        raise e
 
-
+from urllib.request import urlopen
 def get_public_IP():
     data = str(urlopen('http://checkip.dyndns.com/').read())
     pat="Current IP Address: "
@@ -66,9 +66,6 @@ def main(config):
   import asyncio
   import logging
   import sys
-
-  from urllib.request import urlopen
-  from functools import partial
 
   from secp256k1_zkp import PrivateKey, PublicKey
   from leer.syncer import Syncer
