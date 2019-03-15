@@ -319,7 +319,11 @@ class NetworkManager:
           if action == "give nodes list": #Not list anymore, considr renaming TODO
               _id = message['id']
               request_source = message['sender'] 
-              nodes_info = {(self.nodes[node].advertised_host, self.nodes[node].advertised_port):self.nodes[node].static_key.serialize() for node in self.nodes}
+              nodes_info = {}
+              for node_params in self.nodes:
+                node = self.nodes[node_params]
+                nodes_info[(node.advertised_host, node.advertised_port)]  = {'pubkey': node.static_key.serialize(),
+                                                                             'version': node.version}
               self.syncer.queues[request_source].put({'id':_id, 'result':nodes_info})
 
           if action == "give my node":
