@@ -106,7 +106,10 @@ def build_tx_from_skeleton(tx_skeleton, txos_storage, excesses_storage, block_he
   '''
   tx=Transaction(txos_storage=txos_storage, excesses_storage=excesses_storage)
   for _i in tx_skeleton.input_indexes:
-       tx.inputs.append(txos_storage.confirmed.get(_i, rtx=rtx))
+       if historical or non_context:
+         tx.inputs.append(txos_storage.confirmed.find(_i, rtx=rtx))
+       else:
+         tx.inputs.append(txos_storage.confirmed.get(_i, rtx=rtx))
   for _o in tx_skeleton.output_indexes:
        if historical or non_context:
          # About non_context: if we are on one branch and build block from another one
