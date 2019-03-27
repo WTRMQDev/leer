@@ -76,6 +76,7 @@ def main(config):
   from leer.wallet.wallet import wallet as wallet_launcher
   import multiprocessing
   import time
+  import base64
 
   from os import path, makedirs
   logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(name)s %(levelname)s:%(message)s')
@@ -86,6 +87,8 @@ def main(config):
   if "location" in config:
     for t in config["location"]:
       config["location"][t] = expanduser(config["location"][t])
+  for node in config.get("bootstrap_nodes",[]):
+    node["pub"]= base64.b64decode(node["pub"])
 
   async def start_server(config, delay_before_connect=5):
     syncer=Syncer()
