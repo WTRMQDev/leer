@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import sys
-from concurrent.futures import CancelledError
+from asyncio import CancelledError
 
 from secp256k1_zkp import PrivateKey, PublicKey
 
