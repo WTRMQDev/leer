@@ -5,7 +5,8 @@
 
 body { 
   margin: 0;
-  font-family: Arial;
+  font-family: Times New Roman;
+  font-size: x-large;
 }
 
 .header {
@@ -83,6 +84,14 @@ body {
   display: block;
 }
 
+.button {
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  margin-top: 20px;
+}
+
 #address-field {
   width:100%;
 }
@@ -93,6 +102,7 @@ footer {
   background-color: #f1f1f1;
   position: fixed;
   bottom: 0;
+  font-size: large;
 }
 
 #nodeStatus {
@@ -459,12 +469,12 @@ window.onload = load_wallet;
   <div class="tabcontent active" id="send">
      Amount: <br><input type="number" name="amount" step="0.00000001" value="0" id="value-to-send">&#11360;<br>
      Address: <br><input type="text" name="address" class="address-field" id="address-to-send"><br>
-     <input type="submit" value="Send" onclick="send_money();">     
+     <input type="submit" value="Send" onclick="send_money();" class="button">     
   </div>
 
   <div class="tabcontent" id="receive">
     <input type="text" value=""  id="address-field" readonly><br>
-    <input type="submit" value="Generate new" onclick="get_new_address();">
+    <input type="submit" value="Generate new" onclick="get_new_address();" class="button">
   </div>
 
   <div class="tabcontent" id="addresses">
@@ -487,11 +497,11 @@ window.onload = load_wallet;
       </tr>
     </table>
     </br>
-    <button onclick="update_network_info();">Update info</button>
+    <button onclick="update_network_info();"  class="button">Update info</button>
     </br>
     <input type="text" value=""  id="new_node_params">
     </br>
-    <input type="submit" value="Connect to node" onclick="connect_to_node()">   
+    <input type="submit" value="Connect to node" onclick="connect_to_node()"  class="button">   
     </br>
    </center>
   </div>
