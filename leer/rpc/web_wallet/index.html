@@ -226,14 +226,15 @@ function basic_request(method, params, callback) {
         xhr.send(JSON.stringify(request)); 
         return false;
 }
+var leer_symbol = "&#11360;";
 function update_balance() {
   var set_balance_stats = function(balance_stats) {
       var known = document.getElementById("balance");
       var unknown = document.getElementById("unknown");
       var immature = document.getElementById("immature");
-      known.innerHTML = "Balance "+ (balance_stats['matured']['known_value']/1e8).toString()+ " leer";
+      known.innerHTML = "Balance "+ (balance_stats['matured']['known_value']/1e8).toString()+ " " +leer_symbol;
       unknown.innerHTML = "Unknown "+(balance_stats['matured']['unknown_count']+balance_stats['immatured']['unknown_count']).toString() + " outputs";
-      immature.innerHTML = "Immature "+(balance_stats['immatured']['known_value']/1e8).toString()+ " leer"
+      immature.innerHTML = "Immature "+(balance_stats['immatured']['known_value']/1e8).toString()+ " " +leer_symbol
     } 
   basic_request("getbalancestats",[],set_balance_stats);
 }
@@ -449,14 +450,14 @@ window.onload = load_wallet;
       <button class="tablinks" onclick="openTab(event, 'transactions')">Transactions</button>
     </div>
     <div class="header-right">
-      <span id="balance">Balance 0 leer</span>
+      <span id="balance">Balance 0 &#11360;</span>
       <span id="unknown">Unknown 0 outputs</span>
-      <span id="immature">Immature 0 leer</span>
+      <span id="immature">Immature 0 &#11360;</span>
     </div>
   </div>
 
   <div class="tabcontent active" id="send">
-     Amount: <br><input type="number" name="amount" step="0.00000001" value="0" id="value-to-send"><br>
+     Amount: <br><input type="number" name="amount" step="0.00000001" value="0" id="value-to-send">&#11360;<br>
      Address: <br><input type="text" name="address" class="address-field" id="address-to-send"><br>
      <input type="submit" value="Send" onclick="send_money();">     
   </div>
