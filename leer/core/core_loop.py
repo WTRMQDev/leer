@@ -101,7 +101,7 @@ def init_storage_space(config):
   storage_space=StorageSpace(_path)
   with storage_space.env.begin(write=True) as wtx:
     hs = HeadersStorage(storage_space, wtx=wtx)
-    hm = HeadersManager(storage_space, do_not_check_pow=config.get('do_not_check_pow', False))
+    hm = HeadersManager(storage_space, do_not_check_pow=config.get('testnet_options', {}).get('do_not_check_pow', False))
     bs = BlocksStorage(storage_space, wtx=wtx)
     es = ExcessesStorage(storage_space, wtx=wtx)
     ts = TXOsStorage(storage_space, wtx=wtx)
