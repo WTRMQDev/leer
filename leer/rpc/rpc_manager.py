@@ -1,6 +1,8 @@
 from aiohttp import web
 from aiohttp_remotes import BasicAuth, setup
 from jsonrpcserver.aio import methods
+from jsonrpcserver.exceptions import ServerError
+
 from concurrent.futures._base import CancelledError
 try:
   from asyncio.base_futures import InvalidStateError
@@ -151,7 +153,13 @@ class RPCManager():
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
-    return base64.b64encode(answer['result']).decode()
+    res = answer['result']
+    if not res=="error":
+      return base64.b64encode(res).decode()
+    else:
+      exc = ServerError()
+      exc.message = answer["error"]
+      raise exc
 
   async def getwork(self):
     _id = str(uuid4())
