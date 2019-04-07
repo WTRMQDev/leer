@@ -177,6 +177,9 @@ def core_loop(syncer, config):
       #its ok to rewrite
       logger.setLevel(loglevels[config["logging"]["core"]])
 
+  is_benchmark = config.get('testnet_options', {}).get('benchmark', False)
+  no_pow = config.get('testnet_options', {}).get('do_not_check_pow', False)
+
   def get_new_address(timeout=2.5): #blocking
     _id = str(uuid4())
     syncer.queues['Wallet'].put({'action':'give new address', 'id':_id, 'sender': "Blockchain"})
@@ -421,6 +424,13 @@ def core_loop(syncer, config):
         except Exception as e:
           logger.error("Wrong block solution %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+      if message["action"] == "put arbitrary mining work" and is_benchmark:
+        if not no_pow:
+          raise Exception("`put arbitrary mining work` is only allowed for disabled pow checks")
+        notify("core workload", "putting arbitrary mining work")
+        message["nonce"] = b"\x00"*8
+        message['partial_hash'] = list(storage_space.mempool_tx.work_block_assoc.inner_dict.keys())[-1] 
+        message['action'] = "take mining work"
       if message["action"] == "take mining work":
         notify("core workload", "processing mining work")
         try:
@@ -451,6 +461,10 @@ def core_loop(syncer, config):
         except Exception as e:
           logger.error("Wrong submitted work %s"%str(e))
           send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+      if message["action"] == "set mining address" and is_benchmark:
+        address = Address()
+        address.deserialize_raw(message["address"])
+        mining_address = address
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
           our_height = storage_space.blockchain.current_height(rtx=rtx)
