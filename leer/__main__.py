@@ -90,8 +90,9 @@ def main(config):
   for node in config.get("bootstrap_nodes",[]):
     node["pub"]= base64.b64decode(node["pub"])
 
-  async def start_server(config, delay_before_connect=5):
+  async def start_server(config, loop, delay_before_connect=5):
     syncer=Syncer()
+    processes = []
     nm = multiprocessing.Process(target=NM_launcher, args=(syncer, config))
     nm.start()
     rpcm = multiprocessing.Process(target=RPCM_launcher, args=(syncer, config))
@@ -101,9 +102,11 @@ def main(config):
     await asyncio.sleep(delay_before_connect)
     notifications = multiprocessing.Process(target=notification_center_launcher, args=(syncer, config))
     notifications.start()
+    processes = [nm, rpcm, core, notifications]
     if "wallet" in config and config["wallet"]:
       wallet = multiprocessing.Process(target=wallet_launcher, args=(syncer, config))
       wallet.start()
+      processes.append(wallet)
     for node in config['bootstrap_nodes']:
       #print("Require connection from %d to %d: %s:%s:%s"%(server_id, node, 'localhost', p2p_port_by_id(node), pub_key_by_id(node)))
       syncer.queues['NetworkManager'].put(
@@ -115,9 +118,15 @@ def main(config):
          'sender': "RPC"})
     while True:
       await asyncio.sleep(1)
+      for p in processes:
+        if p.is_alive():
+          continue
+      loop.stop()
+      return
+      
   
   loop = asyncio.get_event_loop()
-  asyncio.ensure_future(start_server(config))
+  asyncio.ensure_future(start_server(config, loop))
   loop.run_forever()
 
 
