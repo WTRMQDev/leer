@@ -453,6 +453,7 @@ class NetworkManager:
                 coro = node.send( "ping 0")
                 asyncio.ensure_future(coro, loop=self.loop)'''
           if action == "stop":
+            logger.info("NetworkManager stops")
             self.loop.stop()
             return
       if self.up:

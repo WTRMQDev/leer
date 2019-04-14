@@ -207,4 +207,5 @@ def wallet(syncer, config):
           response["result"]=tx.serialize()
           syncer.queues[message['sender']].put(response)
       if message['action']=="stop":
+        logger.info("Wallet stops")
         return
