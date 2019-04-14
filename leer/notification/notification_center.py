@@ -13,6 +13,8 @@ def notification_center_launcher(syncer, config):
       if not 'action' in message:
         continue
       if not message['action'] in ['set', 'get']:
+        if message['action'] == "stop":
+          return
         continue
       if not 'time' in message:
         message['time'] = time()
