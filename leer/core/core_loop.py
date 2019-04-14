@@ -594,6 +594,12 @@ def core_loop(syncer, config):
         logger.info("Core loop stops")
         return
 
+      if message["action"] == "shutdown":
+        initiator = message["sender"]
+        logger.info("Shutdown initiated by %s"%initiator)
+        for receiver in ['NetworkManager', 'Blockchain', 'RPCManager', 'Notifications', 'Wallet']:
+          send_message(receiver, {"action":"stop", "sender":initiator})
+
       if message["action"] == "check requests cache":
         put_back_messages.append({"action": "check requests cache", "time":int(time())+5} )
         for k in requests_cache:

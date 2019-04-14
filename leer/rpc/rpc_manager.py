@@ -79,6 +79,7 @@ class RPCManager():
     methods.add(self.connecttonode)
     methods.add(self.gettransactions)
     methods.add(self.getversion)
+    methods.add(self.shutdown)
 
 
     methods.add(self.eth_getWork)
@@ -374,7 +375,7 @@ class RPCManager():
     host, port = hp.split(":")
     pub = base64.b64decode(sk.encode())
     self.syncer.queues['NetworkManager'].put({'action':'open connection', 'host':host,
-         'port':port, 'static_key':pub, 'id':_id, 'request_source': "RPCManager"})
+         'port':port, 'static_key':pub, 'id':_id, 'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
@@ -416,6 +417,10 @@ class RPCManager():
     leer_version, leer_codename = version.VERSION, version.CODENAME
     return {'version':leer_version, 'codename':leer_codename}
     
+  async def shutdown(self):
+    self.syncer.queues['Blockchain'].put({'action':'shutdown', 'sender': "RPCManager"})
+    return "Prepairing shutdown"
+    
  
   async def check_queue(self):
     while self.up:
@@ -428,6 +433,7 @@ class RPCManager():
             except InvalidStateError:
               self.requests.pop(message['id'])
           elif message["action"] == "stop":
+            self.logger.info("RPC server stops")
             self.loop.stop()    
         else:
           pass 
