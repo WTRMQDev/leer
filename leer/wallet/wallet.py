@@ -151,7 +151,13 @@ def wallet(syncer, config):
           response["result"] = "error: " +str(e)
         syncer.queues[message['sender']].put(response)
       if message['action']=="give private key":
-        pass
+        taddress = message["address"]
+        a = Address()
+        a.from_text(taddress)        
+        with km.disc_txn(write = False) as r_txn:
+            priv = km.priv_by_address(a, r_txn)
+        response = {"id": message["id"], "result": priv.private_key}
+        syncer.queues[message['sender']].put(response)
       if message['action']=="take private key":
         pass
       if message['action']=="give last transactions info":
