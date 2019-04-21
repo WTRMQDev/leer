@@ -710,10 +710,14 @@ def process_new_txos(message, wtx):
     serialized_utxos = bytes(message["txos"])
     txos_hashes = bytes(message["txos_hashes"])
     num = message["num"]
-    #txos_hashes = [txos_hashes[i*65:(i+1)*65)] for i in range(0,num)]
     txos_lengths = message["txos_lengths"]
-    #TODO we should use txos_hashes and txos_lengths to proccess only unknown txos
+    txos_hashes = [txos_hashes[i*65:(i+1)*65] for i in range(0,num)]
+    txos_lengths = [int.from_bytes(txos_lengths[i*2:(i+1)*2], "big") for i in range(0,num)]
     for i in range(num):
+      txo_len, txo_hash = txos_lengths[i], txos_hashes[i]
+      if txo_hash in storage_space.txos_storage.mempool:
+        serialized_utxos = serialized_utxos[txo_len:]
+        continue
       utxo = IOput()
       serialized_utxos = utxo.deserialize_raw(serialized_utxos)
       storage_space.txos_storage.mempool[utxo.serialized_index]=utxo
