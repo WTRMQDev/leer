@@ -159,6 +159,8 @@ def wallet(syncer, config):
         response = {"id": message["id"], "result": priv.private_key}
         syncer.queues[message['sender']].put(response)
       if message['action']=="take private key":
+        #privkey = PrivateKey(message['privkey'], raw=True) 
+        #Can not finish it now: actions sequence in key_manager is too fragile
         pass
       if message['action']=="give last transactions info":
         response = {"id": message["id"]}

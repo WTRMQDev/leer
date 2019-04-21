@@ -260,7 +260,7 @@ class RPCManager():
     self.requests.pop(_id)
     return answer['result']
 
-  async def dumpprivkey(self, address): #TODO DOESN'T WORK
+  async def dumpprivkey(self, address):
     _id = str(uuid4())
     self.syncer.queues['Wallet'].put({'action':'give private key', 'id':_id,
                                           'address':address, 'sender': "RPCManager"})
@@ -270,10 +270,14 @@ class RPCManager():
     tprivkey = base64.b64encode(answer['result']).decode()
     return tprivkey
 
-  async def importprivkey(self, privkey): #TODO DOESN'T WORK
+  async def importprivkey(self, tprivkey, rescan=True): #TODO DOESN'T WORK
     _id = str(uuid4())
-    self.syncer.queues['Blockchain'].put({'action':'take private key', 'id':_id,
-                                          'privkey':privkey, 'sender': "RPCManager"})
+    exc = ServerError()
+    exc.message = "Not Implemented"
+    raise exc
+    privkey = base64.b64decode(tprivkey)
+    self.syncer.queues['Wallet'].put({'action':'take private key', 'id':_id,
+                                          'privkey':privkey, "rescan": rescan, 'sender': "RPCManager"})
     self.requests[_id]=asyncio.Future()
     answer = await self.requests[_id]
     self.requests.pop(_id)
