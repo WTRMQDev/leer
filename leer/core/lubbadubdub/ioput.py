@@ -140,8 +140,6 @@ class IOput:
     self.deserialize_raw(serialized_output)
 
   def deserialize_raw(self, serialized_output):  
-    #TODO part1, part2, part3 should be substitued with construction `something, serialized = serialized[:x], serialized[x:]`
-    # as it is done in other modules
     """ Decode output from serialized representation. Return residue of data after serialization"""
     self.serialized = None
     self._serialized_apc = None
@@ -150,10 +148,10 @@ class IOput:
     if len(serialized_output)<145:
         raise Exception("Serialized output doesn't contain enough bytes for constant length parameters")
 
-    part1, part2 = serialized_output[:82], serialized_output[82:]
+    compact_data, serialized = serialized_output[:82], serialized_output[82:]
     (self.version, self.block_version, self.lock_height,
-      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", part1) 
-    consumed+=part1
+      self.generator, self.relay_fee, self.apc) = struct.unpack("> H H L 33s Q 33s", compact_data) 
+    consumed+=compact_data
 
     if self.generator in generators:
       self.authorized_pedersen_commitment = PedersenCommitment(commitment=self.apc, raw=True, value_generator = generators[self.generator])
@@ -162,41 +160,44 @@ class IOput:
 
     self.address = Address()
     
-    _part2 = self.address.deserialize_raw(part2)
-    consumed += part2[:len(part2)-len(_part2)]
-    part2 = _part2
+    _serialized = self.address.deserialize_raw(serialized)
+    consumed += serialized[:len(serialized)-len(_serialized)]
+    serialized = _serialized
     
-    if len(part2)<2:
+    if len(serialized)<2:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message length")
-    (encrypted_message_len,) = struct.unpack("> H", part2[:2]) 
-    if len(part2)<2+encrypted_message_len:
+    consumed+=serialized[:2]
+    (encrypted_message_len, serialized) = struct.unpack("> H", serialized[:2]) , serialized[2:]
+    if len(serialized)<encrypted_message_len:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message")
-    self.encrypted_message = part2[2:2+encrypted_message_len]
-    consumed += part2[:2+encrypted_message_len]
+    self.encrypted_message, serialized = serialized[:encrypted_message_len], serialized[encrypted_message_len:]
+    consumed += self.encrypted_message
 
-
-    part3=part2[2+encrypted_message_len:]
-    (range_proof_len,) = struct.unpack("> H", part3[:2])
-    if len(part3)<2+range_proof_len: 
+    if len(serialized)<2:
+        raise Exception("Serialized output doesn't contain enough bytes for rangeproof length")
+    consumed+=serialized[:2]
+    (range_proof_len, serialized) = struct.unpack("> H", serialized[:2]), serialized[2:]
+    if len(serialized)<range_proof_len: 
         raise Exception("Serialized output doesn't contain enough bytes for rangeproof")
 
     self._calc_unauthorized_pedersen()  
+    ser_rp, serialized = serialized[:range_proof_len], serialized[range_proof_len:]
     if self.version in [0,1]:
-      self.rangeproof = RangeProof(proof=part3[2:2+range_proof_len], 
+      self.rangeproof = RangeProof(proof=ser_rp, 
           pedersen_commitment=self.unauthorized_pedersen_commitment, 
           additional_data = self.signed_part())
     elif self.version == 2:
-      self.rangeproof = BulletProof(proof=part3[2:2+range_proof_len], 
+      self.rangeproof = BulletProof(proof=ser_rp, 
           pedersen_commitment=self.unauthorized_pedersen_commitment, 
           additional_data = self.signed_part())      
 
-    consumed += part3[:2+range_proof_len]
+    consumed += ser_rp
 
     info=self.info()
     if info['min_value']==info['max_value']:
       self.value=info['min_value']
     self.serialized = consumed
-    return part3[2+range_proof_len:]
+    return serialized
 
 
   def deserialize_with_context(self, serialized_output):
