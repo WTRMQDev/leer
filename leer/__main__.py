@@ -1,6 +1,24 @@
-import json, re
+import asyncio
+import logging
+import sys
+import multiprocessing
+import time
+import base64
+import json
+import re
+
 from os.path import *
-from os import urandom
+from os import urandom, path, makedirs
+from urllib.request import urlopen
+
+from secp256k1_zkp import PrivateKey, PublicKey
+from leer.syncer import Syncer
+from leer.transport.network_manager import NM_launcher
+from leer.rpc.rpc_manager import RPCM_launcher
+from leer.core.core_loop import core_loop
+from leer.notification.notification_center import notification_center_launcher
+from leer.wallet.wallet import wallet as wallet_launcher
+
 
 def commentjson_loads(text, **kwargs):
     '''
@@ -29,7 +47,6 @@ def commentjson_loads(text, **kwargs):
      else:
        raise e
 
-from urllib.request import urlopen
 def get_public_IP():
     data = str(urlopen('http://checkip.dyndns.com/').read())
     pat="Current IP Address: "
@@ -62,23 +79,8 @@ def get_static_key(filename):
   return key
 
 
+
 def main(config):
-  import asyncio
-  import logging
-  import sys
-
-  from secp256k1_zkp import PrivateKey, PublicKey
-  from leer.syncer import Syncer
-  from leer.transport.network_manager import NM_launcher
-  from leer.rpc.rpc_manager import RPCM_launcher
-  from leer.core.core_loop import core_loop
-  from leer.notification.notification_center import notification_center_launcher
-  from leer.wallet.wallet import wallet as wallet_launcher
-  import multiprocessing
-  import time
-  import base64
-
-  from os import path, makedirs
   logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(name)s %(levelname)s:%(message)s')
   
   if "advertised_host" in config["p2p"] and config["p2p"]["advertised_host"] == "autodetect":
@@ -133,13 +135,11 @@ def main(config):
 
 
 if __name__ == '__main__':
-    import sys
     relativ_config_path = sys.argv[1]
     config = None
     with open(relativ_config_path, "r") as f:
       raw_config = f.read()
-      config = commentjson_loads(raw_config)
-    
+      config = commentjson_loads(raw_config)  
     # execute only if run as the entry point into the program
     main(config)
 
