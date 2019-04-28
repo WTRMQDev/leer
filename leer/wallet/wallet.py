@@ -192,9 +192,10 @@ def wallet(syncer, config):
           list_to_spend = []
           summ = 0 
           utxos = []
+          expected_fee = 0
           for address in _list:
               for texted_index in _list[address]:
-                if summ>value+100000000: #TODO fee here
+                if summ>value+expected_fee: #TODO fee here
                   continue
                 if isinstance(_list[address][texted_index], int):
                   _index = base64.b64decode(texted_index.encode())
@@ -203,9 +204,15 @@ def wallet(syncer, config):
                   blinding = PrivateKey(ser_blinding, raw=True)
                   utxos.append( (_index, _list[address][texted_index], priv, blinding, apc) )
                   summ+=_list[address][texted_index]
+                  expected_fee += 60000 #Should be enough
           if summ < value:
               response["result"] = "error"
               response["error"] = "Not enough matured coins"
+              syncer.queues[message['sender']].put(response)
+              continue
+          if summ < value+expected_fee:
+              response["result"] = "error"
+              response["error"] = "Not enough matured coins for value and fees (%.8f)"%(expected_fee/1e8)
               syncer.queues[message['sender']].put(response)
               continue
           tx = Transaction(None, None)
