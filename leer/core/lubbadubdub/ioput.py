@@ -225,7 +225,7 @@ class IOput:
 
   def signed_part(self):
     """
-      Flurbo output has more abundant structure than classical mw output.
+      Leer's output has more abundant structure than classical mw output.
       To be sure that all elements of structure were relayed unchanged, all
       elements are signed in rangeproof. This function returns serialized
       representation elements which should be signed.
