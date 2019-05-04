@@ -167,7 +167,7 @@ class IOput:
     if len(serialized)<2:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message length")
     consumed+=serialized[:2]
-    (encrypted_message_len, serialized) = struct.unpack("> H", serialized[:2]) , serialized[2:]
+    (encrypted_message_len,), serialized = struct.unpack("> H", serialized[:2]) , serialized[2:]
     if len(serialized)<encrypted_message_len:
         raise Exception("Serialized output doesn't contain enough bytes for encrypted message")
     self.encrypted_message, serialized = serialized[:encrypted_message_len], serialized[encrypted_message_len:]
@@ -176,7 +176,7 @@ class IOput:
     if len(serialized)<2:
         raise Exception("Serialized output doesn't contain enough bytes for rangeproof length")
     consumed+=serialized[:2]
-    (range_proof_len, serialized) = struct.unpack("> H", serialized[:2]), serialized[2:]
+    (range_proof_len,), serialized = struct.unpack("> H", serialized[:2]), serialized[2:]
     if len(serialized)<range_proof_len: 
         raise Exception("Serialized output doesn't contain enough bytes for rangeproof")
 
