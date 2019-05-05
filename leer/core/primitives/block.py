@@ -65,13 +65,16 @@ class Block():
 
   def non_context_verify(self, rtx):
     '''
+      While this check is called 'non_context', it actually uses context since it needs:
+        a) fully validated headers chain up to this block
+        b) downloaded outputs
+        c) blocks which create inputs spent in checked(self) block should be applied
+      Currently if those conditions are not satisfied block is marked as not_downloaded and thus can not be validated.
       To verify block we need to
         0) check that header is known and valid
         1) verify transaction 
         2) check that transaction can be applied 
-        3) #logic error, this is context validation# check that after tx applied to prev state, new state roots 
-           and checksums coinside with block header
-        4) check reward size (actually in can be checked on headers level)
+        3) check reward size (actually in can be checked on headers level)
     '''
     # stage 1
     assert self.storage_space.headers_storage.has(self.header.hash, rtx=rtx), "Block's header is unknown"

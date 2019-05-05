@@ -34,6 +34,9 @@ class BlocksStorage:
     asked = False
     result = True
     block = self.get(_hash, rtx=rtx)
+    for _input in block.transaction_skeleton.input_indexes:
+      if not self.storage_space.txos_storage.known(_input, rtx=rtx):
+        result = False
     for output in block.transaction_skeleton.output_indexes:
       if not self.storage_space.txos_storage.known(output, rtx=rtx):
         result = False
