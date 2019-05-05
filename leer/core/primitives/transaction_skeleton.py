@@ -159,3 +159,5 @@ class TransactionSkeleton:
   def __eq__(self, another_one):
     return self.serialize() == another_one.serialize()
 
+  def __str__(self):
+    return "TransactionSceleton<inputs_num: %d, outputs_num %d, ae_num %d>"%(len(input_indexes), len(output_indexes), len(self.additional_excesses))
