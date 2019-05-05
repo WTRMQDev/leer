@@ -32,10 +32,15 @@ class Blockchain:
 
     if not self.storage_space.blocks_storage.is_block_downloaded(block.hash, rtx=wtx, auto_download=True):
       pass
+    elif not block.header.prev == self.current_tip(rtx=wtx):
+      pass # Non-context validation is messed up: currently it fails to recognise that
+           # inputs in some blocks are not yet added to confirmed (since block where those)
+           # inputs created are not applied and mark block as invalid during downloading
+           # TODO non-context validation should be cleaned
     else:
       try:
         assert block.non_context_verify(rtx=wtx)
-      except Exception:
+      except Exception as e:
         self.storage_space.headers_manager.mark_subchain_invalid(block.hash, wtx=wtx, reason = "Block %s(h:%d) failed non-context validation"%(block.hash, block.header.height))
         return
       if not no_update: #During first syncing we want to get many blocks at once, so do not update after each
