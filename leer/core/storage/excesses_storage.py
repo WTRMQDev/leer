@@ -81,17 +81,16 @@ class ExcessesStorage():
     def get_root(self, rtx):
       return self.excesses.get_root(rtx=rtx)
 
-    def apply_tx_get_merkles_and_rollback(self, tx, wtx):
+    def apply_block_tx_get_merkles_and_rollback(self, tx, wtx):
       initial_state = self.get_state(rtx=wtx)
       initial_root = self.get_root(rtx=wtx)
-      num_of_added_excesses, rollback_updates = self.apply_tx(tx, b"Excess validation temporal state", wtx)
+      num_of_added_excesses, rollback_updates = self.apply_block_tx(tx, b"Excess validation temporal state", wtx)
       root = self.get_root(rtx=wtx)
       self.rollback(num_of_added_excesses, initial_state, rollback_updates, wtx)
-      assert initial_root==self.get_root(rtx=wtx), "Database was corrupted during excesses apply_tx_get_merkles_and_rollback"
+      assert initial_root==self.get_root(rtx=wtx), "Database was corrupted during excesses apply_block_tx_get_merkles_and_rollback"
       return root
 
-    #TODO bad naming. It should be apply block, or block_transaction
-    def apply_tx(self, tx, new_state, wtx):
+    def apply_block_tx(self, tx, new_state, wtx):
       for _o in tx.outputs:
           num = self.append_utxo(_o, wtx=wtx)
           _o.address_excess_num_index = num #storing num_index of stored address excess

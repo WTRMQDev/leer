@@ -86,8 +86,8 @@ class Block():
                                      excesses_storage=self.storage_space.excesses_storage,
                                      block_height=self.header.height, block_version = self.header.version, rtx=rtx, non_context = True)
     # stage 3 => should be moved to blockchain
-    #commitment_root, txos_root = self.storage_space.txos_storage.apply_tx_get_merkles_and_rollback(tx)
-    #excesses_root = self.storage_space.excesses_storage.apply_tx_get_merkles_and_rollback(tx)
+    #commitment_root, txos_root = self.storage_space.txos_storage.apply_block_tx_get_merkles_and_rollback(tx)
+    #excesses_root = self.storage_space.excesses_storage.apply_block_tx_get_merkles_and_rollback(tx)
     #assert [commitment_root, txos_root, excesses_root]==self.header.merkles
 
     # This is context validation too??? TODO
@@ -144,8 +144,8 @@ def generate_genesis(tx, storage_space, wtx):
     storage = storage_space.txos_storage
     excesses = storage_space.excesses_storage
 
-    exc_merkle = excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
+    exc_merkle = excesses.apply_block_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
+    merkles = storage.apply_block_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
     popow = PoPoW([])
     votedata = VoteData()
     target = initial_target
@@ -185,8 +185,8 @@ def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, 
       except:
         pass
 
-    exc_merkle = excesses.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
-    merkles = storage.apply_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
+    exc_merkle = excesses.apply_block_tx_get_merkles_and_rollback(tx, wtx=wtx) # it should be calced first, since we nned to calc address_excess_num_index
+    merkles = storage.apply_block_tx_get_merkles_and_rollback(tx, wtx=wtx) + [exc_merkle]
 
     popow = current_block.header.next_popow()
     #We subtract relay fee, since coinbase value contain relay fees, but it isn't new money, but redistribution

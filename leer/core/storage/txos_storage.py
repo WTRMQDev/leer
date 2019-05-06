@@ -178,7 +178,7 @@ class TXOsStorage:
     utxo = self.mempool.storage.pop(output_index)
     self.confirmed.append(utxo, wtx=wtx)
 
-  def apply_tx_get_merkles_and_rollback(self, tx, wtx):
+  def apply_block_tx_get_merkles_and_rollback(self, tx, wtx):
     rollback_inputs = []
     for _i in tx.inputs:
         rollback_inputs.append(self.confirmed.spend(_i, wtx=wtx, return_revert_obj=True))
@@ -190,8 +190,7 @@ class TXOsStorage:
     self.confirmed.remove(len(tx.outputs), wtx=wtx)
     return roots
 
-  #TODO bad naming. It should be apply block, or block_transaction
-  def apply_tx(self, tx, new_state, wtx):
+  def apply_block_tx(self, tx, new_state, wtx):
     rollback_inputs = []
     for _i in tx.inputs:
         if self.storage_space.utxo_index:
