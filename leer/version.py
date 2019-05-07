@@ -1,5 +1,5 @@
-VERSION = "0.2.3"
-CODENAME = "Buccinator"
+VERSION = "0.2.4"
+CODENAME = "Mentalis"
 OVERALL_DEVELOPMENT_STATUS = "Beta"
 NETSTATUS = "Testnet4"
 
