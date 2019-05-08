@@ -12,6 +12,7 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
+from leer.core.core_operations.sending_data import send_headers, send_blocks, send_txos
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -1083,35 +1084,3 @@ def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[], _payload_except
         send_headers(send, [serialized_header], [our_tip], node["node"])
         send_blocks(send, [serialized_block], [our_tip], node["node"])
     send_tip_info(node_info=node, send=send, rtx=rtx)
-
-def send_assets(asset_type, send, serialized_assets, assets_hashes, node, _id=None):
-  if not _id:
-    _id=str(uuid4())
-  assets, hashes = [],[]
-  for i, h in enumerate(assets_hashes):
-    if (node, asset_type, h) in upload_cache:
-      continue
-    else:
-      assets.append(serialized_assets[i])
-      hashes.append(h)
-      upload_cache[(node, asset_type, h)] = True
-  all_assets  = b"".join(assets)
-  all_hashes  = b"".join(hashes)
-  all_lengths = b"".join([len(a).to_bytes(2,"big") for a in assets])
-  #Note hashes and lengths will be ignored by NetworkManager for headers and blocks
-  if len(all_assets):
-    send({"action":"take the %s"%asset_type,\
-          "num": len(assets),\
-          asset_type: all_assets,\
-          "%s_hashes"%asset_type : all_hashes,\
-          "%s_lengths"%asset_type : all_lengths,\
-          "id":_id, "node": node})
-
-def send_headers(send, headers, hashes, node, _id=None):
-  send_assets("headers", send, headers, hashes, node, _id)
-
-def send_blocks(send, blocks, hashes, node, _id=None):
-  send_assets("blocks", send, blocks, hashes,  node, _id)
-
-def send_txos(send, txos, hashes, node, _id=None):
-  send_assets("txos", send, txos, hashes,  node, _id)
