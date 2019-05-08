@@ -231,7 +231,7 @@ class ContextBlock(Block):
     return ser
 
   @classmethod
-  @functools.lru_cache(maxsize=40)
+  @functools.lru_cache(maxsize=10)
   def from_serialized(cls, serialized_block, storage_space):
     b = cls(storage_space=storage_space)
     b.deserialize(serialized_block)

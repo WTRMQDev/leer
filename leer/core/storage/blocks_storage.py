@@ -16,7 +16,7 @@ class BlocksStorage:
     self.storage_space.register_blocks_storage(self)
     self.download_queue = []
     
-  @functools.lru_cache(maxsize=15)
+  @functools.lru_cache(maxsize=3)
   def get(self, _hash, rtx):
     serialized_context_block = self.storage.get_by_hash(_hash, rtx=rtx)
     if not serialized_context_block:
