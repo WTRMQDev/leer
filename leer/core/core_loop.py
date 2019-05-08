@@ -12,7 +12,8 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
-from leer.core.core_operations.sending_data import send_headers, send_blocks, send_txos
+from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos, notify_all_nodes_about_tx
+from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -285,7 +286,8 @@ def core_loop(syncer, config):
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx, _except=[], _payload_except=[]) 
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space,\
+                                             rtx=wtx, _except=[], _payload_except=[]) 
             look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
@@ -418,7 +420,7 @@ def core_loop(syncer, config):
             our_height = storage_space.blockchain.current_height(rtx=wtx)
             best_known_header = storage_space.headers_manager.best_header_height
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx)
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space, rtx=wtx)
           send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
@@ -455,7 +457,7 @@ def core_loop(syncer, config):
             our_height = storage_space.blockchain.current_height(rtx=wtx)
             best_known_header = storage_space.headers_manager.best_header_height
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, rtx=wtx)
+              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space, rtx=wtx)
           send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
@@ -673,7 +675,8 @@ def process_new_headers(message, node_info, send_message, wtx, notify=None):
           node_info["common_root"].pop("long_reorganization", None)          
           our_tip_hash = storage_space.blockchain.current_tip(rtx=wtx)
           storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
-          send_tip_info(node_info=node_info, send = partial(send_message, "NetworkManager"), our_tip_hash=our_tip_hash, rtx=wtx)
+          send_tip_info(node_info=node_info, send = partial(send_message, "NetworkManager"),\
+                        our_tip_hash=our_tip_hash, storage_space=storage_space, rtx=wtx)
         elif node_info["common_root"]["long_reorganization"]==header.height:
            request_num = min(256, node_info["height"]-storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
            send_next_headers_request(header.hash, 
@@ -834,16 +837,6 @@ def process_txos_request(message, send_message, rtx):
                    node = message["node"], \
                    _id=message['id'])
 
-def send_tip_info(node_info, send, rtx, our_tip_hash=None ):
-  our_height = storage_space.blockchain.current_height(rtx=rtx)
-  our_tip_hash = our_tip_hash if our_tip_hash else storage_space.blockchain.current_tip(rtx=rtx)
-  our_prev_hash = storage_space.headers_storage.get(our_tip_hash, rtx=rtx).prev
-  our_td = storage_space.headers_storage.get(our_tip_hash, rtx=rtx).total_difficulty
-
-  send({"action":"take tip info", "height":our_height, "tip":our_tip_hash, "prev_hash":our_prev_hash, "total_difficulty":our_td, "id":uuid4(), "node": node_info["node"] })
-  node_info["sent_tip"]=our_tip_hash
-  node_info["last_send"] = time()
-
 def process_tip_info(message, node_info, send, rtx):
   # another node (referenced as counter-Node below) asks us for our best tip and also provides us information about his
   if ('common_root' in node_info) and ('worst_nonmutual' in node_info['common_root']):
@@ -859,7 +852,8 @@ def process_tip_info(message, node_info, send, rtx):
      (not node_info["sent_tip"]==our_tip_hash) or \
      (not "last_send" in node_info) or \
      (time() - node_info["last_send"]>300):
-    send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash, rtx=rtx)
+    send_tip_info(node_info=node_info, send = send, our_tip_hash=our_tip_hash,\
+                  storage_space=storage_space, rtx=rtx)
   node_info.update({"node":node, "height":height, "tip_hash":tip_hash, 
                     "prev_hash":prev_hash, "total_difficulty":total_difficulty, 
                     "last_update":time()})
@@ -891,13 +885,6 @@ def process_tip_info(message, node_info, send, rtx):
             "block_hashes": b"".join(blocks_to_download),
             'num': len(blocks_to_download), "id":str(uuid4()), "node":message["node"] })
       
-
-def send_find_common_root(from_header, node, send):
-  send(
-    {"action":"find common root", "serialized_header": from_header.serialize(), 
-     "id":str(uuid4()), 
-     "node": node })
-
 
 UNKNOWN, INFORK, MAINCHAIN, ISOLATED = 0, 1, 2, 3
 
@@ -1054,33 +1041,7 @@ def check_sync_status(nodes, send, rtx):
     node = nodes[node_index]
     if ((not "last_update" in node) or node["last_update"]+300<time()) and ((not "last_send" in node) or node["last_send"]+5<time()):
       #logger.info("\n node last_update %d was %.4f sec\n"%(("last_update" in node),   (time()-node["last_update"] if ("last_update" in node) else 0 )))
-      send_tip_info(node_info = node, send=send, rtx=rtx)
+      send_tip_info(node_info = node, send=send, storage_space=storage_space, rtx=rtx)
 
 
-def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
-  #TODO we should not notify about tx with low relay fee
-  for node_index in nodes:
-    if node_index in _except:
-      continue
-    node = nodes[node_index]
-    send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
-      "id":str(uuid4()), 'node': node["node"] })
 
-def notify_all_nodes_about_new_tip(nodes, send, rtx, _except=[], _payload_except=[]):
-  '''
-    _except: nodes which should not be notified about new tip
-    _payload_except: nodes which should be notified about tip, but header and block will not be sent
-  '''
-  for node_index in nodes:
-    node = nodes[node_index]
-    if node_index in _except:
-      continue
-    if "height" in node:
-      our_height = storage_space.blockchain.current_height(rtx=rtx)
-      our_tip = storage_space.blockchain.current_tip(rtx=rtx)
-      if node["height"]==our_height-1:
-        serialized_header = storage_space.headers_storage.get(our_tip, rtx=rtx).serialize()
-        serialized_block = storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
-        send_headers(send, [serialized_header], [our_tip], node["node"])
-        send_blocks(send, [serialized_block], [our_tip], node["node"])
-    send_tip_info(node_info=node, send=send, rtx=rtx)
