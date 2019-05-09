@@ -15,6 +15,7 @@ from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos, notify_all_nodes_about_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
+from leer.core.core_operations.sending_requests import send_next_headers_request
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -729,9 +730,6 @@ def process_blocks_request(message, send_message, rtx):
               node = message["node"], \
               _id=message['id'])
 
-def send_next_headers_request(from_hash, num, node, send):
-  send({"action":"give next headers", "num":num, "from":from_hash, 
-                                       "id" : str(uuid4()), "node": node  })
 
 def process_next_headers_request(message, send_message, rtx):
   from_hash = message["from"]
