@@ -14,6 +14,7 @@ from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos, notify_all_nodes_about_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
+from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -138,24 +139,6 @@ def is_ip_port_array(x):
       break
   return res
 
-
-def set_notify_wallet_hook(blockchain, wallet_message_queue):
-    def notify_wallet(reason, *args):
-      message={'sender':"Blockchain"}
-      #no id: notification
-      if reason == "apply":
-        message['action'] = "process new block"
-        message['tx'] = args[0].serialize()
-        message['height'] = args[1]      
-      elif reason == "rollback":
-        message['action'] = "process rollback"
-        message['rollback_object'] = args[0].serialize()
-        message['block_height'] = args[1]
-      else:
-        pass
-      wallet_message_queue.put(message)
-    storage_space.blockchain.notify_wallet = notify_wallet 
-
 def core_loop(syncer, config):
   message_queue = syncer.queues['Blockchain']
   init_storage_space(config)    
@@ -223,21 +206,7 @@ def core_loop(syncer, config):
   def send_to_nm(message):
     send_message("NetworkManager", message)
 
-  notification_cache = {}
-  def notify(key, value, timestamp=None):
-    if (key in notification_cache) and (notification_cache[key]['value'] == value) and (time()-notification_cache[key]['timestamp'])<5:
-      return #Do not spam notifications with the same values
-    message = {}
-    message['id'] = uuid4()
-    message['sender'] = "Blockchain"
-    if not timestamp:
-      timestamp = time()
-    message['time'] = timestamp
-    message['action']="set"
-    message['key']=key
-    message['value']=value
-    syncer.queues["Notifications"].put(message)
-    notification_cache[key] = {'value':value, 'timestamp':timestamp}
+  notify = partial(set_value_to_queue, syncer.queues["Notifications"], "Blockchain")
 
   logger.debug("Start of core loop")
   with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
