@@ -1,3 +1,4 @@
+from enum import Enum
 from leer.core.core_operations.sending_metadata import send_tip_info, send_find_common_root
 from leer.core.core_operations.sending_requests import send_next_headers_request
 
@@ -49,7 +50,11 @@ def process_tip_info(message, node_info, send, storage_space, rtx):
             "block_hashes": b"".join(blocks_to_download),
             'num': len(blocks_to_download), "id":str(uuid4()), "node":message["node"] })
 
-UNKNOWN, INFORK, MAINCHAIN, ISOLATED = 0, 1, 2, 3
+class HEADERSTATE(Enum):
+  UNKNOWN = 0
+  INFORK = 0
+  MAINCHAIN = 0
+  ISOLATED = 0
 
 def process_find_common_root(message, send_message, storage_space, rtx):
   try:
@@ -61,16 +66,16 @@ def process_find_common_root(message, send_message, storage_space, rtx):
   result = []
   for pointer in [header.hash]+header.popow.pointers:
     if not storage_space.headers_storage.has(pointer, rtx=rtx):
-      result.append(UNKNOWN)
+      result.append(HEADERSTATE.UNKNOWN)
       continue
     ph = storage_space.headers_storage.get(pointer, rtx=rtx)
     if not ph.connected_to_genesis:
-      result.append(ISOLATED)
+      result.append(HEADERSTATE.ISOLATED)
       continue
     if storage_space.headers_manager.find_ancestor_with_height(storage_space.blockchain.current_tip(rtx=rtx), ph.height, rtx=rtx) == pointer:
-      result.append(MAINCHAIN)
+      result.append(HEADERSTATE.MAINCHAIN)
       continue
-    result.append(INFORK)
+    result.append(HEADERSTATE.INFORK)
 
   send_message(message['sender'], \
      {"action":"find common root response", "header_hash":header.hash,
@@ -92,7 +97,7 @@ def process_find_common_root_response(message, node_info, send_message, storage_
     node_info["common_root"]={}
 
   for index, pointer in enumerate([header.hash]+header.popow.pointers):
-    if result[index] in [MAINCHAIN]:
+    if result[index] in [HEADERSTATE.MAINCHAIN]:
         node_info["common_root"]["best_mutual"]=pointer
         best_mutual_height = storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
         break
