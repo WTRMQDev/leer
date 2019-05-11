@@ -16,6 +16,7 @@ from leer.core.core_operations.sending_assets import send_headers, send_blocks, 
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.sending_requests import send_next_headers_request
+from leer.core.core_operations.handle_mining import assert_mining_conditions
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -325,20 +326,7 @@ def core_loop(syncer, config):
           if not mining_address:
             mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            if "mining" in config and "conditions" in config["mining"]:
-              if "connected" in config["mining"]["conditions"]:
-                if not len(nodes):
-                  raise Exception("Cant start mining with zero connections")
-              if "synced_headers" in config["mining"]["conditions"]:
-                best_block, best_header = storage_space.blockchain.current_height(rtx=wtx),\
-                                          storage_space.headers_manager.best_header_height
-                if best_block<best_header:
-                  raise Exception("Cant start mining while best block %d worse than best known header %d"%(best_block, best_header))
-              if "synced_advertised" in config["mining"]["conditions"]:
-                best_block, best_advertised_height = storage_space.blockchain.current_height(rtx=wtx),\
-                                                     max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
-                if best_block<best_advertised_height:
-                  raise Exception("Cant start mining while best block %d worse than best advertised block %d"%(best_block, best_advertised_height))
+            assert_mining_conditions(config, nodes, storage_space, rtx=wtx)
             block = storage_space.mempool_tx.give_block_template(mining_address, wtx=wtx)
           ser_head = block.header.serialize()
           send_message(message["sender"], {"id": message["id"], "result":ser_head})
@@ -351,20 +339,7 @@ def core_loop(syncer, config):
           if not mining_address:
             mining_address = get_new_address()
           with storage_space.env.begin(write=True) as wtx:
-            if "mining" in config and "conditions" in config["mining"]:
-              if "connected" in config["mining"]["conditions"]:
-                if not len(nodes):
-                  raise Exception("Cant start mining with zero connections")
-              if "synced_headers" in config["mining"]["conditions"]:
-                best_block, best_header = storage_space.blockchain.current_height(rtx=wtx),\
-                                          storage_space.headers_manager.best_header_height
-                if best_block<best_header:
-                  raise Exception("Cant start mining while best block %d worse than best known header %d"%(best_block, best_header))
-              if "synced_advertised" in config["mining"]["conditions"]:
-                best_block, best_advertised_height = storage_space.blockchain.current_height(rtx=wtx),\
-                                                     max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
-                if best_block<best_advertised_height:
-                  raise Exception("Cant start mining while best block %d worse than best advertised block %d"%(best_block, best_advertised_height))
+            assert_mining_conditions(config, nodes, storage_space, rtx=wtx)
             partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
           seed_hash = progpow_seed_hash(height)
           send_message(message["sender"], {"id": message["id"], 
