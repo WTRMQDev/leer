@@ -13,10 +13,14 @@ from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos, notify_all_nodes_about_tx
+from leer.core.core_operations.receiving_assets import process_new_headers, process_new_blocks, process_new_txos, process_tbm_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
+from leer.core.core_operations.process_metadata import process_tip_info, process_find_common_root, process_find_common_root_response
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.sending_requests import send_next_headers_request
+from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
 from leer.core.core_operations.handle_mining import assert_mining_conditions
+from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -37,68 +41,9 @@ from ipaddress import ip_address
 logger = logging.getLogger("core_loop")
 
 storage_space = None
-upload_cache = ObliviousDictionary(sink_delay=600) #tracks what we already sent in recent past to our peers
-
-def arrlen(array):
-  return sum([len(el) for el in array])
-
-def init_blockchain(wtx):
-  '''
-    If blockchain is empty this function will set genesis.
-  '''
-  genesis = Block(storage_space = storage_space)
-  genesis.deserialize(serialized_genesis_block)
-  storage_space.headers_manager.set_genesis(genesis.header, wtx=wtx)
-  if storage_space.blockchain.current_height(rtx=wtx)<0:
-    storage_space.headers_manager.context_validation(genesis.header.hash, rtx=wtx)
-    genesis.non_context_verify(rtx=wtx)
-    storage_space.blockchain.add_block(genesis, wtx=wtx)
-  else:
-    storage_space.headers_manager.best_tip = (storage_space.blockchain.current_tip(rtx=wtx), storage_space.blockchain.current_height(rtx=wtx) )
-    logger.info("Best header tip from blockchain state %d"%storage_space.headers_manager.best_tip[1])
-    #greedy search
-    current_tip = storage_space.headers_manager.best_tip[0]
-    while True:
-      try:
-        header = storage_space.headers_storage.get(current_tip, rtx=wtx)
-      except KeyError:
-        break
-      new_current_tip=current_tip
-      if len(header.descendants):
-        for d in header.descendants:
-          dh = storage_space.headers_storage.get(d, rtx=wtx)
-          if not dh.invalid:
-            new_current_tip = d
-            break
-      if not new_current_tip == current_tip:
-        current_tip=new_current_tip
-      else:
-        break
-    storage_space.headers_manager.best_tip = (current_tip, storage_space.headers_storage.get(current_tip, rtx=wtx).height)
-    logger.info("Best header tip after greedy search %d"%storage_space.headers_manager.best_tip[1])
 
 
-def validate_state(storage_space, rtx):
-  '''
-    Since writes to different storages (excesses, blocks, txos etc) 
-    are not transactional for now, it is possible that previous halt was
-    in between of writes. In this case state is (irreversibly) screwed. 
-    Cheking it here.
-  '''
-  if storage_space.blockchain.current_height(rtx=rtx)<1:
-    return
-  tip = storage_space.blockchain.current_tip(rtx=rtx)
-  header = storage_space.headers_storage.get(tip, rtx=rtx)
-  last_block_merkles = header.merkles
-  state_merkles = [storage_space.txos_storage.confirmed.get_commitment_root(rtx=rtx), \
-                   storage_space.txos_storage.confirmed.get_txo_root(rtx=rtx), \
-                   storage_space.excesses_storage.get_root(rtx=rtx)]
-  try:
-    assert last_block_merkles == state_merkles
-  except Exception as e:
-    logger.error("State is screwed: state merkles are not coinside with last applyed block merkles. Consider full resync.\n %s\n %s\n Block num: %d"%(last_block_merkles, state_merkles, header.height))
-    raise e
-  
+
 
 def init_storage_space(config):
   global storage_space
@@ -113,23 +58,9 @@ def init_storage_space(config):
     bc = Blockchain(storage_space)
     mptx = MempoolTx(storage_space, config["fee_policy"])
     utxoi = UTXOIndex(storage_space, wtx=wtx)
-    init_blockchain(wtx=wtx)
-    validate_state(storage_space, rtx=wtx)
+    init_blockchain(storage_space, wtx=wtx, logger=logger)
+    validate_state(storage_space, rtx=wtx, logger=logger)
   
-requests_cache = {"blocks":[], "txouts":[]}
-def set_ask_for_blocks_hook(blockchain, message_queue):
-  def f(block_hashes):
-    if not isinstance(block_hashes, list):
-      block_hashes=[block_hashes] #There is only one block
-    requests_cache["blocks"]+=block_hashes
-
-  blockchain.ask_for_blocks_hook = f
-
-def set_ask_for_txouts_hook(block_storage, message_queue):
-  def f(txouts):
-    requests_cache["txouts"]+=txouts
-
-  block_storage.ask_for_txouts_hook = f
 
 def is_ip_port_array(x):
   res = True
@@ -146,8 +77,9 @@ def core_loop(syncer, config):
   init_storage_space(config)    
 
   nodes = {}
-  set_ask_for_blocks_hook(storage_space.blockchain, message_queue)
-  set_ask_for_txouts_hook(storage_space.blocks_storage, message_queue)
+  requests_cache = {"blocks":[], "txouts":[]}
+  set_ask_for_blocks_hook(storage_space.blockchain, requests_cache)
+  set_ask_for_txouts_hook(storage_space.blocks_storage, requests_cache)
   if config['wallet']:
     set_notify_wallet_hook(storage_space.blockchain, syncer.queues['Wallet'])
   requests = {}
@@ -304,7 +236,7 @@ def core_loop(syncer, config):
           if not message["node"] in nodes:
             nodes[message["node"]]={'node':message["node"]}
           with storage_space.env.begin(write=False) as rtx:
-            process_tip_info(message, nodes[message["node"]], storage_space, rtx=rtx, send=send_to_nm)
+            process_tip_info(message, nodes[message["node"]], storage_space=storage_space, rtx=rtx, send=send_to_nm)
       except DOSException as e:
         logger.info("DOS Exception %s"%str(e))
         #raise e #TODO send to NM
