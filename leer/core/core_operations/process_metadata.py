@@ -1,4 +1,11 @@
 from enum import Enum
+from uuid import uuid4
+from time import time
+from functools import partial
+
+from leer.core.utils import DOSException
+from leer.core.primitives.header import Header
+
 from leer.core.core_operations.sending_metadata import send_tip_info, send_find_common_root
 from leer.core.core_operations.sending_requests import send_next_headers_request
 
@@ -52,9 +59,11 @@ def process_tip_info(message, node_info, send, storage_space, rtx):
 
 class HEADERSTATE(Enum):
   UNKNOWN = 0
-  INFORK = 0
-  MAINCHAIN = 0
-  ISOLATED = 0
+  INFORK = 1
+  MAINCHAIN = 2
+  ISOLATED = 3
+  def to_bytes(self, num_bytes, endianness):
+    return (self.value).to_bytes(num_bytes, endianness)
 
 def process_find_common_root(message, send_message, storage_space, rtx):
   try:
@@ -85,7 +94,6 @@ def process_find_common_root(message, send_message, storage_space, rtx):
 
 
 def process_find_common_root_response(message, node_info, send_message, storage_space, rtx):
-  logger.info("Processing of fcrr")
   header_hash = message["header_hash"]
   result = [int(i) for i in message["known_headers"]]
   try:
@@ -95,9 +103,8 @@ def process_find_common_root_response(message, node_info, send_message, storage_
   root_found = False
   if not "common_root" in node_info:
     node_info["common_root"]={}
-
   for index, pointer in enumerate([header.hash]+header.popow.pointers):
-    if result[index] in [HEADERSTATE.MAINCHAIN]:
+    if HEADERSTATE(result[index]) in [HEADERSTATE.MAINCHAIN]:
         node_info["common_root"]["best_mutual"]=pointer
         best_mutual_height = storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
         break
@@ -111,7 +118,6 @@ def process_find_common_root_response(message, node_info, send_message, storage_
   if (not "best_mutual" in node_info["common_root"]):
     # genesis should always be mutual
     return
-  logger.info(node_info)
   if not root_found:
     h1,h2 = storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx).height,\
             storage_space.headers_storage.get(node_info["common_root"]["best_mutual"], rtx=rtx).height
@@ -131,7 +137,6 @@ def process_find_common_root_response(message, node_info, send_message, storage_
     height, total_difficulty = node_info['height'],node_info['total_difficulty']
   except KeyError:
     return
-  logger.info((height, storage_space.headers_manager.best_header_height, total_difficulty , storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)))
   if root_found:
     node_info["common_root"].pop("worst_nonmutual", None)
     node_info["common_root"].pop("best_mutual", None)

@@ -1,3 +1,7 @@
+from uuid import uuid4
+from leer.core.utils import ObliviousDictionary
+upload_cache = ObliviousDictionary(sink_delay=600) #tracks what we already sent in recent past to our peers
+
 def send_assets(asset_type, send, serialized_assets, assets_hashes, node, _id=None):
   if not _id:
     _id=str(uuid4())

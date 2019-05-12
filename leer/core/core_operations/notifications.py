@@ -1,4 +1,5 @@
-
+from uuid import uuid4
+from time import time
 
 def set_notify_wallet_hook(blockchain, wallet_message_queue):
     def notify_wallet(reason, *args):
@@ -15,7 +16,7 @@ def set_notify_wallet_hook(blockchain, wallet_message_queue):
       else:
         pass
       wallet_message_queue.put(message)
-    storage_space.blockchain.notify_wallet = notify_wallet 
+    blockchain.notify_wallet = notify_wallet 
 
 set_value_cache = {} #We do not clean set_value_cache and its maximal size bounded by number distinct parameters we set
 def set_value_to_queue(queue, sender, key, value, timestamp=None):

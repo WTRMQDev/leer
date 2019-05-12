@@ -1,3 +1,5 @@
+from uuid import uuid4
+from time import time
 from leer.core.core_operations.sending_assets import send_headers, send_blocks
 
 
@@ -28,7 +30,7 @@ def notify_all_nodes_about_new_tip(nodes, send, storage_space, rtx, _except=[], 
         serialized_block = storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
         send_headers(send, [serialized_header], [our_tip], node["node"])
         send_blocks(send, [serialized_block], [our_tip], node["node"])
-    send_tip_info(node_info=node, send=send, rtx=rtx)
+    send_tip_info(node_info=node, send=send, storage_space=storage_space, rtx=rtx)
 
 def send_find_common_root(from_header, node, send):
   send(

@@ -1,9 +1,12 @@
+from time import time
+from functools import partial
+
 from leer.core.utils import DOSException
 from leer.core.primitives.block import Block
 from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
 
-from leer.core.core_operations.sending_metadata import notify_all_nodes_about_tx
+from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.sending_requests import send_next_headers_request
 
 

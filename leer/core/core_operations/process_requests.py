@@ -1,3 +1,4 @@
+from functools import partial
 from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos
 
 def arrlen(array):
