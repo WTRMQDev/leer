@@ -46,7 +46,8 @@
                    #                      advertised block. Decreases both chances of orphan
                    #                      generation and cost of attack described for "synced_headers"
                    # Insert conditions into array, for instance ["connected", "synced_headers"]
-                   "conditions": [] 
+                   "conditions": [], 
+                   "reuse_generated_template" : true # Do not generate new block template if old one is up-to-date
            },
       "logging" : {
               #debug, info, warning, error, critical

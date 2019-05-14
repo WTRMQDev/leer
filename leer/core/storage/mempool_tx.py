@@ -15,7 +15,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.short_memory_of_mined_transaction contains transactions which were mined in the last few blocks (we include tx to short_memory_of_mined_transaction if all tx.inputs and tx.outputs were in block_tx). It is necessary for safe rollbacks without
     losing transactions.
   '''
-  def __init__(self, storage_space, fee_policy_config):
+  def __init__(self, storage_space, fee_policy_config, mining_config):
     self.transactions = []
     self.built_tx = {}
     self.current_set = []
@@ -26,6 +26,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.block_templates = ObliviousDictionary(sink_delay=600)
     self.work_block_assoc = ObliviousDictionary(sink_delay=600)
     self.fee_policy_checker = FeePolicyChecker(fee_policy_config)
+    self.reuse_last_generated_block = mining_config.get("reuse_generated_template", True)
+    self.last_generated_block = None
 
   def update_current_set(self, rtx):
     '''
@@ -36,8 +38,10 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
          b) it is valid (otherwise delete from self.transactions)
          c) doesn't contradict with any other tx in the set
     '''
+    self.last_generated_block = None
     self.transactions = sorted(self.transactions, key = lambda x: len(x.input_indexes), reverse=True)
     tx_to_remove_list = []
+    self.current_set = []
     txos_storage = self.storage_space.txos_storage
     excesses_storage = self.storage_space.excesses_storage
     merged_tx = Transaction(txos_storage=txos_storage, excesses_storage=excesses_storage)
@@ -97,8 +101,11 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.update(rtx=rtx, reason="Tx addition")
 
   def give_block_template(self, coinbase_address, wtx):
+    current_tip = self.storage_space.blockchain.current_tip(rtx=wtx)
+    if self.reuse_last_generated_block and self.last_generated_block and self.last_generated_block[0]==current_tip:
+      return self.last_generated_block[1]
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
-    value = next_reward(self.storage_space.blockchain.current_tip(rtx=wtx), self.storage_space.headers_storage, rtx=wtx)+transaction_fees
+    value = next_reward(current_tip, self.storage_space.headers_storage, rtx=wtx)+transaction_fees
     coinbase = IOput()
     coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height(rtx=wtx) + 1 + coinbase_maturity)
     coinbase.generate()
@@ -108,6 +115,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     tx.compose_block_transaction(rtx=wtx)
     block = generate_block_template(tx, self.storage_space, wtx=wtx)
     self.add_block_template(block)
+    self.last_generated_block = (current_tip, block)
     return block
   
   def give_mining_work(self, coinbase_address, wtx):

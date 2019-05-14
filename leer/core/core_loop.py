@@ -56,7 +56,7 @@ def init_storage_space(config):
     es = ExcessesStorage(storage_space, wtx=wtx)
     ts = TXOsStorage(storage_space, wtx=wtx)
     bc = Blockchain(storage_space)
-    mptx = MempoolTx(storage_space, config["fee_policy"])
+    mptx = MempoolTx(storage_space, config["fee_policy"], config.get("mining", {}))
     utxoi = UTXOIndex(storage_space, wtx=wtx)
     init_blockchain(storage_space, wtx=wtx, logger=logger)
     validate_state(storage_space, rtx=wtx, logger=logger)
@@ -521,6 +521,7 @@ def core_loop(syncer, config):
     except Exception as e:
       logger.error(e)
 
+
 def look_forward(nodes, send_to_nm, rtx):
   if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height(rtx=rtx)+100:
     for node_index in nodes:
@@ -529,12 +530,6 @@ def look_forward(nodes, send_to_nm, rtx):
         our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
         send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_nm)
         break
-
-      
-
-
-
-
 
 def compose_block_info(block_num, rtx):
   ct = storage_space.blockchain.current_tip(rtx=rtx)
@@ -566,9 +561,6 @@ def compose_block_info(block_num, rtx):
     amount = txo.value
     result['outputs'].append(({"output_id":index, "address":address, "lock_height":lock_height, "relay_fee":relay_fee, "version":version, "amount":amount}))
   return result
-  
-  
-
   
 def check_sync_status(nodes, send, rtx):
   for node_index in nodes:
