@@ -67,12 +67,12 @@ def get_static_key(filename):
         if not len(l) or l[0]=="#":
           continue
         key = int(l)
-  except IOError:
-    raise
-    #if not path.isdir(filename):
-    #  makedirs(join(expanduser("~"), ".leertest"))
+  except (IOError, FileNotFoundError):
+    dir_name = "/".join(filename.split("/")[:-1])
+    if not path.isdir(dir_name):
+      makedirs(dir_name)
     key = int.from_bytes(urandom(32), "big")
-    with open(filename, "w") as f:
+    with open(filename, "w+") as f:
       comment = "\n".join(["#"+i for i in comment.split("\n")])
       f.write(comment+'\n')
       f.write("%d"%key)
