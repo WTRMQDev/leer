@@ -8,6 +8,7 @@ from leer.core.lubbadubdub.ioput import IOput
 
 from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.sending_requests import send_next_headers_request
+from leer.core.core_operations.sending_metadata import send_tip_info
 
 
 def process_new_headers(message, node_info, wtx, core):
@@ -31,18 +32,19 @@ def process_new_headers(message, node_info, wtx, core):
           node_info["common_root"].pop("long_reorganization", None)          
           our_tip_hash = core.storage_space.blockchain.current_tip(rtx=wtx)
           core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
-          send_tip_info(node_info=node_info, send = partial(core.send_message, "NetworkManager"), our_tip_hash=our_tip_hash, rtx=wtx)
+          send_tip_info(node_info=node_info, send = partial(core.send_to, "NetworkManager"), our_tip_hash=our_tip_hash, rtx=wtx)
         elif node_info["common_root"]["long_reorganization"]==header.height:
            request_num = min(256, node_info["height"]-core.storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
-           send_next_headers_request(header.hash,  #XXX
+           send_next_headers_request(header.hash,  
                                 request_num,
-                                message["node"], send = partial(core.send_message, "NetworkManager") )
+                                message["node"], send = partial(core.send_to, "NetworkManager") )
            if node_info["height"]-header.height>request_num:
              node_info["common_root"]["long_reorganization"] = header.height+request_num
            else:
              node_info["common_root"].pop("long_reorganization", None) 
     core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
+    raise e
     raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, core):

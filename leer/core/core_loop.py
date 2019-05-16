@@ -12,7 +12,7 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
-from leer.core.core_operations.sending_assets import send_headers, send_blocks, send_txos, notify_all_nodes_about_tx
+from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.receiving_assets import process_new_headers, process_new_blocks, process_new_txos, process_tbm_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 from leer.core.core_operations.process_metadata import process_tip_info, process_find_common_root, process_find_common_root_response
@@ -204,15 +204,15 @@ def core_loop(syncer, config):
         if message["action"] == "give blocks":
           notify("core workload", "giving blocks")
           with storage_space.env.begin(write=False) as rtx:
-            process_blocks_request(message, send_message, storage_space, rtx=rtx)
+            process_blocks_request(message, rtx=rtx, core=core_context)
         if message["action"] == "give next headers":
           notify("core workload", "giving headers")
           with storage_space.env.begin(write=False) as rtx:
-            process_next_headers_request(message, send_message, storage_space, rtx=rtx)
+            process_next_headers_request(message, rtx=rtx, core=core_context)
         if message["action"] == "give txos":
           notify("core workload", "giving txos")
           with storage_space.env.begin(write=False) as rtx:
-            process_txos_request(message, send_message, storage_space, rtx=rtx)
+            process_txos_request(message, rtx=rtx, core=core_context)
         if message["action"] == "find common root":
           with storage_space.env.begin(write=False) as rtx:
             process_find_common_root(message, send_message, storage_space, rtx)
@@ -222,7 +222,7 @@ def core_loop(syncer, config):
         if message["action"] == "give TBM transaction":
           notify("core workload", "giving mempool tx")
           with storage_space.env.begin(write=False) as rtx:
-            process_tbm_tx_request(message, send_message, storage_space, rtx)
+            process_tbm_tx_request(message, rtx, core_context)
         if message["action"] == "take TBM transaction":
           notify("core workload", "processing mempool tx")
           with storage_space.env.begin(write=False) as rtx:
