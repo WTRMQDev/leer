@@ -488,6 +488,7 @@ def core_loop(syncer, config):
           if not len(requests_cache[k]):
             continue
           copy = list(set(requests_cache[k]))
+          copy = sorted(copy, key= lambda x: requests_cache[k].index(x)) #preserve order of downloaded objects
           if k=="blocks":
             chunk_size=20
             while len(copy):
