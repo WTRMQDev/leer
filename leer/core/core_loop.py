@@ -21,6 +21,7 @@ from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
 from leer.core.core_operations.handle_mining import assert_mining_conditions
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
+from leer.core.core_operations.core_context import CoreContext
 import base64
 from leer.core.utils import DOSException, ObliviousDictionary
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
@@ -142,6 +143,7 @@ def core_loop(syncer, config):
 
   notify = partial(set_value_to_queue, syncer.queues["Notifications"], "Blockchain")
 
+  core_context = CoreContext(storage_space, logger, nodes, notify, send_message)
   logger.debug("Start of core loop")
   with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
     notify("blockchain height", storage_space.blockchain.current_height(rtx=rtx))
@@ -179,15 +181,13 @@ def core_loop(syncer, config):
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
           with storage_space.env.begin(write=True) as wtx:
-            process_new_headers(message, nodes[message["node"]], send_message,\
-                                storage_space, wtx, notify=partial(notify, "best header"))
+            process_new_headers(message, nodes[message["node"]], wtx, core_context)
           notify("best header", storage_space.headers_manager.best_header_height)         
         if message["action"] == "take the blocks":
           notify("core workload", "processing new blocks")
           with storage_space.env.begin(write=True) as wtx:
             initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
-            process_new_blocks(message, notify=partial(notify, "blockchain height"),\
-                               storage_space=storage_space, wtx=wtx)
+            process_new_blocks(message, wtx, core_context)
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
@@ -197,7 +197,7 @@ def core_loop(syncer, config):
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
           with storage_space.env.begin(write=True) as wtx:
-            process_new_txos(message, storage_space=storage_space, wtx=wtx)
+            process_new_txos(message, wtx=wtx, core=core_context)
             #After downloading new txos some blocs may become downloaded
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx)) 
             look_forward(nodes, send_to_nm, rtx=wtx)          
@@ -226,7 +226,7 @@ def core_loop(syncer, config):
         if message["action"] == "take TBM transaction":
           notify("core workload", "processing mempool tx")
           with storage_space.env.begin(write=False) as rtx:
-            process_tbm_tx(message, send_to_nm, nodes, storage_space, rtx=rtx)
+            process_tbm_tx(message, rtx=rtx, core=core_context)
         if message["action"] == "give tip height":
           with storage_space.env.begin(write=False) as rtx:
             _ch=storage_space.blockchain.current_height(rtx=rtx)
