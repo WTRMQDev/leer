@@ -143,7 +143,7 @@ def core_loop(syncer, config):
 
   notify = partial(set_value_to_queue, syncer.queues["Notifications"], "Blockchain")
 
-  core_context = CoreContext(storage_space, logger, nodes, notify, send_message)
+  core_context = CoreContext(storage_space, logger, nodes, notify, send_message, config)
   logger.debug("Start of core loop")
   with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
     notify("blockchain height", storage_space.blockchain.current_height(rtx=rtx))
