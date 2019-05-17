@@ -215,10 +215,10 @@ def core_loop(syncer, config):
             process_txos_request(message, rtx=rtx, core=core_context)
         if message["action"] == "find common root":
           with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root(message, send_message, storage_space, rtx)
+            process_find_common_root(message, rtx, core_context)
         if message["action"] == "find common root response":
           with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root_response(message, nodes[message["node"]], send_message, storage_space, rtx=rtx)
+            process_find_common_root_response(message, nodes[message["node"]], rtx=rtx, core=core_context)
         if message["action"] == "give TBM transaction":
           notify("core workload", "giving mempool tx")
           with storage_space.env.begin(write=False) as rtx:
@@ -236,7 +236,7 @@ def core_loop(syncer, config):
           if not message["node"] in nodes:
             nodes[message["node"]]={'node':message["node"]}
           with storage_space.env.begin(write=False) as rtx:
-            process_tip_info(message, nodes[message["node"]], storage_space=storage_space, rtx=rtx, send=send_to_nm)
+            process_tip_info(message, nodes[message["node"]], rtx=rtx, core=core_context)
       except DOSException as e:
         logger.info("DOS Exception %s"%str(e))
         #raise e #TODO send to NM
