@@ -49,6 +49,12 @@
                    "conditions": [], 
                    "reuse_generated_template" : true # Do not generate new block template if old one is up-to-date
            },
+      "synchronisation": 
+           {
+              #headers chain is uploaded in advance with block's chain, 
+              #this param control number of headers in avance, default 256
+              "headers_chain_advance":10
+           },
       "logging" : {
               #debug, info, warning, error, critical
               "base": "error",

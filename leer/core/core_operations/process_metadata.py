@@ -142,7 +142,8 @@ def process_find_common_root_response(message, node_info, rtx, core):
     node_info["common_root"].pop("best_mutual", None)
     common_root_height = core.storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height
     if (height > core.storage_space.headers_manager.best_header_height) and (total_difficulty > core.storage_space.headers_manager.best_header_total_difficulty(rtx=rtx)):
-      request_num = min(256, height-common_root_height)
+      headers_chain_advance = core.config.get("synchronisation", {}).get("headers_chain_advance", 256)
+      request_num = min(headers_chain_advance, height-common_root_height)
       send_next_headers_request(node_info["common_root"]["root"], 
                                 request_num,
                                 message["node"], send = core.send_to_nm )
