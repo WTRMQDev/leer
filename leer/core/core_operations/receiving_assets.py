@@ -32,7 +32,7 @@ def process_new_headers(message, node_info, wtx, core):
           node_info["common_root"].pop("long_reorganization", None)          
           our_tip_hash = core.storage_space.blockchain.current_tip(rtx=wtx)
           core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
-          send_tip_info(node_info=node_info, send = partial(core.send_to, "NetworkManager"), our_tip_hash=our_tip_hash, rtx=wtx)
+          send_tip_info(node_info=node_info, send = core.send_to_nm, our_tip_hash=our_tip_hash, rtx=wtx, storage_space=core.storage_space)
         elif node_info["common_root"]["long_reorganization"]==header.height:
            request_num = min(256, node_info["height"]-core.storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
            send_next_headers_request(header.hash,  
