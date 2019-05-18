@@ -44,23 +44,21 @@ def process_new_headers(message, node_info, wtx, core):
              node_info["common_root"].pop("long_reorganization", None) 
     core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new headers")
   except Exception as e:
-    raise e
     raise DOSException() #TODO add info
 
 def process_new_blocks(message, wtx, core):
   try:
     serialized_blocks = message["blocks"]
     num = message["num"]
-    prev_not = time()
     for i in range(num):
       block = Block(storage_space=core.storage_space)
       serialized_blocks = block.deserialize_raw(serialized_blocks)
       core.storage_space.blockchain.add_block(block, wtx=wtx, no_update=True)
-      if time()-prev_not>15:
+      if not i%5:
           core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
           core.notify("blockchain height", core.storage_space.blockchain.current_height(rtx=wtx))
-          prev_not = time()
     core.storage_space.blockchain.update(wtx=wtx, reason="downloaded new blocks")
+    core.notify("blockchain height", core.storage_space.blockchain.current_height(rtx=wtx))
   except Exception as e:
     raise e
     raise DOSException() #TODO add info
