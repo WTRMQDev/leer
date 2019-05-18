@@ -30,7 +30,7 @@ def notify_all_nodes_about_new_tip(nodes, rtx, core, _except=[], _payload_except
         serialized_block = core.storage_space.blocks_storage.get(our_tip, rtx=rtx).serialize(rtx=rtx, rich_block_format=True)
         send_headers(core.send_to_nm, [serialized_header], [our_tip], node["node"])
         send_blocks(core.send_to_nm, [serialized_block], [our_tip], node["node"])
-    send_tip_info(node_info=node, send=core.send_to_nm, storage_space=core.storage_space, rtx=rtx)
+    send_tip_info(node_info=node, rtx=rtx, core=core)
 
 def send_find_common_root(from_header, node, send):
   send(
