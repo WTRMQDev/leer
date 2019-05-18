@@ -191,8 +191,7 @@ def core_loop(syncer, config):
             after_tip = storage_space.blockchain.current_tip(rtx=wtx)
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space,\
-                                             rtx=wtx, _except=[], _payload_except=[]) 
+              notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context, _except=[], _payload_except=[]) 
             look_forward(nodes, send_to_nm, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
@@ -299,7 +298,7 @@ def core_loop(syncer, config):
             our_height = storage_space.blockchain.current_height(rtx=wtx)
             best_known_header = storage_space.headers_manager.best_header_height
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space, rtx=wtx)
+              notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context)
           send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
@@ -336,7 +335,7 @@ def core_loop(syncer, config):
             our_height = storage_space.blockchain.current_height(rtx=wtx)
             best_known_header = storage_space.headers_manager.best_header_height
             if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, send_to_nm, storage_space=storage_space, rtx=wtx)
+              notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context)
           send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
           notify("best header", best_known_header)
           notify("blockchain height", our_height)
@@ -513,7 +512,7 @@ def core_loop(syncer, config):
 
     try:
       with storage_space.env.begin(write=True) as rtx:
-        check_sync_status(nodes, send_to_nm, rtx=rtx)
+        check_sync_status(nodes, rtx=rtx, core_context=core_context)
       try:
         best_advertised_height = max([nodes[node]["height"] for node in nodes if "height" in nodes[node]])
       except:
@@ -563,9 +562,9 @@ def compose_block_info(block_num, rtx):
     result['outputs'].append(({"output_id":index, "address":address, "lock_height":lock_height, "relay_fee":relay_fee, "version":version, "amount":amount}))
   return result
   
-def check_sync_status(nodes, send, rtx):
+def check_sync_status(nodes, rtx, core_context):
   for node_index in nodes:
     node = nodes[node_index]
     if ((not "last_update" in node) or node["last_update"]+300<time()) and ((not "last_send" in node) or node["last_send"]+5<time()):
       #logger.info("\n node last_update %d was %.4f sec\n"%(("last_update" in node),   (time()-node["last_update"] if ("last_update" in node) else 0 )))
-      send_tip_info(node_info = node, send=send, storage_space=storage_space, rtx=rtx)
+      send_tip_info(node_info = node, rtx=rtx, core=core_context)

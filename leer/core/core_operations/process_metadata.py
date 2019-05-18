@@ -24,8 +24,8 @@ def process_tip_info(message, node_info, rtx, core):
      (not node_info["sent_tip"]==our_tip_hash) or \
      (not "last_send" in node_info) or \
      (time() - node_info["last_send"]>300):
-    send_tip_info(node_info=node_info, send = core.send_to_nm, our_tip_hash=our_tip_hash,\
-                  storage_space=core.storage_space, rtx=rtx)
+    send_tip_info(node_info=node_info, our_tip_hash=our_tip_hash,\
+                  rtx=rtx, core=core)
   node_info.update({"node":node, "height":height, "tip_hash":tip_hash, 
                     "prev_hash":prev_hash, "total_difficulty":total_difficulty, 
                     "last_update":time()})
