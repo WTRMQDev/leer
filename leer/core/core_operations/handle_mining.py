@@ -1,3 +1,6 @@
+from leer.core.hash.progpow import seed_hash as progpow_seed_hash
+from leer.core.core_operations.sending_metadata import notify_all_nodes_about_new_tip
+
 def assert_mining_conditions(rtx, core):
   if "mining" in core.config and "conditions" in core.config["mining"]:
     if "connected" in core.config["mining"]["conditions"]:
@@ -36,7 +39,7 @@ def give_mining_work(message, wtx, core):
   try:
     ensure_mining_address(core)
     assert_mining_conditions(rtx=wtx, core=core)
-    partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
+    partial_header_hash, target, height = core.storage_space.mempool_tx.give_mining_work(core.mining_address, wtx=wtx)
     seed_hash = progpow_seed_hash(height)
     core.send_to(message["sender"], {"id": message["id"], 
               "result":{'partial_hash':partial_header_hash.hex(), 
@@ -47,3 +50,58 @@ def give_mining_work(message, wtx, core):
   except Exception as e:
     core.send_to(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
     core.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+
+def add_solved_block(block, wtx, core):
+    mempool, headerchain, blockchain = core.storage_space.mempool_tx, \
+                                       core.storage_space.headers_manager, \
+                                       core.storage_space.blockchain
+    if block.header.height <= blockchain.current_height(rtx=wtx):
+      return "stale"
+    initial_tip = blockchain.current_tip(rtx=wtx)
+    headerchain.add_header(block.header, wtx=wtx)
+    headerchain.context_validation(block.header.hash, rtx=wtx)
+    block.non_context_verify(rtx=wtx)
+    blockchain.add_block(block, wtx=wtx)
+    after_tip = blockchain.current_tip(rtx=wtx)
+    our_height = blockchain.current_height(rtx=wtx)
+    best_known_header = headerchain.best_header_height
+    core.notify("best header", best_known_header)
+    core.notify("blockchain height", our_height)
+    if not after_tip==initial_tip:
+      notify_all_nodes_about_new_tip(core.nodes, rtx=wtx, core=core) #XXX
+    return "accepted"
+
+
+def take_solved_block_template(message, wtx, core):
+  try:
+    header = Header()
+    header.deserialize(message["solved template"])
+    solved_block = core.storage_space.mempool_tx.get_block_by_header_solution(header)
+    result = add_solved_block(solved_block, wtx, core)
+    if result == "stale":
+      core.send_to(message["sender"], {"id": message["id"], "result": "Stale"})
+      core.logger.error("Stale work submitted: height %d"%(header.height))
+      return
+    if result == "accepted":
+      core.send_to(message["sender"], {"id": message["id"], "result": "Accepted"})
+  except Exception as e:
+    core.logger.error("Wrong block solution %s"%str(e))
+    core.send_to(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+
+def take_mining_work(message, wtx, core):
+  try:
+    nonce, partial_work = message['nonce'], message['partial_hash']
+    mp = core.storage_space.mempool_tx
+    block_template =  mp.work_block_assoc[partial_work]
+    block_template.header.nonce = nonce
+    solved_block = block_template 
+    result = add_solved_block(solved_block, wtx, core)
+    if result == "stale":
+      core.send_to(message["sender"], {"id": message["id"], "result": "Stale"})
+      core.logger.error("Stale work submitted: height %d"%(header.height))
+      return
+    if result == "accepted":
+      core.send_to(message["sender"], {"id": message["id"], "result": "Accepted"})
+  except Exception as e:
+    core.logger.error("Wrong block solution %s"%str(e))
+    core.send_to(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})

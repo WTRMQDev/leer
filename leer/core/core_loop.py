@@ -11,7 +11,6 @@ from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
-from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.receiving_assets import process_new_headers, process_new_blocks, process_new_txos, process_tbm_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
@@ -19,7 +18,7 @@ from leer.core.core_operations.process_metadata import process_tip_info, process
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
-from leer.core.core_operations.handle_mining import give_mining_work, give_block_template
+from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
 from leer.core.core_operations.core_context import CoreContext
 import base64
@@ -261,27 +260,8 @@ def core_loop(syncer, config):
           give_mining_work(message, wtx, core_context)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
-        try:
-          with storage_space.env.begin(write=True) as wtx:
-            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
-            header = Header()
-            header.deserialize(message["solved template"])
-            solved_block = storage_space.mempool_tx.get_block_by_header_solution(header)
-            storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
-            storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
-            solved_block.non_context_verify(rtx=wtx)
-            storage_space.blockchain.add_block(solved_block, wtx=wtx)
-            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
-            our_height = storage_space.blockchain.current_height(rtx=wtx)
-            best_known_header = storage_space.headers_manager.best_header_height
-            if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context)
-          send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
-          notify("best header", best_known_header)
-          notify("blockchain height", our_height)
-        except Exception as e:
-          logger.error("Wrong block solution %s"%str(e))
-          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+        with storage_space.env.begin(write=True) as wtx:
+          take_solved_block_template(message, wtx, core_context)
       if message["action"] == "put arbitrary mining work" and is_benchmark:
         if not no_pow:
           raise Exception("`put arbitrary mining work` is only allowed for disabled pow checks")
@@ -291,38 +271,12 @@ def core_loop(syncer, config):
         message['action'] = "take mining work"
       if message["action"] == "take mining work":
         notify("core workload", "processing mining work")
-        try:
-          nonce, partial_work = message['nonce'], message['partial_hash']
-          mp = storage_space.mempool_tx
-          block_template =  mp.work_block_assoc[partial_work]
-          block_template.header.nonce = nonce
-          solved_block = block_template 
-          header = solved_block.header
-          with storage_space.env.begin(write=True) as wtx:
-            if header.height <= storage_space.blockchain.current_height(rtx=wtx):
-              send_message(message["sender"], {"id": message["id"], "result": "Stale"})
-              logger.error("Stale work submitted: height %d"%(header.height))
-              continue
-            initial_tip = storage_space.blockchain.current_tip(rtx=wtx)
-            storage_space.headers_manager.add_header(solved_block.header, wtx=wtx)
-            storage_space.headers_manager.context_validation(solved_block.header.hash, rtx=wtx)
-            solved_block.non_context_verify(rtx=wtx)
-            storage_space.blockchain.add_block(solved_block, wtx=wtx)
-            after_tip = storage_space.blockchain.current_tip(rtx=wtx)
-            our_height = storage_space.blockchain.current_height(rtx=wtx)
-            best_known_header = storage_space.headers_manager.best_header_height
-            if not after_tip==initial_tip:
-              notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context)
-          send_message(message["sender"], {"id": message["id"], "result": "Accepted"})
-          notify("best header", best_known_header)
-          notify("blockchain height", our_height)
-        except Exception as e:
-          logger.error("Wrong submitted work %s"%str(e))
-          send_message(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+        with storage_space.env.begin(write=True) as wtx:
+          take_mining_work(message, wtx, core_context)
       if message["action"] == "set mining address" and is_benchmark:
         address = Address()
         address.deserialize_raw(message["address"])
-        mining_address = address
+        core_context.mining_address = address
       if message["action"] == "give synchronization status":
         with storage_space.env.begin(write=False) as rtx:
           our_height = storage_space.blockchain.current_height(rtx=rtx)
