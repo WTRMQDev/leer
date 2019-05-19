@@ -19,7 +19,7 @@ from leer.core.core_operations.process_metadata import process_tip_info, process
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
-from leer.core.core_operations.handle_mining import assert_mining_conditions
+from leer.core.core_operations.handle_mining import give_mining_work, give_block_template
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
 from leer.core.core_operations.core_context import CoreContext
 import base64
@@ -143,7 +143,7 @@ def core_loop(syncer, config):
 
   notify = partial(set_value_to_queue, syncer.queues["Notifications"], "Blockchain")
 
-  core_context = CoreContext(storage_space, logger, nodes, notify, send_message, config)
+  core_context = CoreContext(storage_space, logger, nodes, notify, send_message, get_new_address, config)
   logger.debug("Start of core loop")
   with storage_space.env.begin(write=True) as rtx: #Set basic chain info, so wallet and other services can start work
     notify("blockchain height", storage_space.blockchain.current_height(rtx=rtx))
@@ -253,35 +253,12 @@ def core_loop(syncer, config):
 
       if message["action"] == "give block template":
         notify("core workload", "generating block template")
-        try:
-          if not mining_address:
-            mining_address = get_new_address()
-          with storage_space.env.begin(write=True) as wtx:
-            assert_mining_conditions(config, rtx=wtx, core=core_context)
-            block = storage_space.mempool_tx.give_block_template(mining_address, wtx=wtx)
-          ser_head = block.header.serialize()
-          send_message(message["sender"], {"id": message["id"], "result":ser_head})
-        except Exception as e:
-          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
-          logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
+        with storage_space.env.begin(write=True) as wtx:
+          give_block_template(message, wtx, core_context)
       if message["action"] == "give mining work":
-        notify("core workload", "generating block template")
-        try:
-          if not mining_address:
-            mining_address = get_new_address()
-          with storage_space.env.begin(write=True) as wtx:
-            assert_mining_conditions(config, rtx=wtx, core=core_context)
-            partial_header_hash, target, height = storage_space.mempool_tx.give_mining_work(mining_address, wtx=wtx)
-          seed_hash = progpow_seed_hash(height)
-          send_message(message["sender"], {"id": message["id"], 
-              "result":{'partial_hash':partial_header_hash.hex(), 
-                        'seed_hash':seed_hash.hex(),
-                        'target':target.hex(),
-                        'height':height
-                       }})
-        except Exception as e:
-          send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
-          logger.error("Can not generate work `%s`"%(str(e)), exc_info=True)
+        notify("core workload", "generating mining work")
+        with storage_space.env.begin(write=True) as wtx:
+          give_mining_work(message, wtx, core_context)
       if message["action"] == "take solved block template":
         notify("core workload", "processing solved block")
         try:
