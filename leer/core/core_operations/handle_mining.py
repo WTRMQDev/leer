@@ -1,3 +1,4 @@
+from leer.core.primitives.header import Header
 from leer.core.hash.progpow import seed_hash as progpow_seed_hash
 from leer.core.core_operations.sending_metadata import notify_all_nodes_about_new_tip
 
@@ -72,36 +73,30 @@ def add_solved_block(block, wtx, core):
     return "accepted"
 
 
-def take_solved_block_template(message, wtx, core):
+def process_solution(solution_type, message, wtx, core):
   try:
-    header = Header()
-    header.deserialize(message["solved template"])
-    solved_block = core.storage_space.mempool_tx.get_block_by_header_solution(header)
+    if solution_type == "block template":
+      header = Header()
+      header.deserialize(message["solved template"])
+      solved_block = core.storage_space.mempool_tx.get_block_by_header_solution(header)
+    elif solution_type == "work":
+      nonce, partial_work = message['nonce'], message['partial_hash']
+      solved_block =  core.storage_space.mempool_tx.work_block_assoc[partial_work]
+      solved_block.header.nonce = nonce
     result = add_solved_block(solved_block, wtx, core)
     if result == "stale":
       core.send_to(message["sender"], {"id": message["id"], "result": "Stale"})
       core.logger.error("Stale work submitted: height %d"%(header.height))
       return
-    if result == "accepted":
+    elif result == "accepted":
       core.send_to(message["sender"], {"id": message["id"], "result": "Accepted"})
   except Exception as e:
     core.logger.error("Wrong block solution %s"%str(e))
     core.send_to(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
 
+def take_solved_block_template(message, wtx, core):
+  process_solution("block template", message, wtx, core)
+
 def take_mining_work(message, wtx, core):
-  try:
-    nonce, partial_work = message['nonce'], message['partial_hash']
-    mp = core.storage_space.mempool_tx
-    block_template =  mp.work_block_assoc[partial_work]
-    block_template.header.nonce = nonce
-    solved_block = block_template 
-    result = add_solved_block(solved_block, wtx, core)
-    if result == "stale":
-      core.send_to(message["sender"], {"id": message["id"], "result": "Stale"})
-      core.logger.error("Stale work submitted: height %d"%(header.height))
-      return
-    if result == "accepted":
-      core.send_to(message["sender"], {"id": message["id"], "result": "Accepted"})
-  except Exception as e:
-    core.logger.error("Wrong block solution %s"%str(e))
-    core.send_to(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+  process_solution("work", message, wtx, core)
+
