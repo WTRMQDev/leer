@@ -16,6 +16,7 @@ from leer.core.core_operations.receiving_assets import process_new_headers, proc
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 from leer.core.core_operations.process_metadata import process_tip_info, process_find_common_root, process_find_common_root_response
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
+from leer.core.core_operations.downloading import check_blocks_download_status
 from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
 from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
@@ -347,42 +348,10 @@ def core_loop(syncer, config):
 
       #message from core_loop
       if message["action"] == "check blocks download status":
-        block_hashes = message["block_hashes"]
-        to_be_downloaded = []
-        lowest_height=1e10
         with storage_space.env.begin(write=True) as rtx:
-          for block_hash in block_hashes:
-            if storage_space.blocks_storage.has(block_hash, rtx=rtx):
-              continue #We are good, block already downloaded          
-            if not block_hash in storage_space.blockchain.awaited_blocks:
-              continue #For some reason we don't need this block anymore
-            to_be_downloaded.append(block_hash)
-            block_height = storage_space.headers_storage.get(block_hash, rtx=rtx).height
-            if block_height<lowest_height:
-              lowest_height = block_height
-        if not len(to_be_downloaded):
-          continue #We are good, blocks are already downloaded
-        already_asked_nodes = message["already_asked_nodes"]
-        asked = False
-        for node_params in nodes:
-          node = nodes[node_params]
-          if node in already_asked_nodes:
-            continue
-          if (not "height" in node) or node["height"] < lowest_height:
-            continue
-          already_asked_nodes += [node]
-          send_to_nm({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
-          new_message = {"action": "check blocks download status", "block_hashes":to_be_downloaded,
-                         "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
-                         "time": int(time()+30) }
-          asked = True
-          put_back_messages.append(new_message)
-          break
-        if not asked: #We already asked all applicable nodes
-          message["time"]=int(time())+600
-          message["already_asked_nodes"] = []
-          put_back_messages.append(message) # we will try to ask again in an hour
-
+          ret_mes = check_blocks_download_status(message, rtx, core_context)
+          if ret_mes:
+            put_back_messages.append(ret_mes)
 
       if message["action"] == "take nodes list":
         for node in message["nodes"]:
