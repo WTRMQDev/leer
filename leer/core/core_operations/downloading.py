@@ -36,3 +36,31 @@ def check_blocks_download_status(message, rtx, core):
           message["already_asked_nodes"] = []
           return message # we will try to ask again in an hour
 
+def check_txouts_download_status(message, rtx, core):
+        txos = message["txos_hashes"]
+        to_be_downloaded = []
+        for txo in txos:
+            if not core.storage_space.txos_storage.known(txo, rtx=rtx):
+              to_be_downloaded.append(txo)
+        if not to_be_downloaded:
+          return None #We are good, txouts are already downloaded
+        already_asked_nodes = message["already_asked_nodes"]
+        asked = False
+        for node_params in core.nodes:
+          node = core.nodes[node_params]
+          if node in already_asked_nodes:
+            continue
+          already_asked_nodes += [node]
+          core.send_to_nm({"action":"give txos",
+                                               "txos_hashes": b"".join(to_be_downloaded), 
+                                               "num": len(to_be_downloaded), 
+                                               "id":str(uuid4()), "node":node_params })
+          new_message = {"action": "check txouts download status", "txos_hashes":to_be_downloaded,
+                         "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
+                         "time": int(time()+30) }
+          asked = True
+          return new_message
+        if not asked: #We already asked all applicable nodes
+          message["time"]=int(time())+600
+          message["already_asked_nodes"] = []
+          return message # we will try to ask again in an hour
