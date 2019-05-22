@@ -5,6 +5,7 @@ from leer.core.utils import DOSException
 from leer.core.primitives.block import Block
 from leer.core.primitives.header import Header
 from leer.core.lubbadubdub.ioput import IOput
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 
 from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.sending_requests import send_next_headers_request
@@ -92,6 +93,6 @@ def process_tbm_tx(message, rtx, core):
     final_tbm = core.storage_space.mempool_tx.give_tx()
     if not message["mode"]==0: #If 0 it is response to our request
       if (not initial_tbm) or (not str(initial_tbm.serialize())==str(final_tbm.serialize())):
-        notify_all_nodes_about_tx(message['tx_skel'], core.nodes, core.send_to_nm, _except=[message["node"]])
+        notify_all_nodes_about_tx(message['tx_skel'], core, _except=[message["node"]])
   except Exception as e:
     raise DOSException() #TODO add info

@@ -34,13 +34,13 @@ def send_blocks(send, blocks, hashes, node, _id=None):
 def send_txos(send, txos, hashes, node, _id=None):
   send_assets("txos", send, txos, hashes,  node, _id)
 
-def notify_all_nodes_about_tx(tx_skel, nodes, send, _except=[], mode=1):
+def notify_all_nodes_about_tx(tx_skel, core, _except=[], mode=1):
   #TODO we should not notify about tx with low relay fee
-  for node_index in nodes:
+  for node_index in core.nodes:
     if node_index in _except:
       continue
-    node = nodes[node_index]
-    send({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
+    node = core.nodes[node_index]
+    core.send_to_nm({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
 

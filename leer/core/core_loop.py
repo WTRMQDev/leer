@@ -70,16 +70,18 @@ def is_ip_port_array(x):
   return res
 
 def core_loop(syncer, config):
-  message_queue = syncer.queues['Blockchain']
   init_storage_space(config)    
 
   nodes = {}
-  requests_cache = {"blocks":[], "txouts":[]}
+  requests = {} # requests to other node's subprocesses
+  requests_cache = {"blocks":[], "txouts":[]} # requests of assets to other nodes
+
   set_ask_for_blocks_hook(storage_space.blockchain, requests_cache)
   set_ask_for_txouts_hook(storage_space.blocks_storage, requests_cache)
   if config['wallet']:
     set_notify_wallet_hook(storage_space.blockchain, syncer.queues['Wallet'])
-  requests = {}
+
+  message_queue = syncer.queues['Blockchain']
   message_queue.put({"action":"give nodes list reminder"})
   message_queue.put({"action":"check requests cache"})
 
@@ -123,8 +125,6 @@ def core_loop(syncer, config):
     logger.info("Receiving address %s (len %d)"%( result, len(result)))
     address.deserialize_raw(result)
     return address
-
-  mining_address = None #Will be initialised at first ask
 
   def send_message(destination, message):
     logger.debug("Sending message to %s:\t\t %s"%(str(destination), str(message)))
@@ -301,7 +301,7 @@ def core_loop(syncer, config):
             tx.deserialize(ser_tx, rtx)
             storage_space.mempool_tx.add_tx(tx, rtx=rtx)
             tx_skel = TransactionSkeleton(tx=tx)
-            notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), nodes, send_to_nm, _except=[], mode=1)
+            notify_all_nodes_about_tx(tx_skel.serialize(rich_format=True, max_size=40000), core_context, _except=[], mode=1)
           response['result']="generated"
         except Exception as e:
           response['result'] = 'error'
