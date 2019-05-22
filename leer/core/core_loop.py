@@ -1,3 +1,18 @@
+#general imports
+import logging
+#specific imports from std
+from time import sleep, time
+from uuid import uuid4
+from functools import partial
+from ipaddress import ip_address
+#imports from 3rd party
+from secp256k1_zkp import PrivateKey
+#general leer imports
+from leer.syncer import Syncer
+from leer.core.utils import DOSException
+from leer.core.parameters.constants import serialized_genesis_block
+#storage space imports
+from leer.core.storage.storage_space import StorageSpace
 from leer.core.chains.headers_manager import HeadersManager
 from leer.core.chains.blockchain import Blockchain
 from leer.core.storage.txos_storage import TXOsStorage
@@ -6,11 +21,12 @@ from leer.core.storage.blocks_storage import BlocksStorage
 from leer.core.storage.excesses_storage import ExcessesStorage
 from leer.core.storage.utxo_index_storage import UTXOIndex
 from leer.core.storage.mempool_tx import MempoolTx
-from leer.core.primitives.block import Block
-from leer.core.primitives.header import Header
-from leer.core.lubbadubdub.ioput import IOput
+#primitives imports
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
+from leer.core.primitives.transaction_skeleton import TransactionSkeleton
+#ops imports
+from leer.core.core_operations.core_context import CoreContext
 from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.receiving_assets import process_new_headers, process_new_blocks, process_new_txos, process_tbm_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
@@ -21,30 +37,10 @@ from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
 from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
-from leer.core.core_operations.core_context import CoreContext
-import base64
-from leer.core.utils import DOSException, ObliviousDictionary
-from leer.core.primitives.transaction_skeleton import TransactionSkeleton
-from time import sleep, time
-from uuid import uuid4
-
-from leer.core.storage.storage_space import StorageSpace
-
-from leer.syncer import Syncer
-from leer.core.parameters.constants import serialized_genesis_block
-
-from secp256k1_zkp import PrivateKey
-
-import logging
-from functools import partial
-from ipaddress import ip_address
 
 logger = logging.getLogger("core_loop")
 
 storage_space = None
-
-
-
 
 def init_storage_space(config):
   global storage_space
