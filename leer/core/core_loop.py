@@ -34,7 +34,7 @@ from leer.core.core_operations.process_metadata import process_tip_info, process
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.downloading import check_blocks_download_status, check_txouts_download_status
 from leer.core.core_operations.sending_requests import send_next_headers_request
-from leer.core.core_operations.process_requests import process_blocks_request, process_next_headers_request, process_txos_request, process_tbm_tx_request
+from leer.core.core_operations.process_requests import request_handlers
 from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
 
@@ -195,29 +195,17 @@ def core_loop(syncer, config):
             process_new_txos(message, wtx=wtx, core=core_context)
             #After downloading new txos some blocs may become downloaded
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx)) 
-            look_forward(nodes, send_to_nm, rtx=wtx)          
-        if message["action"] == "give blocks":
-          notify("core workload", "giving blocks")
+            look_forward(nodes, send_to_nm, rtx=wtx)
+        if message["action"] in request_handlers: #blocks, headers, txos and tbm
+          notify("core workload", "processing "+message["action"])
           with storage_space.env.begin(write=False) as rtx:
-            process_blocks_request(message, rtx=rtx, core=core_context)
-        if message["action"] == "give next headers":
-          notify("core workload", "giving headers")
-          with storage_space.env.begin(write=False) as rtx:
-            process_next_headers_request(message, rtx=rtx, core=core_context)
-        if message["action"] == "give txos":
-          notify("core workload", "giving txos")
-          with storage_space.env.begin(write=False) as rtx:
-            process_txos_request(message, rtx=rtx, core=core_context)
+            request_handlers[message["action"]](message, rtx=rtx, core=core_context)                    
         if message["action"] == "find common root":
           with storage_space.env.begin(write=False) as rtx:
             process_find_common_root(message, rtx, core_context)
         if message["action"] == "find common root response":
           with storage_space.env.begin(write=False) as rtx:
             process_find_common_root_response(message, nodes[message["node"]], rtx=rtx, core=core_context)
-        if message["action"] == "give TBM transaction":
-          notify("core workload", "giving mempool tx")
-          with storage_space.env.begin(write=False) as rtx:
-            process_tbm_tx_request(message, rtx, core_context)
         if message["action"] == "take TBM transaction":
           notify("core workload", "processing mempool tx")
           with storage_space.env.begin(write=False) as rtx:

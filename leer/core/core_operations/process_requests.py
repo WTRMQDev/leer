@@ -117,3 +117,10 @@ def  process_tbm_tx_request(message, rtx, core):
      {"action":"take TBM transaction", "tx_skel": serialized_tx_skel, "mode": 0,
       "id":message['id'], 'node': message["node"] })
 
+
+request_handlers = {"give TBM transaction": process_tbm_tx_request,\
+                    "give txos": process_txos_request, \
+                    "give next headers": process_next_headers_request,\
+                    "give blocks": process_blocks_request
+                   }
+
