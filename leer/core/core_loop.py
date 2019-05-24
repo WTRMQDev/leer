@@ -30,7 +30,7 @@ from leer.core.core_operations.core_context import CoreContext
 from leer.core.core_operations.sending_assets import notify_all_nodes_about_tx
 from leer.core.core_operations.receiving_assets import process_new_headers, process_new_blocks, process_new_txos, process_tbm_tx
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
-from leer.core.core_operations.process_metadata import process_tip_info, process_find_common_root, process_find_common_root_response
+from leer.core.core_operations.process_metadata import metadata_handlers
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.downloading import check_blocks_download_status, check_txouts_download_status
 from leer.core.core_operations.sending_requests import send_next_headers_request
@@ -174,6 +174,8 @@ def core_loop(syncer, config):
           pass #Drop
         continue
       try:
+        if ("node" in message) and (not message["node"] in nodes):
+          nodes[message["node"]]={'node':message["node"]}
         if message["action"] == "take the headers":
           notify("core workload", "processing new headers")
           with storage_space.env.begin(write=True) as wtx:
@@ -200,12 +202,9 @@ def core_loop(syncer, config):
           notify("core workload", "processing "+message["action"])
           with storage_space.env.begin(write=False) as rtx:
             request_handlers[message["action"]](message, rtx=rtx, core=core_context)                    
-        if message["action"] == "find common root":
+        if message["action"] in metadata_handlers: # take tip, find common root [response]
           with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root(message, rtx, core_context)
-        if message["action"] == "find common root response":
-          with storage_space.env.begin(write=False) as rtx:
-            process_find_common_root_response(message, nodes[message["node"]], rtx=rtx, core=core_context)
+            metadata_handlers[message["action"]](message, nodes[message["node"]], rtx=rtx, core=core_context)
         if message["action"] == "take TBM transaction":
           notify("core workload", "processing mempool tx")
           with storage_space.env.begin(write=False) as rtx:
@@ -215,11 +214,6 @@ def core_loop(syncer, config):
             _ch=storage_space.blockchain.current_height(rtx=rtx)
             send_message(message["sender"], {"id": message["id"], "result": _ch})
           notify("blockchain height", _ch)      
-        if message["action"] == "take tip info":
-          if not message["node"] in nodes:
-            nodes[message["node"]]={'node':message["node"]}
-          with storage_space.env.begin(write=False) as rtx:
-            process_tip_info(message, nodes[message["node"]], rtx=rtx, core=core_context)
       except DOSException as e:
         logger.info("DOS Exception %s"%str(e))
         #raise e #TODO send to NM

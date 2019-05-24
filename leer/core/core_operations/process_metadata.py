@@ -65,7 +65,8 @@ class HEADERSTATE(Enum):
   def to_bytes(self, num_bytes, endianness):
     return (self.value).to_bytes(num_bytes, endianness)
 
-def process_find_common_root(message, rtx, core):
+def process_find_common_root(message, node_info, rtx, core):
+  #node_info is ignored, added to unify process_metadata function sugnature
   try:
     serialized_header = message["serialized_header"]
     header = Header()
@@ -152,3 +153,6 @@ def process_find_common_root_response(message, node_info, rtx, core):
         if our_tip.hash != node_info["common_root"]["root"]: #It's indeed reorg
             node_info["common_root"]["long_reorganization"]= core.storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=rtx).height+request_num
 
+metadata_handlers = {"take tip info":process_tip_info, 
+                     "find common root":process_find_common_root, 
+                     "find common root response":process_find_common_root_response}
