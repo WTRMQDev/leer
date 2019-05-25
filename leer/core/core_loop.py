@@ -33,7 +33,6 @@ from leer.core.core_operations.sending_metadata import send_tip_info, notify_all
 from leer.core.core_operations.process_metadata import metadata_handlers
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
 from leer.core.core_operations.downloading import download_status_checks
-from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import request_handlers
 from leer.core.core_operations.handle_mining import mining_operations
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
@@ -134,7 +133,7 @@ def core_loop(syncer, config):
       message['sender'] = "Blockchain"
     syncer.queues[destination].put(message)
 
-  def send_to_nm(message):
+  def send_to_network(message):
     send_message("NetworkManager", message)
 
   notify = partial(set_value_to_queue, syncer.queues["Notifications"], "Blockchain")
@@ -190,14 +189,14 @@ def core_loop(syncer, config):
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx))         
             if not after_tip==initial_tip:
               notify_all_nodes_about_new_tip(nodes, rtx=wtx, core=core_context, _except=[], _payload_except=[]) 
-            look_forward(nodes, send_to_nm, rtx=wtx)       
+            look_forward(nodes, send_to_network, rtx=wtx)       
         if message["action"] == "take the txos":
           notify("core workload", "processing new txos")
           with storage_space.env.begin(write=True) as wtx:
             process_new_txos(message, wtx=wtx, core=core_context)
             #After downloading new txos some blocs may become downloaded
             notify("blockchain height", storage_space.blockchain.current_height(rtx=wtx)) 
-            look_forward(nodes, send_to_nm, rtx=wtx)
+            look_forward(nodes, send_to_network, rtx=wtx)
         if message["action"] in request_handlers: #blocks, headers, txos and tbm
           notify("core workload", "processing "+message["action"])
           with storage_space.env.begin(write=False) as rtx:
@@ -299,7 +298,7 @@ def core_loop(syncer, config):
 
       if message["action"] == "give nodes list reminder":
         _id = str(uuid4())
-        send_to_nm({"action":"give intrinsic nodes list", "sender":"Blockchain", "id":_id})
+        send_to_network({"action":"give intrinsic nodes list", "sender":"Blockchain", "id":_id})
         requests[_id] = "give nodes list"
         put_back_messages.append({"action": "give nodes list reminder", "time":int(time())+3} )
 
@@ -354,13 +353,13 @@ def core_loop(syncer, config):
       logger.error(e)
 
 
-def look_forward(nodes, send_to_nm, rtx):
+def look_forward(nodes, send_to_network, rtx):
   if storage_space.headers_manager.best_header_height < storage_space.blockchain.current_height(rtx=rtx)+100:
     for node_index in nodes:
       node = nodes[node_index]
       if ('height' in node) and (node['height']>storage_space.headers_manager.best_header_height):
         our_tip_hash = storage_space.blockchain.current_tip(rtx=rtx)
-        send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_nm)
+        send_find_common_root(storage_space.headers_storage.get(our_tip_hash,rtx=rtx), node['node'], send = send_to_network)
         break
 
 def compose_block_info(block_num, rtx):

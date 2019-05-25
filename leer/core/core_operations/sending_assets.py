@@ -40,7 +40,7 @@ def notify_all_nodes_about_tx(tx_skel, core, _except=[], mode=1):
     if node_index in _except:
       continue
     node = core.nodes[node_index]
-    core.send_to_nm({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
+    core.send_to_network({"action":"take TBM transaction", "tx_skel": tx_skel, "mode": mode,
       "id":str(uuid4()), 'node': node["node"] })
 
 

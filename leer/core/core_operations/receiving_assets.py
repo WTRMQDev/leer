@@ -38,7 +38,7 @@ def process_new_headers(message, node_info, wtx, core):
            request_num = min(256, node_info["height"]-core.storage_space.headers_storage.get(node_info["common_root"]["root"], rtx=wtx).height) 
            send_next_headers_request(header.hash,  
                                 request_num,
-                                message["node"], send = partial(core.send_to, "NetworkManager") )
+                                message["node"], send = partial(core.send_to_subprocess, "NetworkManager") )
            if node_info["height"]-header.height>request_num:
              node_info["common_root"]["long_reorganization"] = header.height+request_num
            else:

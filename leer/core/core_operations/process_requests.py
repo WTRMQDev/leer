@@ -22,14 +22,14 @@ def process_blocks_request(message, rtx, core):
       serialized_blocks.append(serialized_block)
       blocks_hashes.append(_hash)
     else:
-        send_blocks(partial(core.send_to, message['sender']), \
+        send_blocks(partial(core.send_to_subprocess, message['sender']), \
                      blocks = serialized_blocks, \
                      hashes = blocks_hashes, \
                      node = message["node"], \
                      _id=message['id'])
         serialized_blocks=[serialized_block]
         blocks_hashes = [_hash]
-  send_blocks(partial(core.send_to, message['sender']), \
+  send_blocks(partial(core.send_to_subprocess, message['sender']), \
               blocks = serialized_blocks, \
               hashes = blocks_hashes, \
               node = message["node"], \
@@ -66,14 +66,14 @@ def process_next_headers_request(message, rtx, core):
       serialized_headers.append(serialized_header)
       out_headers_hashes.append(_hash)
     else:
-      send_headers(partial(core.send_to, message['sender']), \
+      send_headers(partial(core.send_to_subprocess, message['sender']), \
                    headers = serialized_headers, \
                    hashes = out_headers_hashes,\
                    node = message["node"], \
                    _id=message['id'])
       serialized_headers=[serialized_header]
       out_headers_hashes = [_hash]
-  send_headers(partial(core.send_to, message['sender']), \
+  send_headers(partial(core.send_to_subprocess, message['sender']), \
                    headers = serialized_headers,\
                    hashes = out_headers_hashes,\
                    node = message["node"], \
@@ -96,14 +96,14 @@ def process_txos_request(message, rtx, core):
       serialized_txos.append(serialized_txo)
       txos_hashes.append(_hash)
     else:
-      send_txos(partial(core.send_to, message['sender']), \
+      send_txos(partial(core.send_to_subprocess, message['sender']), \
                    txos = serialized_txos,\
                    hashes = txos_hashes,\
                    node = message["node"], \
                    _id=message['id'])
       serialized_txos=[serialized_txo]
       txos_hashes = [_hash]
-  send_txos(partial(core.send_to, message['sender']), \
+  send_txos(partial(core.send_to_subprocess, message['sender']), \
                    txos = serialized_txos,\
                    hashes = txos_hashes,\
                    node = message["node"], \
@@ -113,7 +113,7 @@ def  process_tbm_tx_request(message, rtx, core):
   tx_skel = core.storage_space.mempool_tx.give_tx_skeleton()
   tx = core.storage_space.mempool_tx.give_tx()
   serialized_tx_skel = tx_skel.serialize(rich_format=True, max_size=60000, rtx=rtx, full_tx=tx)
-  core.send_to(message['sender'], \
+  core.send_to_subprocess(message['sender'], \
      {"action":"take TBM transaction", "tx_skel": serialized_tx_skel, "mode": 0,
       "id":message['id'], 'node': message["node"] })
 

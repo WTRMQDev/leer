@@ -30,9 +30,9 @@ def give_block_template(message, wtx, core):
     assert_mining_conditions(rtx=wtx, core=core)
     block = core.storage_space.mempool_tx.give_block_template(core.mining_address, wtx=wtx)
     ser_head = block.header.serialize()
-    core.send_to(message["sender"], {"id": message["id"], "result":ser_head})
+    core.send_to_subprocess(message["sender"], {"id": message["id"], "result":ser_head})
   except Exception as e:
-    core.send_to(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
+    core.send_to_subprocess(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
     core.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
 
 
@@ -42,14 +42,14 @@ def give_mining_work(message, wtx, core):
     assert_mining_conditions(rtx=wtx, core=core)
     partial_header_hash, target, height = core.storage_space.mempool_tx.give_mining_work(core.mining_address, wtx=wtx)
     seed_hash = progpow_seed_hash(height)
-    core.send_to(message["sender"], {"id": message["id"], 
+    core.send_to_subprocess(message["sender"], {"id": message["id"], 
               "result":{'partial_hash':partial_header_hash.hex(), 
                         'seed_hash':seed_hash.hex(),
                         'target':target.hex(),
                         'height':height
                        }})
   except Exception as e:
-    core.send_to(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
+    core.send_to_subprocess(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
     core.logger.error("Can not generate block `%s`"%(str(e)), exc_info=True)
 
 def add_solved_block(block, wtx, core):
@@ -85,14 +85,14 @@ def process_solution(solution_type, message, wtx, core):
       solved_block.header.nonce = nonce
     result = add_solved_block(solved_block, wtx, core)
     if result == "stale":
-      core.send_to(message["sender"], {"id": message["id"], "result": "Stale"})
+      core.send_to_subprocess(message["sender"], {"id": message["id"], "result": "Stale"})
       core.logger.error("Stale work submitted: height %d"%(header.height))
       return
     elif result == "accepted":
-      core.send_to(message["sender"], {"id": message["id"], "result": "Accepted"})
+      core.send_to_subprocess(message["sender"], {"id": message["id"], "result": "Accepted"})
   except Exception as e:
     core.logger.error("Wrong block solution %s"%str(e))
-    core.send_to(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
+    core.send_to_subprocess(message["sender"], {"id": message["id"], "error": str(e), 'result':'error'})
 
 def take_solved_block_template(message, wtx, core):
   process_solution("block template", message, wtx, core)

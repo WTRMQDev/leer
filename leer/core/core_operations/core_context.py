@@ -10,8 +10,8 @@ class CoreContext:
     self.logger = logger
     self.nodes = nodes
     self.notify = send_notification 
-    self.send_to = send_message
-    self.send_to_nm = partial(self.send_to, "NetworkManager")
+    self.send_to_subprocess = send_message
+    self.send_to_network = partial(self.send_to_subprocess, "NetworkManager")
     self.config = config
     self.get_new_address = get_new_address
 

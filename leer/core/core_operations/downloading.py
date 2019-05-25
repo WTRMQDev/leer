@@ -25,7 +25,7 @@ def check_blocks_download_status(message, rtx, core):
           if (not "height" in node) or node["height"] < lowest_height:
             continue
           already_asked_nodes += [node]
-          core.send_to_nm({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
+          core.send_to_network({"action":"give blocks",  "block_hashes": bytes(b"".join(block_hashes)), 'num': len(block_hashes), "id":str(uuid4()), "node":node_params })
           new_message = {"action": "check blocks download status", "block_hashes":to_be_downloaded,
                          "already_asked_nodes": already_asked_nodes, "id": str(uuid4()),
                          "time": int(time()+30) }
@@ -51,7 +51,7 @@ def check_txouts_download_status(message, rtx, core):
           if node in already_asked_nodes:
             continue
           already_asked_nodes += [node]
-          core.send_to_nm({"action":"give txos",
+          core.send_to_network({"action":"give txos",
                                                "txos_hashes": b"".join(to_be_downloaded), 
                                                "num": len(to_be_downloaded), 
                                                "id":str(uuid4()), "node":node_params })

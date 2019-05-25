@@ -32,7 +32,7 @@ def process_tip_info(message, node_info, rtx, core):
   if (height > core.storage_space.blockchain.current_height(rtx=rtx)) and (total_difficulty > core.storage_space.headers_storage.get(our_tip_hash, rtx=rtx).total_difficulty):
     #Now there are two options: better headers are unknown or headers are known, but blocks are unknown or bad
     if not core.storage_space.headers_storage.has(tip_hash, rtx=rtx):
-      send_find_common_root(core.storage_space.headers_storage.get(our_tip_hash, rtx=rtx), node, send = core.send_to_nm)
+      send_find_common_root(core.storage_space.headers_storage.get(our_tip_hash, rtx=rtx), node, send = core.send_to_network)
       #TODO check prev hash first
     else: #header is known
       header = core.storage_space.headers_storage.get(tip_hash, rtx=rtx)
@@ -53,7 +53,7 @@ def process_tip_info(message, node_info, rtx, core):
         if len(blocks_to_download)*32>40000: #Too big for one message
           break
       if len(blocks_to_download):
-        core.send_to_nm({"action":"give blocks",  
+        core.send_to_network({"action":"give blocks",  
             "block_hashes": b"".join(blocks_to_download),
             'num': len(blocks_to_download), "id":str(uuid4()), "node":message["node"] })
 
@@ -87,7 +87,7 @@ def process_find_common_root(message, node_info, rtx, core):
       continue
     result.append(HEADERSTATE.INFORK)
 
-  core.send_to(message['sender'], \
+  core.send_to_subprocess(message['sender'], \
      {"action":"find common root response", "header_hash":header.hash,
       "flags_num": len(result), 
       "known_headers": b"".join([i.to_bytes(1,"big") for i in result]), 
@@ -131,7 +131,7 @@ def process_find_common_root_response(message, node_info, rtx, core):
         node_info["common_root"]["try_num"]=0
       node_info["common_root"]["try_num"]+=1
       send_find_common_root(core.storage_space.headers_storage.get(node_info["common_root"]["worst_nonmutual"], rtx=rtx), message['node'],\
-                          send = core.send_to_nm )
+                          send = core.send_to_network )
       if node_info["common_root"]["try_num"]>5:
         pass #TODO we shoould try common root not from worst_nonmutual but at the middle between worst_nonmutual and best_mutual (binary search)
   try:
@@ -147,7 +147,7 @@ def process_find_common_root_response(message, node_info, rtx, core):
       request_num = min(headers_chain_advance, height-common_root_height)
       send_next_headers_request(node_info["common_root"]["root"], 
                                 request_num,
-                                message["node"], send = core.send_to_nm )
+                                message["node"], send = core.send_to_network )
       if height-common_root_height>request_num:
         our_tip = core.storage_space.headers_storage.get(core.storage_space.blockchain.current_tip(rtx=rtx), rtx=rtx)
         if our_tip.hash != node_info["common_root"]["root"]: #It's indeed reorg
