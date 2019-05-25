@@ -64,3 +64,5 @@ def check_txouts_download_status(message, rtx, core):
           message["time"]=int(time())+600
           message["already_asked_nodes"] = []
           return message # we will try to ask again in an hour
+
+download_status_checks = {"check txouts download status":check_txouts_download_status, "check blocks download status":check_blocks_download_status}

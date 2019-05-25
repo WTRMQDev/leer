@@ -32,7 +32,7 @@ from leer.core.core_operations.receiving_assets import process_new_headers, proc
 from leer.core.core_operations.sending_metadata import send_tip_info, notify_all_nodes_about_new_tip, send_find_common_root
 from leer.core.core_operations.process_metadata import metadata_handlers
 from leer.core.core_operations.notifications import set_notify_wallet_hook, set_value_to_queue
-from leer.core.core_operations.downloading import check_blocks_download_status, check_txouts_download_status
+from leer.core.core_operations.downloading import download_status_checks
 from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import request_handlers
 from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
@@ -293,17 +293,11 @@ def core_loop(syncer, config):
 
 
       #message from core_loop
-      if message["action"] == "check txouts download status":
+      if message["action"] in download_status_checks: # txouts and blocks download status checks
         with storage_space.env.begin(write=True) as rtx:
-          ret_mes = check_txouts_download_status(message, rtx, core_context)
+          ret_mes = download_status_checks[message["action"]](message, rtx, core_context)
           if ret_mes:
             put_back_messages.append(ret_mes)
-      if message["action"] == "check blocks download status":
-        with storage_space.env.begin(write=True) as rtx:
-          ret_mes = check_blocks_download_status(message, rtx, core_context)
-          if ret_mes:
-            put_back_messages.append(ret_mes)
-
       if message["action"] == "take nodes list":
         for node in message["nodes"]:
           if not node in nodes: #Do not overwrite
