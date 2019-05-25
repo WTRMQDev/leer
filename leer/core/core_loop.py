@@ -35,7 +35,7 @@ from leer.core.core_operations.notifications import set_notify_wallet_hook, set_
 from leer.core.core_operations.downloading import download_status_checks
 from leer.core.core_operations.sending_requests import send_next_headers_request
 from leer.core.core_operations.process_requests import request_handlers
-from leer.core.core_operations.handle_mining import give_mining_work, give_block_template, take_solved_block_template, take_mining_work
+from leer.core.core_operations.handle_mining import mining_operations
 from leer.core.core_operations.blockchain_initialization import init_blockchain, validate_state, set_ask_for_blocks_hook, set_ask_for_txouts_hook
 
 logger = logging.getLogger("core_loop")
@@ -228,19 +228,6 @@ def core_loop(syncer, config):
           send_message(message["sender"], {"id": message["id"], "result":block_info})
         except Exception as e:
           send_message(message["sender"], {"id": message["id"], "result":"error", "error":str(e)})
-
-      if message["action"] == "give block template":
-        notify("core workload", "generating block template")
-        with storage_space.env.begin(write=True) as wtx:
-          give_block_template(message, wtx, core_context)
-      if message["action"] == "give mining work":
-        notify("core workload", "generating mining work")
-        with storage_space.env.begin(write=True) as wtx:
-          give_mining_work(message, wtx, core_context)
-      if message["action"] == "take solved block template":
-        notify("core workload", "processing solved block")
-        with storage_space.env.begin(write=True) as wtx:
-          take_solved_block_template(message, wtx, core_context)
       if message["action"] == "put arbitrary mining work" and is_benchmark:
         if not no_pow:
           raise Exception("`put arbitrary mining work` is only allowed for disabled pow checks")
@@ -248,10 +235,10 @@ def core_loop(syncer, config):
         message["nonce"] = b"\x00"*8
         message['partial_hash'] = list(storage_space.mempool_tx.work_block_assoc.inner_dict.keys())[-1] 
         message['action'] = "take mining work"
-      if message["action"] == "take mining work":
-        notify("core workload", "processing mining work")
+      if message["action"] in mining_operations: #getwork, gbt, submitblock, submitwork
+        notify("core workload", "processing" + message["action"])
         with storage_space.env.begin(write=True) as wtx:
-          take_mining_work(message, wtx, core_context)
+          mining_operations[message["action"]](message, wtx, core_context)
       if message["action"] == "set mining address" and is_benchmark:
         address = Address()
         address.deserialize_raw(message["address"])

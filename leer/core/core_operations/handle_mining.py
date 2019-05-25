@@ -100,3 +100,9 @@ def take_solved_block_template(message, wtx, core):
 def take_mining_work(message, wtx, core):
   process_solution("work", message, wtx, core)
 
+mining_operations = {"give block template":give_block_template,\
+                     "give mining work":give_mining_work,\
+                     "take solved block template":take_solved_block_template,\
+                     "take mining work":take_mining_work\
+                    }
+
