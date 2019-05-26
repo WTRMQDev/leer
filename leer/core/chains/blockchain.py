@@ -265,6 +265,6 @@ class Blockchain:
 
   def is_block_in_main_chain(self, block_hash, rtx):
     header = self.storage_space.headers_storage.get(block_hash,rtx=rtx)
-    return header_hash == self.storage_space.heders_manager.find_ancestor_with_height(self.current_tip, header.height, rtx=rtx) 
+    return header.hash == self.storage_space.headers_manager.find_ancestor_with_height(self.current_tip(rtx=rtx), header.height, rtx=rtx) 
     
 
