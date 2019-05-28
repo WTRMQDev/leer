@@ -30,8 +30,10 @@ class KeyDB:
   def priv_by_address(self, address, cursor):
     pass
 
-  def add_privkey(self, privkey, cursor):
-    pass
+  def add_privkey(self, privkey, cursor, duplicate_safe=False):
+    pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
+    priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
+    cursor.execute("INSERT INTO keys VALUE (?, ?)", (pub, priv) )
 
   def fill_pool(self, cursor, keys_number):
     pass
