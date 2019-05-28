@@ -33,7 +33,13 @@ class KeyDB:
   def add_privkey(self, privkey, cursor, duplicate_safe=False):
     pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
     priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
-    cursor.execute("INSERT INTO keys VALUE (?, ?)", (pub, priv) )
+    if duplicate_safe:
+      cursor.execute("SELECT COUNT(*) from keys where pubkey=?",(pub,))
+      has_key = cursor.fetchone()[0]
+      if has_key:
+        return False
+    cursor.execute("INSERT INTO keys VALUE (?, ?, ?, ?, ?)", (pub, priv, "[]", int(time.time()), int(time.time()), ) )
+    return True
 
   def fill_pool(self, cursor, keys_number):
     pass
