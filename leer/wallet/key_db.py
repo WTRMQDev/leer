@@ -5,16 +5,24 @@ from hashlib import sha256
 from secp256k1_zkp import PrivateKey
 from leer.core.lubbadubdub.address import address_from_private_key
 from leer.wallet.key_utils import Crypter
+from functools import partial
 
 class KeyDB:
   """
-    New KeyDB which will replace key_manager.
+    KeyDB is sqlite3 database which holds information about private keys, 
+    owned outputs and incoming/outcoming transactions.
+    Sensitive data may be optionally encrypted with password.
+    There is privkey pool: bunch of pregenerated privkeys. It is expected that on a higher level
+    instead of generating and immediate usage of new key, new key will be put into the pool and the oldest key
+    from the pool will be used. Thus, in case of backups, copies and so on, "old copy" will contain
+    some keys used after copy being made.
   """
   def __init__(self, path, password=None):
     self.path = path
     self.crypter = Crypter(password)
     self.encrypt = self.crypter.encrypt
     self.decrypt = self.crypter.decrypt
+    self.open = partial(sqlite3.connect, path+"/wallet.sql.db")
 
   def new_address(self, cursor):
     pass
@@ -25,7 +33,7 @@ class KeyDB:
   def add_privkey(self, privkey, cursor):
     pass
 
-  def fill_pool(self, cursor, keys_number=100):
+  def fill_pool(self, cursor, keys_number):
     pass
 
   def is_unspent(self, output_index, cursor):
