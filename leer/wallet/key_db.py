@@ -30,7 +30,7 @@ class KeyDB:
   def priv_by_address(self, address, cursor):
     pass
 
-  def add_privkey(self, privkey, cursor, duplicate_safe=False):
+  def add_privkey(self, privkey, cursor, duplicate_safe=False, pool=False):
     pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
     priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
     if duplicate_safe:
@@ -38,8 +38,13 @@ class KeyDB:
       has_key = cursor.fetchone()[0]
       if has_key:
         return False
-    cursor.execute("INSERT INTO keys VALUE (?, ?, ?, ?, ?)", (pub, priv, "[]", int(time.time()), int(time.time()), ) )
+    now = time.time()
+    cursor.execute("INSERT INTO keys (pubkey, privkey, outputs, created_at, updated_at, pool) VALUE (?, ?, ?, ?, ?, ?)",\
+                                     (pub,    priv,    "[]",    now,        now,        pool) )
     return True
+
+  def _add_privkey_to_pool(self, privkey, cursor):
+    self.add_privkey(privkey, cursor, duplicate_safe=True, pool=True)
 
   def fill_pool(self, cursor, keys_number):
     pass
