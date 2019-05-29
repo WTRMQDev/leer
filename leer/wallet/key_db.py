@@ -4,7 +4,7 @@ import base64
 from hashlib import sha256
 from secp256k1_zkp import PrivateKey
 from leer.core.lubbadubdub.address import address_from_private_key
-from leer.wallet.key_utils import Crypter
+from leer.wallet.key_utils import Crypter, encode_int_array, decode_int_array
 from functools import partial
 
 class KeyDB:
@@ -36,6 +36,7 @@ class KeyDB:
   def add_privkey(self, privkey, cursor, duplicate_safe=False, pool=False):
     pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
     priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
+    outputs = base64.b85encode(self.encrypt(encode_int_array([]))).decode('utf8')
     if duplicate_safe:
       cursor.execute("SELECT COUNT(*) from keys where pubkey=?",(pub,))
       has_key = cursor.fetchone()[0]
@@ -43,7 +44,7 @@ class KeyDB:
         return False
     now = time.time()
     cursor.execute("INSERT INTO keys (pubkey, privkey, outputs, created_at, updated_at, pool) VALUE (?, ?, ?, ?, ?, ?)",\
-                                     (pub,    priv,    "[]",    now,        now,        pool) )
+                                     (pub,    priv,    outputs,    now,        now,        pool) )
     return True
 
   def _add_privkey_to_pool(self, privkey, cursor):
