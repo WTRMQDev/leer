@@ -18,9 +18,9 @@ def get_current_stage(cursor):
 
 def init_database(cursor):
   cursor.execute("CREATE TABLE metadata (key text, value text)")
-  cursor.execute("CREATE TABLE keys (pubkey text PRIMARY KEY, privkey text, outputs text, created_at integer, updated_at integer)")
-  cursor.execute("CREATE TABLE outputs (output text PRIMARY KEY, value int, lock_height int, created_height int KEY, spent_height int KEY,  ser_blinding_key text, ser_apc int, taddress text KEY, spent int)")
+  cursor.execute("CREATE TABLE keys (id integer PRIMARY KEY AUTOINCREMENT, pubkey text KEY, privkey text, outputs text, created_at integer, updated_at integer, pool boolean)")
+  cursor.execute("CREATE TABLE outputs (id integer PRIMARY KEY AUTOINCREMENT, output text KEY, value int, lock_height int, created_height int KEY, spent_height int KEY,  ser_blinding_key text, ser_apc int, taddress text KEY, spent boolean)")
   cursor.execute("INSERT INTO metadata values ('migration_stage','1')")
 
 migrations.append( (1, init_database) )
-  
+
