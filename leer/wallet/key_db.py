@@ -25,7 +25,10 @@ class KeyDB:
     self.open = partial(sqlite3.connect, path+"/wallet.sql.db")
 
   def new_address(self, cursor):
-    pass
+    prk=PrivateKey()
+    self._add_privkey_to_pool(prk, cursor)
+    privkey = PrivateKey(self._get_privkey_from_pool(cursor), raw=True)
+    return address_from_private_key(privkey) 
 
   def priv_by_address(self, address, cursor):
     pass
@@ -45,6 +48,15 @@ class KeyDB:
 
   def _add_privkey_to_pool(self, privkey, cursor):
     self.add_privkey(privkey, cursor, duplicate_safe=True, pool=True)
+
+  def _get_privkey_from_pool(self, privkey, cursor):
+    cursor.execute("SELECT privkey from keys where pool=1 order by id asc limit 1")
+    res = cursor.fetchone()
+    if not len(res):
+      self.fill_pool(cursor, 10)
+      return self._get_privkey_from_pool(privkey, cursor)
+    else:
+      return self.decrypt(base64.b85decode(res[0].encode('utf8')))
 
   def fill_pool(self, cursor, keys_number):
     pass
