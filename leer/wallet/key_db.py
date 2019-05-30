@@ -60,7 +60,9 @@ class KeyDB:
       return self.decrypt(base64.b85decode(res[0].encode('utf8')))
 
   def fill_pool(self, cursor, keys_number):
-    pass
+    for _ in range(keys_number):
+     prk=PrivateKey()
+     self._add_privkey_to_pool(prk, cursor)
 
   def is_unspent(self, output_index, cursor):
     pass
