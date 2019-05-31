@@ -7,14 +7,22 @@ class Crypter:
     self.aead = None
     self.password = password
     if self.password:
-      raw_private_key = sha256(self.password.encode("utf-8"))
-      self.aead = ChaCha20Poly1305(raw_private_key, 'python')
-  def encrypt(self, payload):
+      self.raw_private_key = sha256(self.password.encode("utf-8"))
+      self.aead = ChaCha20Poly1305(self.raw_private_key, 'python')
+
+  def encrypt(self, payload, nonce=None):
     if self.aead:
-      nonce = urandom(12)
+      if not nonce:
+        nonce = urandom(12)
       return nonce+self.aead.seal(nonce, payload, b'')
     else:
       return payload
+
+  def encrypt_deterministic(self, payload):
+    if self.password:
+      nonce = sha256(payload, self.raw_private_key)[:12]
+    return self.encrypt(payload, nonce=nonce)
+
   def decrypt(self, ciphertext):
     if self.aead:
       return bytes(self.aead.open(ciphertext[:12], ciphertext[12:], b''))

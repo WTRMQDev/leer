@@ -35,7 +35,7 @@ class KeyDB:
 
   def add_privkey(self, privkey, cursor, duplicate_safe=False, pool=False):
     pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
-    priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
+    priv = base64.b85encode(self.encrypt_deterministic(privkey.private_key)).decode('utf8')
     outputs = base64.b85encode(self.encrypt(encode_int_array([]))).decode('utf8')
     if duplicate_safe:
       cursor.execute("SELECT COUNT(*) from keys where pubkey=?",(pub,))
