@@ -31,11 +31,17 @@ class KeyDB:
     return address_from_private_key(privkey) 
 
   def priv_by_address(self, address, cursor):
-    pass
+    pub = base64.b85encode(self.encrypt_deterministic(address.pubkey.serialize())).decode('utf8')
+    cursor.execute("SELECT privkey from keys where pubkey=?",(pub,))
+    res = cursor.fetchone()
+    if not len(res):
+      raise KeyError("Private key not in the wallet")
+    raw_priv = self.decrypt(base64.b85decode(res[0].encode('utf8')))
+    return PrivateKey(raw_priv, raw=True)
 
   def add_privkey(self, privkey, cursor, duplicate_safe=False, pool=False):
-    pub = base64.b85encode(privkey.pubkey.serialize()).decode('utf8')
-    priv = base64.b85encode(self.encrypt_deterministic(privkey.private_key)).decode('utf8')
+    pub = base64.b85encode(self.encrypt_deterministic(privkey.pubkey.serialize())).decode('utf8')
+    priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
     outputs = base64.b85encode(self.encrypt(encode_int_array([]))).decode('utf8')
     if duplicate_safe:
       cursor.execute("SELECT COUNT(*) from keys where pubkey=?",(pub,))
@@ -50,12 +56,12 @@ class KeyDB:
   def _add_privkey_to_pool(self, privkey, cursor):
     self.add_privkey(privkey, cursor, duplicate_safe=True, pool=True)
 
-  def _get_privkey_from_pool(self, privkey, cursor):
+  def _get_privkey_from_pool(self, cursor):
     cursor.execute("SELECT privkey from keys where pool=1 order by id asc limit 1")
     res = cursor.fetchone()
     if not len(res):
       self.fill_pool(cursor, 10)
-      return self._get_privkey_from_pool(privkey, cursor)
+      return self._get_privkey_from_pool(cursor)
     else:
       return self.decrypt(base64.b85decode(res[0].encode('utf8')))
 
