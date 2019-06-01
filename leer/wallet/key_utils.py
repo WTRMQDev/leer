@@ -1,6 +1,7 @@
 from chacha20poly1305 import ChaCha20Poly1305
 from leer.core.utils import sha256
 from os import urandom
+from base64 import b85encode, b85decode
 
 class Crypter:
 
@@ -15,9 +16,9 @@ class Crypter:
     if self.aead:
       if not nonce:
         nonce = urandom(12)
-      return nonce+self.aead.seal(nonce, payload, b'')
+      return base64.b85encode(nonce+self.aead.seal(nonce, payload, b'')).decode('utf8')
     else:
-      return payload
+      return base64.b85encode(payload).decode('utf8')
 
   def deterministic_nonce(self, payload):
     return sha256(payload+self.raw_private_key)[:12] if self.password else None
@@ -27,10 +28,11 @@ class Crypter:
     return self.encrypt(payload, nonce=nonce)
 
   def decrypt(self, ciphertext):
+    ciphertext_bytes = base64.b85decode(ciphertext.encode('utf8'))
     if self.aead:
-      return bytes(self.aead.open(ciphertext[:12], ciphertext[12:], b''))
+      return bytes(self.aead.open(ciphertext_bytes[:12], ciphertext_bytes[12:], b''))
     else:
-      return ciphertext
+      return ciphertext_bytes
 
   def encrypt_int(self, payload, size=8):
     return self.encrypt(payload.to_bytes(size, "big"))

@@ -1,6 +1,5 @@
 import shutil, os, time, math
 import sqlite3
-import base64
 from hashlib import sha256
 from secp256k1_zkp import PrivateKey
 from leer.core.lubbadubdub.address import address_from_private_key
@@ -31,18 +30,18 @@ class KeyDB:
     return address_from_private_key(privkey) 
 
   def priv_by_address(self, address, cursor):
-    pub = base64.b85encode(self.encrypt_deterministic(address.pubkey.serialize())).decode('utf8')
+    pub = self.encrypt_deterministic(address.pubkey.serialize())
     cursor.execute("SELECT privkey from keys where pubkey=?",(pub,))
     res = cursor.fetchone()
     if not len(res):
       raise KeyError("Private key not in the wallet")
-    raw_priv = self.decrypt(base64.b85decode(res[0].encode('utf8')))
+    raw_priv = self.decrypt(res[0])
     return PrivateKey(raw_priv, raw=True)
 
   def add_privkey(self, privkey, cursor, duplicate_safe=False, pool=False):
-    pub = base64.b85encode(self.encrypt_deterministic(privkey.pubkey.serialize())).decode('utf8')
-    priv = base64.b85encode(self.encrypt(privkey.private_key)).decode('utf8')
-    outputs = base64.b85encode(self.encrypt(encode_int_array([]))).decode('utf8')
+    pub = self.encrypt_deterministic(privkey.pubkey.serialize())
+    priv = self.encrypt(privkey.private_key))
+    outputs = self.encrypt(encode_int_array([]))
     if duplicate_safe:
       cursor.execute("SELECT COUNT(*) from keys where pubkey=?",(pub,))
       has_key = cursor.fetchone()[0]
@@ -63,7 +62,7 @@ class KeyDB:
       self.fill_pool(cursor, 10)
       return self._get_privkey_from_pool(cursor)
     else:
-      return self.decrypt(base64.b85decode(res[0].encode('utf8')))
+      return self.decrypt(res[0])
 
   def fill_pool(self, cursor, keys_number):
     for _ in range(keys_number):
