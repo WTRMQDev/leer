@@ -3,6 +3,7 @@ from leer.core.utils import sha256
 from os import urandom
 
 class Crypter:
+
   def __init__(self, password):
     self.aead = None
     self.password = password
@@ -18,9 +19,11 @@ class Crypter:
     else:
       return payload
 
+  def deterministic_nonce(self, payload):
+    return sha256(payload+self.raw_private_key)[:12] if self.password else None
+
   def encrypt_deterministic(self, payload):
-    if self.password:
-      nonce = sha256(payload, self.raw_private_key)[:12]
+    nonce = self.deterministic_nonce(payload)
     return self.encrypt(payload, nonce=nonce)
 
   def decrypt(self, ciphertext):
@@ -29,6 +32,15 @@ class Crypter:
     else:
       return ciphertext
 
+  def encrypt_int(self, payload, size=8):
+    return self.encrypt(payload.to_bytes(size, "big"))
+
+  def encrypt_int_deterministic(self, payload, size=8):
+    _payload = payload.to_bytes(size, "big")
+    return self.encrypt(_payload, self.deterministic_nonce(_payload))
+
+  def decrypt_int(self, ciphertext):
+    return int.from_bytes(self.decrypt(ciphertext), "big")
 
 
 def encode_int_array(array):
