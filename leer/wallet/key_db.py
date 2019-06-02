@@ -78,9 +78,22 @@ class KeyDB:
   def spend_output(self, index, spend_height, cursor):
     pass
 
+  def _update_outputs_list(self, pubkey, cursor, add=[], remove=[]):
+    pub = self.encrypt_deterministic(address.pubkey.serialize())
+    cursor.execute("SELECT outputs from keys where pubkey=?",(pub,))
+    res = cursor.fetchone()
+    if not len(res):
+      raise KeyError("Private key not in the wallet")
+    outputs = decode_int_array(self.decrypt(res[0]))
+    outputs += add
+    outputs = [i for i in outputs if not i in remove]
+    enc_outputs = self.encrypt(encode_int_array(outputs))
+    cursor.execute("UPDATE keys set outputs = ? where pubkey = ?",(enc_outputs, pub))
+
   def add_output(self, output, created_height, cursor):
     index = self.encrypt_deterministic(output.serialized_index)
-    pubkey = self.encrypt(output.address.serialized_pubkey)
+    pubkey = output.address.serialized_pubkey
+    pubkey_ = self.encrypt(pubkey)
     taddress = self.encrypt(output.address.to_text().encode())
     output.detect_value(inputs_info = 
          {'priv_by_pub':{
@@ -94,7 +107,8 @@ class KeyDB:
     ser_apc = self.encrypt(output.serialized_apc)
     spent = 0
     cursor.execute("INSERT INTO outputs (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent) VALUE (?, ?, ?, ?, ?, ?)",\
-                                         (index, pubkey, value, lock_height, created_height_, ser_bl,          ser_apc, taddress, spent))
+                                         (index, pubkey_, value, lock_height, created_height_, ser_bl,         ser_apc, taddress, spent))
+    self._update_outputs_list(pubkey, cursor, add=[cursor.lastrowid], remove=[]) 
 
 
   def rollback(self, block_height, cursor):
