@@ -78,8 +78,24 @@ class KeyDB:
   def spend_output(self, index, spend_height, cursor):
     pass
 
-  def add_output(self, output, block_height, cursor):
-    pass
+  def add_output(self, output, created_height, cursor):
+    index = self.encrypt_deterministic(output.serialized_index)
+    pubkey = self.encrypt(output.address.serialized_pubkey)
+    taddress = self.encrypt(output.address.to_text().encode())
+    output.detect_value(inputs_info = 
+         {'priv_by_pub':{
+                           pubkey : self.priv_by_address(output.address, r_txn=w_txn)
+                        }
+         }) 
+    value = self.encrypt_int(output.value)
+    lock_height = self.encrypt_int(output.lock_height)
+    created_height_ = self.encrypt_int_deterministic(created_height)
+    ser_bl = self.encrypt(output.blinding_key.private_key)
+    ser_apc = self.encrypt(output.serialized_apc)
+    spent = 0
+    cursor.execute("INSERT INTO outputs (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent) VALUE (?, ?, ?, ?, ?, ?)",\
+                                         (index, pubkey, value, lock_height, created_height_, ser_bl,          ser_apc, taddress, spent))
+
 
   def rollback(self, block_height, cursor):
     pass
