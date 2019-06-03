@@ -70,7 +70,7 @@ class KeyDB:
      self._add_privkey_to_pool(prk, cursor)
 
   def is_unspent(self, output_index, cursor):
-    index = self.encrypt_deterministic(output.serialized_index)
+    index = self.encrypt_deterministic(output_index)
     cursor.execute("SELECT spent from outputs where output=?",(index,))
     res = cursor.fetchone()
     if not len(res):
@@ -80,8 +80,11 @@ class KeyDB:
   def is_owned_pubkey(self, serialized_pubkey, cursor):
     pass
 
-  def spend_output(self, index, spend_height, cursor):
-    pass
+  def spend_output(self, output_index, spend_height, cursor):
+    index = self.encrypt_deterministic(output_index)
+    spent_h = self.encrypt_int_deterministic(spend_height)
+    spent = 1
+    cursor.execute("UPDATE outputs set spent_height = ?, spent = ? where output = ?",(spent_h, spent, index))
 
   def _update_outputs_list(self, pubkey, cursor, add=[], remove=[]):
     pub = self.encrypt_deterministic(address.pubkey.serialize())
