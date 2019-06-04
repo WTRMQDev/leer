@@ -78,7 +78,12 @@ class KeyDB:
     return bool(res[0])
 
   def is_owned_pubkey(self, serialized_pubkey, cursor):
-    pass
+    pubkey = self.encrypt_deterministic(serialized_pubkey)
+    cursor.execute("SELECT privkey from keys where pubkey=?",(pubkey,))
+    res = cursor.fetchone()
+    if not len(res):
+      return False
+    return True
 
   def spend_output(self, output_index, spend_height, cursor):
     index = self.encrypt_deterministic(output_index)
