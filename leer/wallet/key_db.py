@@ -89,7 +89,8 @@ class KeyDB:
     index = self.encrypt_deterministic(output_index)
     spent_h = self.encrypt_int_deterministic(spend_height)
     spent = 1
-    cursor.execute("UPDATE outputs set spent_height = ?, spent = ? where output = ?",(spent_h, spent, index))
+    now = int(time.time())
+    cursor.execute("UPDATE outputs set spent_height = ?, spent = ?, updated_at = ? where output = ?",(spent_h, spent, now, index))
 
   def _update_outputs_list(self, pubkey, cursor, add=[], remove=[]):
     pub = self.encrypt_deterministic(address.pubkey.serialize())
@@ -101,7 +102,7 @@ class KeyDB:
     outputs += add
     outputs = [i for i in outputs if not i in remove]
     enc_outputs = self.encrypt(encode_int_array(outputs))
-    cursor.execute("UPDATE keys set outputs = ? where pubkey = ?",(enc_outputs, pub))
+    cursor.execute("UPDATE keys set outputs = ?, updated_at = ? where pubkey = ?",(enc_outputs, int(time.time()), pub))
 
   def add_output(self, output, created_height, cursor):
     index = self.encrypt_deterministic(output.serialized_index)
@@ -119,8 +120,12 @@ class KeyDB:
     ser_bl = self.encrypt(output.blinding_key.private_key)
     ser_apc = self.encrypt(output.serialized_apc)
     spent = 0
-    cursor.execute("INSERT INTO outputs (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent) VALUE (?, ?, ?, ?, ?, ?)",\
-                                         (index, pubkey_, value, lock_height, created_height_, ser_bl,         ser_apc, taddress, spent))
+    cursor.execute("""
+                      INSERT INTO outputs 
+                       (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent, updated_at)
+                      VALUE
+                       (?, ?, ?, ?, ?, ?)""",\
+                      (index, pubkey_, value, lock_height, created_height_, ser_bl,         ser_apc, taddress, spent, int(time.time())))
     self._update_outputs_list(pubkey, cursor, add=[cursor.lastrowid], remove=[]) 
 
 
