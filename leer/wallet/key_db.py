@@ -130,7 +130,22 @@ class KeyDB:
 
 
   def rollback(self, block_height, cursor):
-    pass
+    height = self.encrypt_int_deterministic(block_height)
+    now = int(time.time())
+    cursor.execute("""
+                   SELECT id, pubkey from outputs where created_height = ?
+                   """, (height,))
+    res = cursor.fetchall()
+    for _id, _pubkey in res:
+      pubkey = self.decrypt(_pubkey)
+      self._update_outputs_list(pubkey, cursor, add=[], remove=[_id]) #TODO Mass update 
+    cursor.execute("""
+                   DELETE from outputs where created_height = ?
+                   """, (height,))
+    cursor.execute("""
+                   UPDATE outputs set spent=0, updated_at = ?, spent_height = NULL where spent_height =?
+                   """, (now, height))
+   
 
   def get_confirmed_balance_stats(self, current_height, cursor):
     pass
