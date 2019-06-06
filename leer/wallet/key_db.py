@@ -148,7 +148,31 @@ class KeyDB:
    
 
   def get_confirmed_balance_stats(self, current_height, cursor):
-    pass
+    stats = {
+              'matured': {'known_value':0, 'known_count':0, 'unknown_count':0},
+              'immatured': {'known_value':0, 'known_count':0, 'unknown_count':0}
+            }
+    cursor.execute("""
+                   SELECT output, taddress, value, lock_height from outputs where spent = 0
+                   """)
+    ret = {}
+    for output, taddress, value, lock_height in cursor.fetchall():
+        output = self.decrypt(output)
+        taddress = self.decrypt(taddress)
+        value = self.decrypt_int(value)
+        lock_height = self.decrypt_int(lock_height)
+        taddress = taddress.decode()
+        mat = None
+        if current_height>=lock_height:
+          mat = 'matured'
+        else:
+          mat = 'immatured'
+        if value:
+          stats[mat]['known_value']+=value
+          stats[mat]['known_count']+=1
+        else:
+          stats[mat]['unknown_count']+=1        
+    return stats
     
   def get_confirmed_balance_list(self, current_height, cursor):
     cursor.execute("""
