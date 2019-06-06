@@ -151,7 +151,26 @@ class KeyDB:
     pass
     
   def get_confirmed_balance_list(self, current_height, cursor):
-    pass
+    cursor.execute("""
+                   SELECT output, taddress, value, lock_height from outputs where spent = 0
+                   """)
+    ret = {}
+    for output, taddress, value, lock_height in cursor.fetchall():
+        output = self.decrypt(output)
+        taddress = self.decrypt(taddress)
+        value = self.decrypt_int(value)
+        lock_height = self.decrypt_int(lock_height)
+        taddress = taddress.decode()
+        if not current_height>=lock_height:
+          continue
+        texted_index = base64.b64encode(output_index).decode()
+        if not taddress in ret:
+            ret[taddress]={}
+        if value:
+            ret[taddress][texted_index]=value
+        else:
+            ret[taddress][texted_index]='unknown'      
+    return ret
 
   def give_transactions(self, n, cursor):
     pass
