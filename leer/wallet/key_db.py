@@ -120,12 +120,13 @@ class KeyDB:
     ser_bl = self.encrypt(output.blinding_key.private_key)
     ser_apc = self.encrypt(output.serialized_apc)
     spent = 0
+    now =  int(time.time())
     cursor.execute("""
                       INSERT INTO outputs 
-                       (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent, updated_at)
+                       (output, pubkey, value, lock_height, created_height, ser_blinding_key, ser_apc, taddress, spent, created_at, updated_at)
                       VALUE
-                       (?, ?, ?, ?, ?, ?)""",\
-                      (index, pubkey_, value, lock_height, created_height_, ser_bl,         ser_apc, taddress, spent, int(time.time())))
+                       (?,      ?,      ?,     ?,           ?,              ?,                ?,       ?,        ?,     ?,          ?)""",\
+                      (index, pubkey_, value, lock_height, created_height_, ser_bl,         ser_apc, taddress, spent,   now,         now))
     self._update_outputs_list(pubkey, cursor, add=[cursor.lastrowid], remove=[]) 
 
 
@@ -197,7 +198,38 @@ class KeyDB:
     return ret
 
   def give_transactions(self, n, cursor):
-    pass
+    txdict = {} #Each element is dict {block_num: {'output':{params}}}
+    cursor.execute("""
+                   SELECT output, taddress, value, lock_height, spent, created_height, spent_height, created_at, updated_at
+                    from outputs2 order by updated_at desc
+                   """)  
+    already_processed_blocks = []
+    for output, taddress, value, lock_height, spent, created_height, spent_height, created_at, updated_at in cursor.fetchall():
+        if len(already_processed_blocks)>=n:
+          break
+        output = self.decrypt(output)
+        taddress = self.decrypt(taddress)
+        value = self.decrypt_int(value)
+        lock_height = self.decrypt_int(lock_height)
+        created_height = self.decrypt_int(created_height)
+        spent_height = self.decrypt_int(spent_height) if spent_height else False
+
+        taddress = taddress.decode()
+        soi = base64.b64encode(output_index).decode()
+        current_height = spent_height if spent else created_height
+        if not current_height in txdict:
+          txdict[current_height] = {}
+        if spent:
+          txdict[current_height][soi] = {'lock_height':lock_height, 'value':'value', 'address':taddress.decode(), 'type':'spent'}
+        else:
+          txdict[current_height][soi] = {'lock_height':lock_height, 'value':'value', 'address':taddress.decode(), 'type':'received'}
+          if not created_at == updated_at:
+            #this output was already spent and then rollback occured. We can not trust updated_at ordering here
+            continue
+        if not current_height in already_processed_blocks:
+            already_processed_blocks.append(current_height)
+            continue
+          
 
   def save_generated_transaction(self, tx, time, cursor):
     pass
