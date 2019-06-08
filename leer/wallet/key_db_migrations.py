@@ -24,7 +24,7 @@ def init_database(cursor):
 
 
 def add_outgoing_outputs(cursor):
-  cursor.execute("CREATE TABLE outgoing_outputs (id integer PRIMARY KEY AUTOINCREMENT, output text KEY, pubkey text, value text, lock_height text, created_height text KEY, ser_blinding_key text, ser_apc text, taddress text KEY, created_at integer, updated_at integer)")
+  cursor.execute("CREATE TABLE outgoing_outputs (id integer PRIMARY KEY AUTOINCREMENT, output text KEY, pubkey text, value text, lock_height text, created_height text KEY, ser_blinding_key text, ser_apc text, taddress text KEY, created_at integer, updated_at integer, confirmed integer)")
 
 migrations.append( (1, init_database) )
 migrations.append( (2, add_outgoing_outputs) )
