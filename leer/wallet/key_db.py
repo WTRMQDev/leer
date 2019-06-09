@@ -248,7 +248,7 @@ class KeyDB:
       confirmed = 0
       now =  int(time.time())
       cursor.execute("""
-                      INSERT INTO outgoing_outputs 
+                      INSERT INTO outgoing_outputs
                        (output, pubkey, value, lock_height, ser_blinding_key, ser_apc, taddress, confirmed, created_at, updated_at)
                       VALUE
                        (?,      ?,      ?,     ?,           ?,                ?,       ?,        ?,     ?,          ?)""",\
@@ -258,9 +258,14 @@ class KeyDB:
 
 
   def is_saved(self, output, cursor):
-    pass
+    index = self.encrypt_deterministic(output.serialized_index)
+    cursor.execute("SELECT output from outgoing_outputs where output=?",(index,))
+    res = cursor.fetchone()
+    return bool(len(res))
 
   def register_processed_output(self, output_index, block_height, cursor):
-    pass
-
+    index = self.encrypt_deterministic(output_index)
+    created_height = self.encrypt_int_deterministic(block_height)
+    cursor.execute("UPDATE outgoing_outputs set created_height = ?, confirmed = 1 where output=?", (created_height. index))
+    
 
