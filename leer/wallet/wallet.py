@@ -7,6 +7,7 @@ from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from secp256k1_zkp import PrivateKey
 
+
 from uuid import uuid4
 import logging
 import base64
@@ -77,7 +78,8 @@ def wallet(syncer, config):
   message_queue = syncer.queues['Wallet']
   _path = config['location']['wallet']
   km = KeyDB(path=_path)
-  with km.open() as cursor:
+  with km.open() as conn:
+    cursor=conn.cursor()
     apply_migrations(cursor)
   notify('last wallet update', time())
   while True:
@@ -96,7 +98,8 @@ def wallet(syncer, config):
         tx.deserialize(message['tx'], rtx=None, skip_verification=True) #skip_verification allows us to not provide rtx
         block_height = message['height']
         last_time_updated = None
-        with km.open() as cursor:
+        with km.open() as conn:
+          cursor=conn.cursor()
           for index in tx.inputs:
             #Note it is not check whether output is unspent or not, we check that output is marked as our and unspent in our wallet
             if km.is_unspent(index, cursor):
@@ -113,19 +116,22 @@ def wallet(syncer, config):
       if message['action']=="process rollback":
         rollback = message['rollback_object']
         block_height = message['block_height']
-        with km.open() as cursor:
+        with km.open() as conn:
+          cursor=conn.cursor()
           km.rollback(block_height, cursor)
         last_time_updated = time()
         notify('last wallet update', last_time_updated)
       if message['action']=="process indexed outputs": #during private key import correspondent outputs will be processed again
         pass
       if message['action']=="give new taddress":
-        with km.disc_txn(write = True) as w_txn:
-          address = km.new_address(w_txn)
+        with km.open() as conn:
+          cursor=conn.cursor()
+          address = km.new_address(cursor)
         response = {"id": message["id"], "result": address.to_text()}
         syncer.queues[message['sender']].put(response)
       if message['action']=="give new address":
-        with km.open() as cursor:
+        with km.open() as conn:
+          cursor=conn.cursor()
           address = km.new_address(cursor)
         response = {"id": message["id"], "result": address.serialize()}
         syncer.queues[message['sender']].put(response)
@@ -133,7 +139,8 @@ def wallet(syncer, config):
         response = {"id": message["id"]}
         try:
           height = get_height()
-          with km.open() as cursor:
+          with km.open() as conn:
+            cursor=conn.cursor()
             stats = km.get_confirmed_balance_stats(height, cursor)
           response["result"] = stats
         except KeyError:
@@ -145,7 +152,8 @@ def wallet(syncer, config):
         response = {"id": message["id"]}
         try:
           height = get_height()
-          with km.open() as cursor:
+          with km.open() as conn:
+            cursor=conn.cursor()
             stats = km.get_confirmed_balance_list(height, cursor)
           response["result"] = stats
         except KeyError:
@@ -157,7 +165,8 @@ def wallet(syncer, config):
         taddress = message["address"]
         a = Address()
         a.from_text(taddress)        
-        with km.open() as cursor:
+        with km.open() as conn:
+            cursor=conn.cursor()
             priv = km.priv_by_address(a, cursor)
         response = {"id": message["id"], "result": priv.private_key}
         syncer.queues[message['sender']].put(response)
@@ -168,7 +177,8 @@ def wallet(syncer, config):
       if message['action']=="give last transactions info":
         response = {"id": message["id"]}
         num = int(message["num"])
-        with km.open() as cursor:
+        with km.open() as conn:
+          cursor=conn.cursor()
           response["result"] = km.give_transactions(num, cursor)
         syncer.queues[message['sender']].put(response) 
         continue
@@ -190,7 +200,8 @@ def wallet(syncer, config):
            response["error"] = str(e)
            syncer.queues[message['sender']].put(response)
            continue
-        with km.open() as cursor:
+        with km.open() as conn:
+          cursor=conn.cursor()
           _list = km.get_confirmed_balance_list(current_height, cursor)
           list_to_spend = []
           summ = 0 

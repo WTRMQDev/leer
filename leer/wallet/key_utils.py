@@ -16,9 +16,9 @@ class Crypter:
     if self.aead:
       if not nonce:
         nonce = urandom(12)
-      return base64.b85encode(nonce+self.aead.seal(nonce, payload, b'')).decode('utf8')
+      return b85encode(nonce+self.aead.seal(nonce, payload, b'')).decode('utf8')
     else:
-      return base64.b85encode(payload).decode('utf8')
+      return b85encode(payload).decode('utf8')
 
   def deterministic_nonce(self, payload):
     return sha256(payload+self.raw_private_key)[:12] if self.password else None
@@ -28,7 +28,7 @@ class Crypter:
     return self.encrypt(payload, nonce=nonce)
 
   def decrypt(self, ciphertext):
-    ciphertext_bytes = base64.b85decode(ciphertext.encode('utf8'))
+    ciphertext_bytes = b85decode(ciphertext.encode('utf8'))
     if self.aead:
       return bytes(self.aead.open(ciphertext_bytes[:12], ciphertext_bytes[12:], b''))
     else:
@@ -58,7 +58,7 @@ def encode_int_array(array):
   return ret
 
 def decode_int_array(encoded_data):
-  len_buf,encoded_data = encoded_data[:2]
+  len_buf,encoded_data = encoded_data[:2], encoded_data[2:]
   l = int.from_bytes(len_buf, "big")
   ret = []
   for i in range(l):
