@@ -38,6 +38,7 @@ class Transaction:
     #inner data
     self._destinations = [] #destinations are unprepared outputs
     self.coinbase = None
+    self.dev_reward = None
     self.new_outputs_fee = None
     self.txid = None
     self.serialized = None
@@ -317,7 +318,7 @@ class Transaction:
             dev_reward_num+=1
             self.dev_reward = output
     assert coinbase_num<2, "More then one coinbase"
-    assert dev_reward<2, "More then one dev reward output"
+    assert dev_reward_num<2, "More then one dev reward output"
 
     for excess in self.additional_excesses:
         assert excess.verify(), "Nonvalid excess"
@@ -512,4 +513,13 @@ class Transaction:
        fee += _output.relay_fee
     return fee
 
-    
+  @property
+  def minted_value(self):
+    minted = 0
+    if self.coinbase:
+      minted+=self.coinbase.value
+    if self.dev_reward:
+      minted+=self.dev_reward.value
+    #We subtract relay fee, since coinbase value contain relay fees, but it isn't new money, but redistribution
+    minted -=self.relay_fee
+    return minted
