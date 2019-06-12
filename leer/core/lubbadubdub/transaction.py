@@ -11,7 +11,7 @@ from leer.core.lubbadubdub.ioput import IOput
 from leer.core.storage.txos_storage import TXOsStorage
 
 
-from leer.core.parameters.constants import coinbase_maturity, output_creation_fee
+from leer.core.parameters.constants import coinbase_maturity, output_creation_fee, dev_reward_maturity
 from leer.core.primitives.transaction_skeleton import TransactionSkeleton
 from leer.core.storage.verification_cache import verification_cache
 from leer.core.lubbadubdub.script import evaluate_scripts, check_burdens, generate_proof_script
@@ -279,8 +279,10 @@ class Transaction:
         #We set coinbase during verification, thus if we scip verification
         #we need to set it manually. TODO (verification should be free from initialisation stuff)
         for output in self.outputs:
-          if output.version==0:
+          if output.is_coinbase:
             self.coinbase = output
+          elif output.is_dev_reward:
+            self.dev_reward = output
         return verification_cache[(self.serialize(), block_height)]
     except KeyError:
       pass
@@ -300,18 +302,22 @@ class Transaction:
     #TODO probably authorized????
     assert len(set([_output.unauthorized_pedersen_commitment.serialize() for _output in self.outputs]))==len(self.outputs), "Duplicated output"
 
-    coinbase_num=0
-    
+    coinbase_num = 0
+    dev_reward_num = 0
     output_apcs = []
 
     for output in self.outputs:
         assert output.verify(), "Nonvalid output"
         _o_index =output.serialized_index
         output_apcs.append(_o_index[:33])
-        if output.version==0:
+        if output.is_coinbase:
             coinbase_num+=1
             self.coinbase = output
+        elif output.is_dev_reward:
+            dev_reward_num+=1
+            self.dev_reward = output
     assert coinbase_num<2, "More then one coinbase"
+    assert dev_reward<2, "More then one dev reward output"
 
     for excess in self.additional_excesses:
         assert excess.verify(), "Nonvalid excess"
@@ -346,7 +352,12 @@ class Transaction:
         additional_excesses_sum = _t.to_pedersen_commitment()
         left_side.append(additional_excesses_sum)
 
-    if coinbase_num:
+    if coinbase_num or dev_reward_num:
+        minted_value = 0
+        if coinbase_num:
+          minted_value += self.coinbase.value
+        if dev_reward_num:
+          minted_value += self.dev_reward.value
         minted_pc = PedersenCommitment(value_generator = default_generator)
         minted_pc.create(self.coinbase.value, b'\x00'*32)
         left_side.append(minted_pc)
@@ -391,6 +402,10 @@ class Transaction:
       assert self.coinbase.lock_height >= block_height + coinbase_maturity,\
              "Wrong coinbase maturity timelock: %d should be %d"%(\
               self.coinbase.lock_height, block_height + coinbase_maturity)
+    if self.dev_reward:
+      assert self.dev_reward.lock_height >= block_height + dev_reward_maturity, \
+             "Wrong dev reward maturity: %d should be %d"%(\
+              self.dev_reward.lock_height, block_height + dev_reward_maturity)
 
     tx_skel = TransactionSkeleton(tx=self)
     assert len(tx_skel.serialize(rich_format=False))<50000, "Too big tx_skeleton"

@@ -4,6 +4,7 @@ import hashlib
 from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof, BulletProof
 
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
+from leer.core.parameters.constants import dev_reward_serialized_pubkey
 from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.utils import encrypt, decrypt
 from leer.core.storage.verification_cache import verification_cache
@@ -133,6 +134,13 @@ class IOput:
   def is_coinbase(self):
     return self.version==0
 
+  @property
+  def is_dev_reward(self):
+    if not (self.version==1 and self.address.serialized_pubkey==dev_reward_serialized_pubkey):
+      return False #Fail fast
+    info=self.info()
+    return info['min_value']==info['max_value']
+
   def deserialize(self, serialized_output):
     """ Decode output from serialized representation. """
     self.serialized = None
@@ -194,8 +202,6 @@ class IOput:
     consumed += ser_rp
 
     info=self.info()
-    if info['min_value']==info['max_value']:
-      self.value=info['min_value']
     self.serialized = consumed
     return serialized
 
@@ -434,6 +440,8 @@ class IOput:
     if self.version in [0,1]:
       #Rangeproof
       a,b,c,d =  self.rangeproof.info()
+      if c==d:
+        self.value=c
       return {'exp':a, 'mantissa':b, 'min_value':c, 'max_value':d}
     if self.version == 2:
       #Bulletproof, no info here
