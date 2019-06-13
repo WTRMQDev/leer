@@ -89,21 +89,29 @@ class PoPoW:
 
 class VoteData:
   # VoteData contains vector for voting (something like https://github.com/bitcoin/bips/blob/master/bip-0009.mediawiki)
-  # This vector is 4 bytes long: 1 byte for hard forks and 3 bytes for soft forks
-  # Also it contains one specific type of voting: voting for miner susbsidy which is planned to be variable (under constraints)
+  # This vector is 3 bytes long: 1 byte for hard forks and 2 bytes for soft forks
+  # Also it contains two specific types of voting:
+  #  voting for miner susbsidy which is variable (under constraints)
+  #  voting for developer reward
+  # DeveloperRewardVote is 1 byte long and represents setting reward from 0 to 100% of maximal dev_reward percentage (3% right now)
   # MinerSubsidyVote is 1 byte long and represents setting reward from 0 to 100% of maximal at this height
 
   # TODO defaults should be set at higher level
-  def __init__(self, forks_vector=b"\x00"*4, miner_subsidy_vote=b"\xff"):
+  def __init__(self, forks_vector=b"\x00"*3, dev_reward_vote=b"\x00", miner_subsidy_vote=b"\xff"):
     self.forks_vector = forks_vector
     self.miner_subsidy_vote = miner_subsidy_vote
+    self.dev_reward_vote = dev_reward_vote
 
   @property
   def miner_subsidy_vote_int(self):
     return int.from_bytes(self.miner_subsidy_vote, "big")
 
+  @property
+  def dev_reward_vote_int(self):
+    return int.from_bytes(self.dev_reward_vote, "big")
+
   def serialize(self):
-    return self.forks_vector+self.miner_subsidy_vote
+    return self.forks_vector + self.dev_reward_vote + self.miner_subsidy_vote
 
   def deserialize(self, serialized):
     self.deserialize_raw(serialized)
@@ -111,7 +119,10 @@ class VoteData:
   def deserialize_raw(self, serialized):
     if len(serialized)<5:
       raise Exception("Not enough bytes for deserialization")
-    self.forks_vector, self.miner_subsidy_vote, serialized = serialized[:4], serialized[4:5], serialized[5:]
+    self.forks_vector, \
+    self.dev_reward_vote, \
+    self.miner_subsidy_vote, \
+    serialized = serialized[:3], serialized[3:4], serialized[4:5], serialized[5:]
     return serialized
 
 
