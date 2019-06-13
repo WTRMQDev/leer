@@ -27,18 +27,25 @@ def next_target(_hash, headers_storage, rtx):
 def next_reward(_hash, headers_storage, rtx):
   span = 1024
   if _hash == b"\x00"*32:# 'prev' of genesis
-    return max_reward(0)
+    return max_reward(0), 0
   if not headers_storage.has(_hash, rtx=rtx):
     raise
   header = headers_storage.get(_hash, rtx=rtx)
   if header.height<=span:
-    return max_reward(header.height+1)
+    return max_reward(header.height+1), 0
   runner = header
-  summ = 0
+  subsidy_summ = 0
+  dev_reward_summ = 0
   for i in range(span):
-    summ += runner.votedata.miner_subsidy_vote_int
+    subsidy_summ += runner.votedata.miner_subsidy_vote_int
+    dev_reward_summ += runner.votedata.dev_reward_vote_int
     runner = headers_storage.get(runner.prev, rtx=rtx)
-  return int(max_reward(header.height+1) * (summ/(255.*span)))
+  subsidy = int(max_reward(header.height+1) * (subsidy_summ/(255.*span)))
+  calc_dev_reward = int( subsidy * dev_reward_maximal_share * dev_reward_summ/(255.*span))
+  if calc_dev_reward<dev_reward_minimum:
+    calc_dev_reward = 0
+  subsidy -= calc_dev_reward
+  return subsidy, calc_dev_reward
 
 def max_reward(height):
   return int(initial_reward * exp(-float(height)/reward_decrease_halflife))

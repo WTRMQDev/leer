@@ -95,7 +95,7 @@ class HeadersManager:
       else:
         try:
           header.coins_to_be_mint = self.storage_space.headers_storage.get(header.prev,rtx=wtx).coins_to_be_mint + \
-                                  next_reward(header.prev, self.storage_space.headers_storage, rtx=wtx) +\
+                                  sum(next_reward(header.prev, self.storage_space.headers_storage, rtx=wtx)) +\
                                   output_creation_fee
         except KeyError:
           ''' If something is wrong with block.height, for instance it is set to 2000, while it is 20 in sequence

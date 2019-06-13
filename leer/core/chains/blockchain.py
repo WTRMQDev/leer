@@ -155,7 +155,7 @@ class Blockchain:
         return False
     '''
     if block.header.height>0:
-      subsidy = next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx)
+      subsidy = sum(next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx))
       if not self.storage_space.headers_storage.get(block.header.prev, rtx=wtx).supply + \
            subsidy - \
            block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:

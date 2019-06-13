@@ -9,6 +9,7 @@ initial_reward = 600*COIN
 reward_decrease_halflife = 2100000 # in blocks
 dev_reward_serialized_pubkey = b'\x03\x92\xaa[7\xc2\x9b\xe6.1%\xc7\x9dD\x0b%\xa0\x05ny\xba\x17\xe85f\xb4\r\xde\xcekn\xaf\x7f'
 dev_reward_minimum = int(0.2*COIN) # if calculated reward is less than dev_reward_minimum it should not be created: dust prevention
+dev_reward_maximal_share = 0.03
 
 output_creation_fee = 22000
 
