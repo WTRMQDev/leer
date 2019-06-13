@@ -105,7 +105,8 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     if self.reuse_last_generated_block and self.last_generated_block and self.last_generated_block[0]==current_tip:
       return self.last_generated_block[1]
     transaction_fees = self.give_tx().relay_fee if self.give_tx() else 0
-    value = next_reward(current_tip, self.storage_space.headers_storage, rtx=wtx)+transaction_fees
+    value, dev_reward = next_reward(current_tip, self.storage_space.headers_storage, rtx=wtx)
+    value+= transaction_fees
     coinbase = IOput()
     coinbase.fill(coinbase_address, value, relay_fee=0, coinbase=True, lock_height=self.storage_space.blockchain.current_height(rtx=wtx) + 1 + coinbase_maturity)
     coinbase.generate()
