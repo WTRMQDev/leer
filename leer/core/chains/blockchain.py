@@ -29,7 +29,6 @@ class Blockchain:
       self.awaited_blocks.pop(block.hash)
     except:
       pass
-
     if not self.storage_space.blocks_storage.is_block_downloaded(block.hash, rtx=wtx, auto_download=True):
       pass
     elif not block.header.prev == self.current_tip(rtx=wtx):
@@ -155,12 +154,17 @@ class Blockchain:
         return False
     '''
     if block.header.height>0:
-      subsidy = sum(next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx))
+      cb_subsidy, dev_reward = next_reward(block.header.prev, self.storage_space.headers_storage, rtx=wtx)
+      subsidy = cb_subsidy + dev_reward
       if not self.storage_space.headers_storage.get(block.header.prev, rtx=wtx).supply + \
            subsidy - \
-           block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True) == block.header.supply:
+           block.transaction_skeleton.calc_new_outputs_fee(is_block_transaction=True, dev_reward=bool(dev_reward)) == block.header.supply:
         return False
-      if not block.tx.coinbase.value == subsidy + block.tx.relay_fee: 
+      if not block.tx.coinbase.value == cb_subsidy + block.tx.relay_fee: 
+        # Note we already check coinbase in non_context_check, but using tx_skeleton info
+        # Since information in tx_skeleton may be forged, this check is not futile
+        return False
+      if dev_reward and (not block.tx.dev_reward.value == dev_reward): 
         # Note we already check coinbase in non_context_check, but using tx_skeleton info
         # Since information in tx_skeleton may be forged, this check is not futile
         return False

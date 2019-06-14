@@ -149,8 +149,8 @@ class TransactionSkeleton:
     #We cannot verify sum to zero by tx_scel, since tx_scel doesn't contain address_excesses
     return True
 
-  def calc_new_outputs_fee(self, is_block_transaction):
-    return ( len(self.output_indexes) - len(self.input_indexes) - int(bool(is_block_transaction)) )*output_creation_fee
+  def calc_new_outputs_fee(self, is_block_transaction, dev_reward):
+    return ( len(self.output_indexes) - len(self.input_indexes) - int(bool(is_block_transaction)) - int(dev_reward))*output_creation_fee
 
   @property
   def relay_fee(self):

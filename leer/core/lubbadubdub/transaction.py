@@ -67,22 +67,33 @@ class Transaction:
     self.serialized = None
     self.coinbase = coinbase_output
 
+  def add_dev_reward_output(self, output):
+    self.serialized = None
+    self.dev_reward = output
+
   def compose_block_transaction(self, rtx, combined_transaction=None):
     self.serialized = None
     if not self.coinbase:
       raise Exception("coinbase output is required")
     cb = self.coinbase
+    dw = self.dev_reward 
     self.__init__(txos_storage = self.txos_storage, excesses_storage = self.excesses_storage) #reset self
     self.outputs = [cb]
+    if dw:
+      self.outputs.append(dw)
     offset_pk = PrivateKey()
     self.mixer_offset = int.from_bytes(offset_pk.private_key, "big")
-    self.additional_excesses = [excess_from_private_key(cb.blinding_key+offset_pk, b"\x01\x00"+cb.serialized_index[:33])]
+    aepk = cb.blinding_key+offset_pk
+    if dw:
+      aepk += dw.blinding_key
+    self.additional_excesses = [excess_from_private_key(aepk, b"\x01\x00"+cb.serialized_index[:33])]
     if combined_transaction:
       new_tx = self.merge(combined_transaction)
       self.inputs = new_tx.inputs
       self.outputs = new_tx.outputs
       self.additional_excesses = new_tx.additional_excesses
       self.updated_excesses = new_tx.updated_excesses
+    self.sort_lists()
     self.verify(rtx=rtx)
 
   def blindly_generate(self, change_address, input_data, relay_fee_per_kb=0):
@@ -160,7 +171,8 @@ class Transaction:
   def calc_new_outputs_fee(self, inputs_num=None, outputs_num=None):
     return ( (outputs_num if outputs_num else len(self.outputs)) -
              (inputs_num if inputs_num else len(self.inputs)) - 
-             (1 if self.coinbase else 0))*output_creation_fee
+             (1 if self.coinbase else 0) - (1 if self.dev_reward else 0) 
+           )*output_creation_fee
 
   def sort_lists(self):
       self.inputs = sorted(self.inputs, key= lambda _input: _input.serialized_apc)
@@ -360,10 +372,9 @@ class Transaction:
         if dev_reward_num:
           minted_value += self.dev_reward.value
         minted_pc = PedersenCommitment(value_generator = default_generator)
-        minted_pc.create(self.coinbase.value, b'\x00'*32)
+        minted_pc.create(minted_value, b'\x00'*32)
         left_side.append(minted_pc)
-     
-     
+
     relay_fee = 0   
     for _output in self.outputs:
       if not _output.version==0:
@@ -372,7 +383,6 @@ class Transaction:
 
     new_outputs_fee = self.calc_new_outputs_fee()
     fee = relay_fee + new_outputs_fee
-
     negative_fee = False
     if fee<0:
       # It's okay, transaction has consumed so many inputs that it is profitable by itself

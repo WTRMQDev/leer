@@ -7,7 +7,7 @@ minimal_target = 2**248
 COIN = 100000000
 initial_reward = 600*COIN
 reward_decrease_halflife = 2100000 # in blocks
-dev_reward_serialized_pubkey = b'\x03\x92\xaa[7\xc2\x9b\xe6.1%\xc7\x9dD\x0b%\xa0\x05ny\xba\x17\xe85f\xb4\r\xde\xcekn\xaf\x7f'
+dev_reward_serialized_address = b'\x01\xd13s^\x80\xe5=\xad\x97P\xd6\x04\x1f\x9aw\x8d2\xb4\x87\x1b\xf6\x95\xfe\x07\xf6\xb3>\x96\xf6\x0e~\xddw\x81I?5\x8d\xe2\x89\xe2d\xd1z\x8b\xfd\xee\x91\xb8\x90\x0b\xeb~/\xd8\xe2\x9d\x96\xeb\xb1\x9b\xa4\x82\x86'
 dev_reward_minimum = int(0.2*COIN) # if calculated reward is less than dev_reward_minimum it should not be created: dust prevention
 dev_reward_maximal_share = 0.03
 

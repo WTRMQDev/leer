@@ -7,7 +7,6 @@ from leer.core.lubbadubdub.address import Address
 from leer.core.lubbadubdub.transaction import Transaction
 from secp256k1_zkp import PrivateKey
 
-
 from uuid import uuid4
 import logging
 import base64

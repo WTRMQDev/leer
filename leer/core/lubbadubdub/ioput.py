@@ -4,10 +4,12 @@ import hashlib
 from secp256k1_zkp import PrivateKey, PedersenCommitment, RangeProof, BulletProof
 
 from leer.core.lubbadubdub.constants import default_generator, default_generator_ser, generators
-from leer.core.parameters.constants import dev_reward_serialized_pubkey
-from leer.core.lubbadubdub.address import Address
+from leer.core.parameters.constants import dev_reward_serialized_address
+from leer.core.lubbadubdub.address import Address, Excess
 from leer.core.lubbadubdub.utils import encrypt, decrypt
 from leer.core.storage.verification_cache import verification_cache
+
+dev_reward_address = Excess.from_serialized(dev_reward_serialized_address)
 
 def is_sorted(lst, key=lambda x: x):
     for i, el in enumerate(lst[1:]):
@@ -136,7 +138,7 @@ class IOput:
 
   @property
   def is_dev_reward(self):
-    if not (self.version==1 and self.address.serialized_pubkey==dev_reward_serialized_pubkey):
+    if not (self.version==1 and self.address.serialize()==dev_reward_address.serialize()):
       return False #Fail fast
     info=self.info()
     return info['min_value']==info['max_value']
