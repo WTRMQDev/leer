@@ -3,9 +3,9 @@ from leer.core.lubbadubdub.transaction import Transaction
 from leer.core.utils import ObliviousDictionary
 from leer.core.primitives.block import generate_block_template, build_tx_from_skeleton
 from leer.core.parameters.dynamic import next_reward
-from leer.core.parameters.constants import coinbase_maturity
+from leer.core.parameters.constants import coinbase_maturity, dev_reward_maturity
 from leer.core.parameters.fee_policy import FeePolicyChecker
-from leer.core.lubbadubdub.ioput import IOput
+from leer.core.lubbadubdub.ioput import IOput, dev_reward_address
 
 class MempoolTx: #Should be renamed to Mempool since it now holds block_template info
   '''
@@ -113,6 +113,13 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.storage_space.txos_storage.mempool[coinbase.serialized_index]=coinbase
     tx=Transaction(txos_storage = self.storage_space.txos_storage, excesses_storage=self.storage_space.excesses_storage)
     tx.add_coinbase(coinbase)
+    if dev_reward>0:
+      dev_reward_output = IOput()
+      dev_reward_output.fill(dev_reward_address, dev_reward, relay_fee=0, coinbase=False, lock_height=self.storage_space.blockchain.current_height(rtx=wtx) + 1 + dev_reward_maturity)
+      dev_reward_output.version = 1
+      dev_reward_output.generate(exp=-1)
+      self.storage_space.txos_storage.mempool[dev_reward_output.serialized_index]=dev_reward_output
+      tx.add_dev_reward_output(dev_reward_output)
     tx.compose_block_transaction(rtx=wtx)
     block = generate_block_template(tx, self.storage_space, wtx=wtx)
     self.add_block_template(block)
