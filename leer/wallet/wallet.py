@@ -170,9 +170,22 @@ def wallet(syncer, config):
         response = {"id": message["id"], "result": priv.private_key}
         syncer.queues[message['sender']].put(response)
       if message['action']=="take private key":
-        #privkey = PrivateKey(message['privkey'], raw=True) 
-        #Can not finish it now: actions sequence in key_manager is too fragile
-        pass
+        response = {"id": message["id"]}
+        rescan = bool(message["rescan"])
+        ser_privkey = message["privkey"]
+        privkey = PrivateKey(ser_privkey, raw=True)
+        with km.open() as conn:
+          cursor=conn.cursor()
+          res = km.add_privkey(privkey, cursor, duplicate_safe=True)
+        if res and not rescan:
+          response["result"]="success"
+        elif rescan:
+          response["result"]="failed"
+          response["error"]="rescan is not implemented"
+        else:
+          response["result"]="failed"
+        syncer.queues[message['sender']].put(response) 
+        continue
       if message['action']=="give last transactions info":
         response = {"id": message["id"]}
         num = int(message["num"])

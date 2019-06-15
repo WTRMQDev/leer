@@ -272,9 +272,6 @@ class RPCManager():
 
   async def importprivkey(self, tprivkey, rescan=True): #TODO DOESN'T WORK
     _id = str(uuid4())
-    exc = ServerError()
-    exc.message = "Not Implemented"
-    raise exc
     privkey = base64.b64decode(tprivkey)
     self.syncer.queues['Wallet'].put({'action':'take private key', 'id':_id,
                                           'privkey':privkey, "rescan": rescan, 'sender': "RPCManager"})
