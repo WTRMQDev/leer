@@ -20,6 +20,8 @@ class KeyDB:
   def __init__(self, path, password=None):
     self.path = path
     self.crypter = Crypter(password)
+    if not os.path.exists(path):
+        os.makedirs(self.path)
     self.open = partial(sqlite3.connect, path+"/wallet.sql.db")
 
   def new_address(self, cursor):
