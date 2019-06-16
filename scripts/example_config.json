@@ -33,7 +33,9 @@
               "relay_fee_per_kb": 3000, # in minimal units (1e-8 leer)
               "generate_fee_per_kb": 3000
              },
-      "wallet" : true, # true/false
+      "wallet" : {
+                 "password":"CHANGE ME"
+                 }, # true/false
       "mining" : {
                    #Allowed conditions
                    #   "connected" - allow mining if number of connected nodes more than 0

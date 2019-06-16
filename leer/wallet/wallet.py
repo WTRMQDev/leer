@@ -76,7 +76,11 @@ def wallet(syncer, config):
 
   message_queue = syncer.queues['Wallet']
   _path = config['location']['wallet']
-  km = KeyDB(path=_path)
+  try:
+    password = config['wallet'].get('password', None)
+  except:
+    password = None
+  km = KeyDB(path=_path, password=password)
   with km.open() as conn:
     cursor=conn.cursor()
     apply_migrations(cursor)
