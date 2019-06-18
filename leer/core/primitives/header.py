@@ -227,7 +227,8 @@ class Header:
 
   @property
   def hash(self):
-    return progpow_hash(self.height, self.template, self.nonce)
+    version = "0.9.2" if self.height<20000 else "0.9.3"
+    return progpow_hash(self.height, self.template, self.nonce, version=version)
 
   @property
   def partial_hash(self):
