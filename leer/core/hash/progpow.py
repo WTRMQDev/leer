@@ -3,8 +3,13 @@ import progpow
 import functools
 
 
-handler = progpow.ProgPowHandler(max_contexts_num=3)
-_progpow_hash = handler.hash
+handlers = {}
+
+def check_handlers(version):
+  if not version in handlers:
+    if not version in ["0.9.2", "0.9.3"]:
+      raise Exception("Unknown hash version")
+    handlers[version] = progpow.ProgPowHandler(max_contexts_num=3, version=version)
 
 @functools.lru_cache(maxsize=256)
 def partial_hash(_bytes):
@@ -14,10 +19,12 @@ def partial_hash(_bytes):
     return m1.digest()
 
 @functools.lru_cache(maxsize=256)
-def progpow_hash(header_height, serialized_header_without_nonce, nonce_bytes):
+def progpow_hash(header_height, serialized_header_without_nonce, nonce_bytes, version="0.9.2"):
+    check_handlers(version)
     ph = partial_hash(serialized_header_without_nonce)
-    return _progpow_hash(header_height, ph, int.from_bytes(nonce_bytes, "big"))
+    return handlers[version].hash(header_height, ph, int.from_bytes(nonce_bytes, "big"))
 
 @functools.lru_cache(maxsize=5)
-def seed_hash(header_height):
-  return handler.give_seed(header_height)
+def seed_hash(header_height, version="0.9.2"):
+  check_handlers(version)
+  return handlers[version].give_seed(header_height)
