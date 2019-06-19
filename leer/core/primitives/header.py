@@ -1,6 +1,7 @@
 import hashlib
 from leer.core.utils import encode_target, decode_target
 from leer.core.hash.progpow import progpow_hash, partial_hash
+from leer.version import NETSTATUS
 
 class PoPoW:
   # We use compact version of PoPoW (https://eprint.iacr.org/2017/963.pdf) here
@@ -227,8 +228,10 @@ class Header:
 
   @property
   def hash(self):
-    version = "0.9.2" if self.height<20000 else "0.9.3"
-    return progpow_hash(self.height, self.template, self.nonce, version=version)
+    if not NETSTATUS=="Testnet4":
+      raise NotImplemented
+    progpow_version = "0.9.2" if self.height<20000 else "0.9.3"
+    return progpow_hash(self.height, self.template, self.nonce, version=progpow_version)
 
   @property
   def partial_hash(self):
