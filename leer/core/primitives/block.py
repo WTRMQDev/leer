@@ -162,7 +162,7 @@ def generate_genesis(tx, storage_space, wtx):
 
 
 
-def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, timestamp = None):
+def generate_block_template(tx, storage_space, wtx, get_tx_from_mempool = True, timestamp = None, dev_reward_vote = b"\x00"):
     '''
         Generate block template: block is correct but nonce (by default) is equal to zero.
         Thus difficulty target (almost always) isn't met.

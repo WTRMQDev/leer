@@ -28,6 +28,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
     self.fee_policy_checker = FeePolicyChecker(fee_policy_config)
     self.reuse_last_generated_block = mining_config.get("reuse_generated_template", True)
     self.last_generated_block = None
+    self.mining_config = mining_config
 
   def update_current_set(self, rtx):
     '''
@@ -121,7 +122,18 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       self.storage_space.txos_storage.mempool[dev_reward_output.serialized_index]=dev_reward_output
       tx.add_dev_reward_output(dev_reward_output)
     tx.compose_block_transaction(rtx=wtx)
-    block = generate_block_template(tx, self.storage_space, wtx=wtx)
+    dev_reward_vote = mining_config.get("dev_reward", 0)    
+    try:
+      if dev_reward_vote<0:
+        dev_reward_vote = 0
+      elif dev_reward_vote>=dev_reward_maximal_share:
+        dev_reward_vote=255
+      else:
+        dev_reward_vote = int(255*dev_reward_vote/dev_reward_maximal_share)
+      dev_vote = dev_reward_vote.to_bytes(1, "big")
+    except:
+      dev_vote=b"\x00"
+    block = generate_block_template(tx, self.storage_space, wtx=wtx, dev_reward_vote=dev_vote)
     self.add_block_template(block)
     self.last_generated_block = (current_tip, block)
     return block
