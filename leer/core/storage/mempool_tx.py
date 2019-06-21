@@ -122,7 +122,7 @@ class MempoolTx: #Should be renamed to Mempool since it now holds block_template
       self.storage_space.txos_storage.mempool[dev_reward_output.serialized_index]=dev_reward_output
       tx.add_dev_reward_output(dev_reward_output)
     tx.compose_block_transaction(rtx=wtx)
-    dev_reward_vote = mining_config.get("dev_reward", 0)    
+    dev_reward_vote = self.mining_config.get("dev_reward", 0)    
     try:
       if dev_reward_vote<0:
         dev_reward_vote = 0
